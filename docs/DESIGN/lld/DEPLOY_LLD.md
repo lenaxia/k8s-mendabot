@@ -47,9 +47,9 @@ metadata:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: remediationjobs.remediation.k8sgpt.ai
+  name: remediationjobs.remediation.mendabot.io
 spec:
-  group: remediation.k8sgpt.ai
+  group: remediation.mendabot.io
   names:
     kind: RemediationJob
     listKind: RemediationJobList
@@ -180,10 +180,10 @@ rules:
 - apiGroups: [""]
   resources: ["namespaces"]
   verbs: ["get", "list"]
-- apiGroups: ["remediation.k8sgpt.ai"]
+- apiGroups: ["remediation.mendabot.io"]
   resources: ["remediationjobs"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-- apiGroups: ["remediation.k8sgpt.ai"]
+- apiGroups: ["remediation.mendabot.io"]
   resources: ["remediationjobs/status"]
   verbs: ["get", "patch", "update"]
 ```
@@ -297,7 +297,7 @@ metadata:
   name: mendabot-agent
   namespace: mendabot
 rules:
-- apiGroups: ["remediation.k8sgpt.ai"]
+- apiGroups: ["remediation.mendabot.io"]
   resources: ["remediationjobs/status"]
   verbs: ["get", "patch"]
 ```
@@ -522,7 +522,7 @@ spec:
   prune: true
   sourceRef:
     kind: GitRepository
-    name: k8sgpt-mendabot   # GitRepository pointing at this repo
+    name: k8s-mendabot   # GitRepository pointing at this repo
   dependsOn:
   - name: k8sgpt-operator          # ensure operator is deployed first
 ```

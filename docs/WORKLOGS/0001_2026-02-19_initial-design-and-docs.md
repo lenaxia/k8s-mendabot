@@ -8,7 +8,7 @@
 
 ## Objective
 
-Establish the complete design documentation for the `k8sgpt-mendabot` project before
+Establish the complete design documentation for the `k8s-mendabot` project before
 writing any implementation code. Produce a repo structure, architectural decisions, and a
 prioritised backlog of user stories ready for TDD-driven implementation.
 
@@ -19,7 +19,7 @@ prioritised backlog of user stories ready for TDD-driven implementation.
 ### 1. Repository scaffolding
 
 - `git init` with `main` as default branch
-- `go.mod` initialised with module path `github.com/lenaxia/k8sgpt-mendabot`
+- `go.mod` initialised with module path `github.com/lenaxia/k8s-mendabot`
 - `go.sum` generated (empty at this point — no imports yet)
 - `README.md` written (user-facing project overview)
 - `README-LLM.md` written (LLM implementation guide with hard rules, worklog format, dev

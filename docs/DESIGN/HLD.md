@@ -150,7 +150,7 @@ state is reconstructed by re-listing existing `RemediationJob` objects.
 
 ### 4.2 RemediationJob CRD
 
-The project's own custom resource. Lives in group `remediation.k8sgpt.ai/v1alpha1`.
+The project's own custom resource. Lives in group `remediation.mendabot.io/v1alpha1`.
 One object per unique finding fingerprint. Tracks the full lifecycle:
 
 | Field | Purpose |
@@ -315,7 +315,7 @@ the extensibility point for sinks in v1. See [PROMPT_LLD.md](lld/PROMPT_LLD.md) 
 
 2. ResultReconciler triggered
       fingerprint = sha256("Pod" + "my-deployment" + sorted(["Back-off..."]))
-      list RemediationJobs with label remediation.k8sgpt.ai/fingerprint=<fp>
+      list RemediationJobs with label remediation.mendabot.io/fingerprint=<fp>
       → none found → create RemediationJob "mendabot-a3f9c2b14d8e"
         spec.fingerprint = "<full 64-char fp>"
         spec.finding.kind = "Pod"
@@ -389,7 +389,7 @@ to avoid divergence — the LLD is the single source of truth for the exact impl
 Deduplication is now performed via the Kubernetes API — no in-memory state:
 
 1. `ResultReconciler` lists `RemediationJob` objects in the `mendabot` namespace with the
-   label `remediation.k8sgpt.ai/fingerprint=<first-12-of-fp>`
+   label `remediation.mendabot.io/fingerprint=<first-12-of-fp>`
 2. If a `RemediationJob` exists and its phase is not `Failed`, skip
 3. If no matching object exists (or the existing one is `Failed`), create a new one
 
@@ -417,7 +417,7 @@ because the list is against the API server, not in-memory state.
 |---|---|---|
 | `results.core.k8sgpt.ai` | `get`, `list`, `watch` | ClusterRole (all namespaces) |
 | `namespaces` | `get`, `list` | ClusterRole |
-| `remediationjobs.remediation.k8sgpt.ai` | `get`, `list`, `watch`, `create`, `update`, `patch`, `delete` | ClusterRole |
+| `remediationjobs.remediation.mendabot.io` | `get`, `list`, `watch`, `create`, `update`, `patch`, `delete` | ClusterRole |
 | `remediationjobs/status` | `get`, `patch`, `update` | ClusterRole |
 | `jobs.batch` | `get`, `list`, `create`, `watch`, `delete` | Role (own namespace only) |
 | `pods` | `get`, `list` | Role (own namespace only) |
@@ -591,7 +591,7 @@ designed to be referenced directly from a Flux `Kustomization` resource in the G
 
 Resources created:
 - `Namespace: mendabot`
-- `CustomResourceDefinition: remediationjobs.remediation.k8sgpt.ai`
+- `CustomResourceDefinition: remediationjobs.remediation.mendabot.io`
 - `ServiceAccount: mendabot-watcher` (in `mendabot` namespace)
 - `ServiceAccount: mendabot-agent` (in `mendabot` namespace)
 - `ClusterRole: mendabot-watcher` (Result + RemediationJob read/write + Namespace read)

@@ -39,7 +39,7 @@ duplication.
   - `RemediationJobList`
   - `DeepCopyObject()` and `DeepCopyInto()` for both `RemediationJob` and `RemediationJobList`
   - `AddToScheme` that registers both `Result`/`ResultList` (from STORY_04 of epic00) and
-    `RemediationJob`/`RemediationJobList` under scheme group `remediation.k8sgpt.ai/v1alpha1`
+    `RemediationJob`/`RemediationJobList` under scheme group `remediation.mendabot.io/v1alpha1`
 
 - [ ] `RemediationJobSpec.SourceType` is a required string field, immutable after creation;
   `K8sGPTSourceProvider` always sets it to `"k8sgpt"`

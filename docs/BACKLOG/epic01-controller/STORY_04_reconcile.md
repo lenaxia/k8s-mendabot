@@ -19,7 +19,7 @@ As a **developer**, I want the `RemediationJobReconciler.Reconcile()` method to 
 
 - [ ] `Reconcile()` fetches the `RemediationJob`; returns nil if NotFound
 - [ ] Returns nil immediately if phase is `Succeeded` or `Failed` (terminal state, no action)
-- [ ] Looks for an owned Job (label `remediation.k8sgpt.ai/remediation-job=rjob.Name`);
+- [ ] Looks for an owned Job (label `remediation.mendabot.io/remediation-job=rjob.Name`);
   if found, syncs phase and returns nil (covered in STORY_05)
 - [ ] Checks `MAX_CONCURRENT_JOBS` — counts active Jobs with label
   `app.kubernetes.io/managed-by=mendabot-watcher`; if at limit, requeues after 30s

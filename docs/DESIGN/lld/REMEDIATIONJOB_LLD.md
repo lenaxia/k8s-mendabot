@@ -47,12 +47,12 @@ across watcher restarts.
 ### 2.1 Group / Version / Kind
 
 ```
-Group:   remediation.k8sgpt.ai
+Group:   remediation.mendabot.io
 Version: v1alpha1
 Kind:    RemediationJob
 ```
 
-The group `remediation.k8sgpt.ai` is chosen to sit adjacent to the existing
+The group `remediation.mendabot.io` is chosen to sit adjacent to the existing
 `core.k8sgpt.ai` group, making upstream contribution natural. If this project is
 eventually contributed to `k8sgpt-ai/k8sgpt-operator`, the group is already correct.
 
@@ -233,7 +233,7 @@ Reconcile(Result):
   1. Fetch Result. If NotFound → delete corresponding RemediationJob (if any). Return nil.
   2. Compute fingerprint.
   3. List RemediationJobs in AgentNamespace with label
-     remediation.k8sgpt.ai/fingerprint=<fingerprint>
+     remediation.mendabot.io/fingerprint=<fingerprint>
      If one exists and its Phase is not Failed → return nil (already handled).
   4. Build RemediationJob spec from Result + watcher config.
   5. client.Create(RemediationJob).
@@ -256,7 +256,7 @@ state. It also no longer enforces `MAX_CONCURRENT_JOBS` — that is enforced by 
 Reconcile(RemediationJob):
   1. Fetch RemediationJob. If NotFound → return nil.
   2. If Phase is Succeeded or Failed → return nil (terminal, nothing to do).
-  3. Look up owned Job by label remediation.k8sgpt.ai/remediation-job=<rjob.Name>.
+  3. Look up owned Job by label remediation.mendabot.io/remediation-job=<rjob.Name>.
      If Job exists:
        a. Sync phase from Job status → update RemediationJob.Status.
        b. Return nil.
@@ -315,7 +315,7 @@ The `batch/v1 Job` is created with an `ownerReference` pointing at the `Remediat
 ```go
 job.OwnerReferences = []metav1.OwnerReference{
     {
-        APIVersion:         "remediation.k8sgpt.ai/v1alpha1",
+        APIVersion:         "remediation.mendabot.io/v1alpha1",
         Kind:               "RemediationJob",
         Name:               rjob.Name,
         UID:                rjob.UID,
@@ -376,10 +376,10 @@ The watcher ClusterRole and Role must be extended:
 
 ```yaml
 # clusterrole-watcher.yaml — add:
-- apiGroups: ["remediation.k8sgpt.ai"]
+- apiGroups: ["remediation.mendabot.io"]
   resources: ["remediationjobs"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-- apiGroups: ["remediation.k8sgpt.ai"]
+- apiGroups: ["remediation.mendabot.io"]
   resources: ["remediationjobs/status"]
   verbs: ["get", "patch", "update"]
 ```
@@ -394,7 +394,7 @@ metadata:
   name: mendabot-agent
   namespace: mendabot
 rules:
-- apiGroups: ["remediation.k8sgpt.ai"]
+- apiGroups: ["remediation.mendabot.io"]
   resources: ["remediationjobs/status"]
   verbs: ["get", "patch"]
 ```

@@ -56,7 +56,7 @@ objects or touching the Kubernetes API.
   - Correct name (`mendabot-agent-<fp[:12]>`)
   - Correct namespace
   - The ownerReference pointing at `rjob`
-  - Label `remediation.k8sgpt.ai/remediation-job=rjob.Name`
+  - Label `remediation.mendabot.io/remediation-job=rjob.Name`
   This allows controller tests to call `fakeJobBuilder.returnJob = defaultFakeJob(rjob)`
   and proceed past the `Build()` call without asserting on the full Job spec.
 

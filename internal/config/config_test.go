@@ -3,7 +3,7 @@ package config_test
 import (
 	"testing"
 
-	"github.com/lenaxia/k8sgpt-mendabot/internal/config"
+	"github.com/lenaxia/k8s-mendabot/internal/config"
 )
 
 func TestFromEnv_AllFieldsPresent(t *testing.T) {

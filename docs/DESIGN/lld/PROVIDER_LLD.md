@@ -216,7 +216,7 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
     //    If nil, nil: skip. Return nil.
     //    If nil, err: return err (requeue).
     // 4. fp = Provider.Fingerprint(finding)
-    // 5. List RemediationJobs with label remediation.k8sgpt.ai/fingerprint=fp[:12]
+    // 5. List RemediationJobs with label remediation.mendabot.io/fingerprint=fp[:12]
     //    Skip if non-Failed match with matching full fingerprint exists.
     // 6. Build and create RemediationJob from finding + fp + provider name.
     //    If AlreadyExists: return nil.

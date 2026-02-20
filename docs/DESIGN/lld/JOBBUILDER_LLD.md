@@ -143,17 +143,17 @@ batchv1.Job{
         Namespace: b.cfg.AgentNamespace,
         Labels: map[string]string{
             "app.kubernetes.io/managed-by":            "mendabot-watcher",
-            "remediation.k8sgpt.ai/fingerprint":       rjob.Spec.Fingerprint[:12],
-            "remediation.k8sgpt.ai/remediation-job":   rjob.Name,
-            "remediation.k8sgpt.ai/finding-kind":      rjob.Spec.Finding.Kind,
+            "remediation.mendabot.io/fingerprint":       rjob.Spec.Fingerprint[:12],
+            "remediation.mendabot.io/remediation-job":   rjob.Name,
+            "remediation.mendabot.io/finding-kind":      rjob.Spec.Finding.Kind,
         },
         Annotations: map[string]string{
-            "remediation.k8sgpt.ai/fingerprint-full":  rjob.Spec.Fingerprint,
-            "remediation.k8sgpt.ai/finding-parent":    rjob.Spec.Finding.ParentObject,
+            "remediation.mendabot.io/fingerprint-full":  rjob.Spec.Fingerprint,
+            "remediation.mendabot.io/finding-parent":    rjob.Spec.Finding.ParentObject,
         },
         OwnerReferences: []metav1.OwnerReference{
             {
-                APIVersion:         "remediation.k8sgpt.ai/v1alpha1",
+                APIVersion:         "remediation.mendabot.io/v1alpha1",
                 Kind:               "RemediationJob",
                 Name:               rjob.Name,
                 UID:                rjob.UID,

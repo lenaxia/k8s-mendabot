@@ -1,4 +1,4 @@
-module github.com/lenaxia/k8sgpt-mendabot
+module github.com/lenaxia/k8s-mendabot
 
 go 1.25.5
 

@@ -1,4 +1,4 @@
-# k8sgpt-mendabot — LLM Implementation Guide
+# k8s-mendabot — LLM Implementation Guide
 
 **Version:** 1.0
 **Last Updated:** 2026-02-19
@@ -23,7 +23,7 @@
 
 ## Project Overview
 
-**k8sgpt-mendabot** watches `Result` CRDs written by the
+**k8s-mendabot** watches `Result` CRDs written by the
 [k8sgpt-operator](https://github.com/k8sgpt-ai/k8sgpt-operator), deduplicates findings by
 parent resource, and spawns a per-finding Kubernetes Job that runs an
 [OpenCode](https://opencode.ai) agent in-cluster. The agent investigates the live cluster
@@ -136,7 +136,7 @@ fits the overall data flow. Never modify code without knowing why.
 ## Repository Structure
 
 ```
-k8sgpt-mendabot/
+k8s-mendabot/
 ├── README.md                          # User-facing README
 ├── README-LLM.md                      # This file
 ├── go.mod

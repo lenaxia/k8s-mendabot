@@ -179,7 +179,7 @@ Reconcile(ctx, req):
   2. fingerprintFor(result.Namespace, result.Spec) → fp
 
   3. List RemediationJobs in cfg.AgentNamespace with label
-     remediation.k8sgpt.ai/fingerprint=fp[:12]
+     remediation.mendabot.io/fingerprint=fp[:12]
      For each match:
        if rjob.Spec.Fingerprint == fp AND rjob.Status.Phase != PhaseFailed:
          return nil  // already handled, not failed
@@ -188,7 +188,7 @@ Reconcile(ctx, req):
       name: "mendabot-" + fp[:12]
       namespace: cfg.AgentNamespace
       labels:
-        remediation.k8sgpt.ai/fingerprint: fp[:12]
+        remediation.mendabot.io/fingerprint: fp[:12]
       annotations:
         opencode.io/fingerprint-full: fp
         opencode.io/result-name: result.Name
@@ -252,7 +252,7 @@ Reconcile(ctx, req):
 
   3. Look up owned Job:
      list Jobs in cfg.AgentNamespace with label
-     remediation.k8sgpt.ai/remediation-job=rjob.Name
+     remediation.mendabot.io/remediation-job=rjob.Name
      If exactly one exists:
        a. syncPhaseFromJob(rjob, job) → patch status if changed
        b. return nil

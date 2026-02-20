@@ -1,4 +1,4 @@
-# k8sgpt-mendabot
+# k8s-mendabot
 
 A Kubernetes controller that watches `Result` CRDs produced by the
 [k8sgpt-operator](https://github.com/k8sgpt-ai/k8sgpt-operator), deduplicates findings by
@@ -36,7 +36,7 @@ k8sgpt-operator → Result CRDs → mendabot-watcher → Job → mendabot-agent 
 
 ```bash
 # Clone this repo
-git clone https://github.com/lenaxia/k8sgpt-mendabot
+git clone https://github.com/lenaxia/k8s-mendabot
 
 # Fill in secret placeholders
 cp deploy/kustomize/secret-github-app.yaml.example deploy/kustomize/secret-github-app.yaml

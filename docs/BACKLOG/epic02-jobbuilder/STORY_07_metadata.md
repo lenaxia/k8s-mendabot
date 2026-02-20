@@ -18,11 +18,11 @@ environment variables.
 ## Acceptance Criteria
 
 - [ ] Labels: `app.kubernetes.io/managed-by: mendabot-watcher`,
-  `remediation.k8sgpt.ai/fingerprint: <first-12>`,
-  `remediation.k8sgpt.ai/remediation-job: <rjob.Name>`,
-  `remediation.k8sgpt.ai/finding-kind: <kind>`
-- [ ] Annotations: `remediation.k8sgpt.ai/fingerprint-full: <full-64>`,
-  `remediation.k8sgpt.ai/finding-parent: <parentObject>`
+  `remediation.mendabot.io/fingerprint: <first-12>`,
+  `remediation.mendabot.io/remediation-job: <rjob.Name>`,
+  `remediation.mendabot.io/finding-kind: <kind>`
+- [ ] Annotations: `remediation.mendabot.io/fingerprint-full: <full-64>`,
+  `remediation.mendabot.io/finding-parent: <parentObject>`
 - [ ] OwnerReference: points at the `RemediationJob` with correct UID, `Controller=true`,
   `BlockOwnerDeletion=true`
 - [ ] Job settings: `BackoffLimit=1`, `ActiveDeadlineSeconds=900`,
