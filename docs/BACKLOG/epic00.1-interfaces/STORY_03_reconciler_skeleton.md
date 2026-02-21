@@ -2,7 +2,7 @@
 
 **Epic:** [Interfaces and Test Infrastructure](README.md)
 **Priority:** Critical
-**Status:** Not Started
+**Status:** Complete
 **Estimated Effort:** 1 hour
 
 ---
@@ -17,7 +17,7 @@ end-to-end before any reconcile logic is written.
 
 ## Acceptance Criteria
 
-- [ ] `internal/provider/k8sgpt/provider.go` defines `K8sGPTProvider` as a plain struct
+- [x] `internal/provider/k8sgpt/provider.go` defines `K8sGPTProvider` as a plain struct
   implementing `domain.SourceProvider` with stub methods that `panic("not implemented")`:
   ```go
   type K8sGPTProvider struct{}
@@ -31,7 +31,7 @@ end-to-end before any reconcile logic is written.
   ```
   Compile-time assertion: `var _ domain.SourceProvider = (*K8sGPTProvider)(nil)`
 
-- [ ] `internal/provider/provider.go` defines `SourceProviderReconciler` with all fields
+- [x] `internal/provider/provider.go` defines `SourceProviderReconciler` with all fields
   from PROVIDER_LLD.md §5, and stub `Reconcile` and `SetupWithManager` methods that
   `panic("not implemented")`:
   ```go
@@ -44,7 +44,7 @@ end-to-end before any reconcile logic is written.
   }
   ```
 
-- [ ] `internal/controller/remediationjob_controller.go` defines `RemediationJobReconciler`
+- [x] `internal/controller/remediationjob_controller.go` defines `RemediationJobReconciler`
   with all fields from CONTROLLER_LLD.md §6.1, and stub methods:
   ```go
   type RemediationJobReconciler struct {
@@ -56,7 +56,7 @@ end-to-end before any reconcile logic is written.
   }
   ```
 
-- [ ] `cmd/watcher/main.go` is updated from its empty stub to the full manager wiring
+- [x] `cmd/watcher/main.go` is updated from its empty stub to the full manager wiring
   from CONTROLLER_LLD.md §7:
   - Scheme registration (clientgo + batchv1 + v1alpha1)
   - `config.FromEnv()` with fatal on error
@@ -68,7 +68,7 @@ end-to-end before any reconcile logic is written.
   - Health probes
   - `mgr.Start(ctrl.SetupSignalHandler())`
 
-- [ ] `go build ./...` compiles cleanly with stubs in place
+- [x] `go build ./...` compiles cleanly with stubs in place
 
 ---
 
@@ -82,15 +82,15 @@ need to change when the reconciler bodies are implemented in epic01.
 
 ## Tasks
 
-- [ ] Verify `internal/domain/provider.go` (created in STORY_01) defines `SourceProvider`,
+- [x] Verify `internal/domain/provider.go` (created in STORY_01) defines `SourceProvider`,
   `Finding`, `SourceRef` exactly as specified in PROVIDER_LLD.md §3
-- [ ] Create `internal/provider/provider.go` with `SourceProviderReconciler` + stub methods
-- [ ] Create `internal/provider/k8sgpt/provider.go` with `K8sGPTProvider` + stub methods
-- [ ] Create `internal/provider/k8sgpt/reconciler.go` as an empty file (no struct — it will
+- [x] Create `internal/provider/provider.go` with `SourceProviderReconciler` + stub methods
+- [x] Create `internal/provider/k8sgpt/provider.go` with `K8sGPTProvider` + stub methods
+- [x] Create `internal/provider/k8sgpt/reconciler.go` as an empty file (no struct — it will
   hold only the `fingerprintFor()` function, added in epic01-controller/STORY_02)
-- [ ] Create `internal/controller/remediationjob_controller.go` with struct + stub methods
-- [ ] Rewrite `cmd/watcher/main.go` with full manager wiring
-- [ ] Verify `go build ./...` compiles
+- [x] Create `internal/controller/remediationjob_controller.go` with struct + stub methods
+- [x] Rewrite `cmd/watcher/main.go` with full manager wiring
+- [x] Verify `go build ./...` compiles
 
 ---
 
@@ -106,6 +106,6 @@ need to change when the reconciler bodies are implemented in epic01.
 
 ## Definition of Done
 
-- [ ] `go build ./...` clean
-- [ ] `go vet ./...` clean
-- [ ] `main.go` contains full manager wiring with provider loop, not just `func main() {}`
+- [x] `go build ./...` clean
+- [x] `go vet ./...` clean
+- [x] `main.go` contains full manager wiring with provider loop, not just `func main() {}`
