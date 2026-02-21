@@ -130,7 +130,7 @@ RUN curl -fsSL "https://github.com/FiloSottile/age/releases/download/v${AGE_VERS
 RUN curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.${TARGETARCH}" \
       -o /usr/local/bin/sops \
     && curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.checksums.txt" \
-      | grep "sops-v${SOPS_VERSION}.linux.${TARGETARCH} " \
+      | grep "sops-v${SOPS_VERSION}.linux.${TARGETARCH}$" \
       | awk '{print $1 "  /usr/local/bin/sops"}' | sha256sum --check \
     && chmod +x /usr/local/bin/sops
 
