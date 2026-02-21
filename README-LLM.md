@@ -15,9 +15,10 @@
 5. [Technology Stack](#technology-stack)
 6. [Worklog Requirements](#worklog-requirements)
 7. [Development Workflow](#development-workflow)
-8. [Common Commands](#common-commands)
-9. [Branch Management](#branch-management)
-10. [Testing Requirements](#testing-requirements)
+8. [Multi-Agent Workflow](#multi-agent-workflow)
+9. [Common Commands](#common-commands)
+10. [Branch Management](#branch-management)
+11. [Testing Requirements](#testing-requirements)
 
 ---
 
@@ -508,6 +509,326 @@ Update this table every time a new worklog is added.
 
 ---
 
+## Multi-Agent Workflow
+
+This section defines two agent roles and their workflows for collaborative or multi-step development.
+
+**IMPORTANT:** These workflows are MANDATORY when working on epics, user stories, or complex multi-step tasks.
+
+---
+
+### Agent Role 1: Orchestrator Agent
+
+**Purpose:** Coordinate multiple delegations to complete epics, stories, or complex multi-step tasks.
+
+**When to use:**
+- Working on epic-level features
+- User story implementation requiring multiple sub-tasks
+- Complex refactoring or architectural changes
+- Coordinating work across multiple code areas
+
+#### Orchestrator responsibilities
+
+1. **Context distribution** — Ensure all delegations have access to critical documentation
+2. **Scope definition** — Define clear boundaries, ownership, and integration points
+3. **Quality enforcement** — Validate work meets standards through code review and testing
+4. **Gap detection** — Identify and resolve integration gaps between sub-tasks
+5. **Integration validation** — Ensure all components work together end-to-end
+6. **Testing coordination** — Run comprehensive builds and tests across the entire repository
+7. **Worklog management** — Create completion worklogs documenting the entire epic/story
+
+#### Orchestrator workflow (11-step process)
+
+Follow this workflow for all epic/story implementation tasks:
+
+```
+1. Context Setup
+   └─> Delegate: "Read README-LLM.md, HLD, relevant LLDs, backlog story"
+   └─> Include: Design constraints, architectural patterns, integration points
+   └─> Define: Clear scope, ownership boundaries, expected deliverables
+
+2. Implementation Delegation
+   └─> Delegate: User story implementation with TDD requirements
+   └─> Prompt detail level: "Fresh developer seeing codebase for first time"
+   └─> Include: Specific file references, pattern examples, testing requirements
+
+3. Code Review Delegation
+   └─> Delegate: Skeptical code reviewer to validate implementation
+   └─> Focus: Integration points, test coverage, gap detection, code quality
+   └─> Requirement: Only code + tests count as proof of work (NOT status updates)
+   └─> Output: Detailed gap report with code references and fix recommendations
+
+4. Gap Remediation
+   └─> Delegate: Fix ALL gaps identified in review (no matter how minor)
+   └─> Include: Specific gap descriptions, code locations, fix strategies
+   └─> Validate: Each fix with targeted tests
+
+5. Iterative Validation
+   └─> Repeat Steps 2–4 until ZERO gaps remain
+   └─> Acceptance Criteria: "Story complete in spirit AND letter"
+   └─> No compromises: All integration points validated, all tests passing
+
+6. Build and Test Validation
+   └─> Run ALL builds and tests, fix ANY failures
+   └─> Commands:
+       - go build ./...      # ALL packages must build
+       - go test -timeout 30s -race ./...   # ALL tests must pass
+   └─> NO TECH DEBT: Fix all failures regardless of relevance to current work
+   └─> Zero tolerance: No pre-existing failures acceptable
+
+7. Commit and Push
+   └─> git add .
+   └─> git commit -m "Descriptive message referencing story/epic"
+   └─> git push origin HEAD
+
+8. Worklog Creation
+   └─> Create worklog in docs/WORKLOGS/ (see Worklog Requirements section)
+   └─> Content: Summary, implementation details, test results, next steps
+   └─> Commit worklog with code changes
+
+9. Move to Next Story
+   └─> Validate no implementation gaps between previous and current story
+   └─> Common pitfall: Previous story built/tested but never wired into main code
+   └─> If story file missing: Write it first before implementing
+   └─> Repeat workflow from Step 1
+
+10. Integration Gap Check
+    └─> CRITICAL: Validate integration between stories
+    └─> Ask: "Was previous story's code actually integrated into main codebase?"
+    └─> Check: Import statements, registration calls, initialization code
+    └─> Test: End-to-end flow through new and existing code paths
+
+11. Final Validation
+    └─> Run full repository test suite one final time
+    └─> Confirm all backlog story checklists updated
+    └─> Confirm worklog index updated
+```
+
+#### Orchestrator delegation guidelines
+
+**Prompt quality standards:**
+- Detail level: "Instructions for a developer seeing the codebase for the first time"
+- Specificity: Include exact file paths, function names, pattern references
+- Context: Provide architectural context, design decisions, trade-offs
+- Boundaries: Clear scope limits, what is in/out of scope, integration points
+- Examples: Reference similar implementations and established patterns
+
+**Delegation prompt template:**
+
+```
+CONTEXT:
+- Primary doc: README-LLM.md (your bible)
+- Epic/Story: [Reference to docs/BACKLOG/epic-XX/]
+- Design docs: [List all relevant HLD/LLD documents]
+- Design constraints: [Architectural patterns, TDD, type safety, etc.]
+
+SCOPE:
+- Objective: [Clear, specific goal]
+- Boundaries: [What is included, what is excluded]
+- Integration points: [How this connects to existing code]
+- Ownership: [Which files/packages this delegation owns]
+
+REQUIREMENTS:
+- MUST read README-LLM.md
+- MUST read HLD.md and the relevant LLDs
+- MUST follow TDD (tests first)
+- MUST use established patterns
+- MUST validate integration points
+- MUST create worklog
+
+DELIVERABLES:
+1. [Specific deliverable 1 with acceptance criteria]
+2. [Specific deliverable 2 with acceptance criteria]
+
+SUCCESS CRITERIA:
+- All tests passing (go test -timeout 30s -race ./...)
+- All builds successful (go build ./...)
+- Integration points validated
+- Code follows established patterns
+- Worklog created
+```
+
+#### Orchestrator principles
+
+**Respect other agents:**
+- Multiple agents may work simultaneously in the same repository
+- NEVER perform indiscriminate destructive git operations (`git checkout .`, `git clean -fd`)
+- Define clear ownership boundaries to avoid conflicts
+
+**Thoroughness:**
+- Proof of work = code + tests, NOT status updates
+- Integration points MUST be identified and updated
+- Sufficient end-to-end and integration tests for happy/unhappy paths
+- NO gaps acceptable, no matter how minor
+
+**Quality gates:**
+- Code review before merge
+- ALL tests passing before next story
+- ALL builds successful before next story
+- Worklog created before task closure
+
+**Proper fixes only:**
+- ALWAYS use the proper fix
+- NEVER use workarounds, hacks, or shortcuts
+
+---
+
+### Agent Role 2: Delegation Agent
+
+**Purpose:** Execute specific, well-scoped tasks as part of a larger epic or story.
+
+**When to use:**
+- Implementing a specific package or component
+- Writing tests for a component
+- Code review of another agent's work
+- Fixing a specific bug or gap
+- Integrating a component into the main codebase
+
+#### Delegation agent responsibilities
+
+1. **Context acquisition** — Read ALL assigned documentation (README-LLM.md, HLD, relevant LLDs, backlog story)
+2. **Scope adherence** — Stay within defined boundaries; ask orchestrator if unclear
+3. **Pattern following** — Use established patterns; check similar implementations
+4. **TDD compliance** — Write tests FIRST, ensure they fail, then implement
+5. **Integration awareness** — Identify and document integration points
+6. **Quality standards** — Follow type safety, error handling, logging standards
+7. **Worklog creation** — Document work performed if completing a task
+
+#### Delegation agent workflow
+
+**Standard implementation task:**
+
+```
+1. Read Required Documentation
+   - README-LLM.md (MANDATORY — your bible)
+   - Epic/story from docs/BACKLOG/
+   - HLD.md and all relevant LLDs
+   - Relevant design documents
+
+2. Understand Context
+   - Review delegation prompt carefully
+   - Identify scope boundaries
+   - Note integration points
+   - Check similar implementations
+
+3. Plan Implementation
+   - Break down into sub-tasks
+   - Identify test scenarios (happy + unhappy paths)
+   - Note which patterns to follow
+   - Identify dependencies
+
+4. Write Tests FIRST (TDD)
+   - Unit tests (happy paths)
+   - Unit tests (unhappy paths)
+   - Integration tests where applicable
+   - Tests MUST fail initially
+
+5. Implement
+   - Follow established patterns
+   - Use strongly-typed structs (never map[string]interface{})
+   - Handle errors explicitly
+   - Follow idiomatic Go
+
+6. Validate
+   - All tests pass
+   - Code builds (go build ./...)
+   - Integration points work
+   - Follow-up questions documented
+
+7. Create Worklog (if task complete)
+   - Document what was done
+   - Include test results
+   - Note any issues or follow-up
+   - See Worklog Requirements section
+
+8. Report Back to Orchestrator
+   - Clear completion status
+   - Any gaps or uncertainties
+   - Integration point validation status
+   - Recommendations for next steps
+```
+
+**Code review task:**
+
+```
+1. Read Code with Skeptical Mindset
+   - Assume nothing works until proven
+   - Check every integration point
+   - Verify test coverage (happy + unhappy)
+   - Look for edge cases
+
+2. Validate Against Standards
+   - README-LLM.md rules followed?
+   - TDD practised (tests first)?
+   - Type safety maintained?
+   - Patterns followed correctly?
+   - Error handling comprehensive?
+
+3. Integration Point Analysis
+   - Are ALL integration points identified?
+   - Are they properly tested?
+   - Do end-to-end flows work?
+   - Are there hidden dependencies?
+
+4. Gap Identification
+   - Document EVERY gap (no matter how minor)
+   - Provide code references for each gap
+   - Explain WHY it is a gap
+   - Recommend HOW to fix it
+
+5. Report Generation
+   - Clear gap descriptions
+   - Severity assessment
+   - Fix recommendations with code examples
+   - NO APPROVAL until all gaps fixed
+```
+
+#### Delegation agent principles
+
+**Read first, ask later:**
+- ALWAYS read README-LLM.md before ANY work
+- ALWAYS read the epic/story README
+- ALWAYS read ALL referenced HLD/LLD documents
+- If information exists in docs, do not ask the orchestrator
+
+**Follow patterns:**
+- Check similar implementations in the codebase
+- Use established patterns (controller-runtime reconcilers, strongly-typed CRD types, etc.)
+- Do not invent new patterns without approval
+- Consistency is critical
+
+**Test-driven development:**
+- Tests BEFORE code, always
+- Tests must fail initially
+- Happy AND unhappy paths
+- Integration tests where applicable
+
+**Quality standards:**
+- Type safety (structs, not maps)
+- Explicit error handling (never ignore errors)
+- No TODOs or placeholders
+- Complete implementations only
+
+**Communication:**
+- Report completion clearly
+- Document gaps/uncertainties
+- Ask questions when scope is unclear
+- Provide recommendations for next steps
+
+---
+
+### Common failure modes
+
+| Role | Failure Mode | Consequence |
+|------|-------------|-------------|
+| Orchestrator | Insufficient detail in delegation prompts | Delegation confusion, pattern violations |
+| Orchestrator | Skipping integration validation | Code works in isolation but fails together |
+| Delegation | Not reading README-LLM.md | Pattern violations, rule violations |
+| Delegation | Scope creep | Conflicts with other agents, boundary violations |
+| Both | No worklog | Lost context, incomplete task tracking |
+
+---
+
 ## Common Commands
 
 ```bash
@@ -629,4 +950,5 @@ go test ./...
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.1 | 2026-02-20 | Added Multi-Agent Workflow section (Orchestrator + Delegation Agent) |
 | 1.0 | 2026-02-19 | Initial creation |

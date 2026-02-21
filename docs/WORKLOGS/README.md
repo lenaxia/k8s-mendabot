@@ -22,3 +22,4 @@ else.
 |---|------|-------------|--------|
 | [0001](0001_2026-02-19_initial-design-and-docs.md) | 2026-02-19 | Initial design, HLD, LLDs, backlog | Complete |
 | [0002](0002_2026-02-19_design-review-fixes.md) | 2026-02-19 | Skeptical design review + remediation of all 37 findings | Complete |
+| [0003](0003_2026-02-20_epic00-foundation-complete.md) | 2026-02-20 | Epic 00 foundation complete — CRD types, config, logging, main.go wiring | Complete |

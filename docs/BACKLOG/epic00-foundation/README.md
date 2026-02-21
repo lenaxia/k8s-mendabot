@@ -5,7 +5,7 @@
 Establish the Go module, directory structure, typed configuration, logging setup, and
 CI skeleton so all subsequent epics have a solid base to build on.
 
-## Status: In Progress
+## Status: Complete
 
 ## Dependencies
 
@@ -29,9 +29,9 @@ All other epics.
 | Story | File | Status |
 |-------|------|--------|
 | Go module and directory structure | [STORY_01_module_setup.md](STORY_01_module_setup.md) | Complete |
-| Typed configuration | [STORY_02_config.md](STORY_02_config.md) | Not Started |
-| Structured logging | [STORY_03_logging.md](STORY_03_logging.md) | Not Started |
-| Vendored CRD types | [STORY_04_crd_types.md](STORY_04_crd_types.md) | Not Started |
+| Typed configuration | [STORY_02_config.md](STORY_02_config.md) | Complete |
+| Structured logging | [STORY_03_logging.md](STORY_03_logging.md) | Complete |
+| Vendored CRD types | [STORY_04_crd_types.md](STORY_04_crd_types.md) | Complete |
 
 ## Technical Overview
 
