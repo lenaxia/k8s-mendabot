@@ -30,7 +30,7 @@ GitHub without storing long-lived credentials.
 
 ## Tasks
 
-- [ ] Write `docker/scripts/get-github-app-token.sh` following JOBBUILDER_LLD.md §5 spec
+- [ ] Write `docker/scripts/get-github-app-token.sh` following **AGENT_IMAGE_LLD.md §4** spec
 - [ ] Test locally with a real GitHub App (or mock with a stub API)
 - [ ] Add `COPY` and `chmod` to Dockerfile
 - [ ] Verify script is callable in built image

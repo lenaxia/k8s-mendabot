@@ -104,20 +104,25 @@ All of this complexity is deferred. The v1 prompt already handles the one sink w
 
 ---
 
-## 4. Future Sink Configuration
+## 4. SinkType Field on RemediationJob (v1)
 
-Post-v1, `RemediationJobSpec` would gain a `sinkType` field analogous to `sourceType`:
+`RemediationJobSpec` already includes `sinkType` in v1. This is not a post-v1 addition:
 
 ```go
 type RemediationJobSpec struct {
     // ...existing fields...
     SourceType string `json:"sourceType"` // "k8sgpt"
-    SinkType   string `json:"sinkType"`   // "github-pr" (default), "jira", "slack"
+    SinkType   string `json:"sinkType"`   // "github" (default in v1)
 }
 ```
 
-The `RemediationJobReconciler` would select the correct sink-specific Job template
-or entrypoint arguments based on `SinkType`.
+The `RemediationJobReconciler` passes `SinkType` to the job builder, which injects it as the
+`SINK_TYPE` env var into the agent Job. The agent entrypoint uses this to select the
+appropriate sink behaviour. In v1 the only valid value is `"github"`.
+
+Post-v1, additional `SinkType` values (e.g. `"gitlab"`, `"jira"`) would be added alongside
+new agent entrypoint branches and prompt variants. The field and injection plumbing already
+exist — only the agent-side implementation would be new.
 
 ---
 

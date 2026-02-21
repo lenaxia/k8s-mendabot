@@ -23,14 +23,18 @@ unit testing without real Kubernetes objects or external signal sources.
       Build(rjob *v1alpha1.RemediationJob) (*batchv1.Job, error)
   }
   ```
-- [ ] `internal/provider/interface.go` defines:
+- [ ] `internal/domain/provider.go` defines `SourceProvider` with the full four-method
+  interface from PROVIDER_LLD.md §3:
   ```go
-  // SourceProvider is implemented by each signal source (k8sgpt, Prometheus, etc.)
-  // Each provider registers its own reconciler(s) with the manager at startup.
   type SourceProvider interface {
-      SetupWithManager(mgr ctrl.Manager) error
+      ProviderName() string
+      ObjectType() client.Object
+      ExtractFinding(obj client.Object) (*Finding, error)
+      Fingerprint(f *Finding) string
   }
   ```
+  (This file is created in STORY_01; this story verifies it is correct and the interface
+  is used consistently throughout the codebase.)
 - [ ] The `JobBuilder` interface is the only thing the `RemediationJobReconciler` imports
   from the job builder package — the reconciler never references `jobbuilder.Builder` directly
 - [ ] The concrete `*jobbuilder.Builder` satisfies `domain.JobBuilder` (verified by a
@@ -38,10 +42,10 @@ unit testing without real Kubernetes objects or external signal sources.
   ```go
   var _ domain.JobBuilder = (*Builder)(nil)
   ```
-- [ ] `K8sGPTSourceProvider` satisfies `provider.SourceProvider` (verified by a
+- [ ] `K8sGPTProvider` satisfies `domain.SourceProvider` (verified by a
   compile-time assertion in `internal/provider/k8sgpt/provider.go`):
   ```go
-  var _ provider.SourceProvider = (*K8sGPTSourceProvider)(nil)
+  var _ domain.SourceProvider = (*K8sGPTProvider)(nil)
   ```
 - [ ] No functional logic is added in this story — interface definitions only
 
@@ -50,8 +54,9 @@ unit testing without real Kubernetes objects or external signal sources.
 ## Tasks
 
 - [ ] Add `JobBuilder` interface to `internal/domain/interfaces.go`
-- [ ] Create `internal/provider/interface.go` with `SourceProvider` interface
-- [ ] Add compile-time assertion comments/TODOs in `internal/jobbuilder/` and
+- [ ] Verify `internal/domain/provider.go` (from STORY_01) has the correct 4-method
+  `SourceProvider` interface matching PROVIDER_LLD.md §3
+- [ ] Add compile-time assertion TODOs in `internal/jobbuilder/` and
   `internal/provider/k8sgpt/` for when those packages are created
 - [ ] Write compile-level test in `internal/domain/interfaces_test.go` that references
   both interfaces by name (ensures they stay importable)
@@ -71,4 +76,4 @@ unit testing without real Kubernetes objects or external signal sources.
 - [ ] `go build ./...` clean
 - [ ] `go vet ./...` clean
 - [ ] `JobBuilder` interface lives in `internal/domain`, not in `internal/controller` or `internal/jobbuilder`
-- [ ] `SourceProvider` interface lives in `internal/provider`, not in `internal/provider/k8sgpt`
+- [ ] `SourceProvider` interface lives in `internal/domain`, not in `internal/provider` or `internal/provider/k8sgpt`

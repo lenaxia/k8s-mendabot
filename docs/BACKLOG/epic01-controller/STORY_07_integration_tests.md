@@ -29,8 +29,10 @@ requiring a live cluster.
 ## Tasks
 
 - [ ] Add `sigs.k8s.io/controller-runtime/pkg/envtest` to `go.mod`
-- [ ] Write `TestMain` with envtest setup/teardown in `internal/provider/k8sgpt/suite_test.go`
-- [ ] Write `TestMain` with envtest setup/teardown in `internal/controller/suite_test.go`
+- [ ] Verify/extend `internal/provider/k8sgpt/suite_test.go` created in epic00.1-interfaces/STORY_04
+  (do not recreate `TestMain` — it already exists; add integration tests to that package)
+- [ ] Verify/extend `internal/controller/suite_test.go` created in epic00.1-interfaces/STORY_04
+  (same pattern — extend, don't replace)
 - [ ] Add `KUBEBUILDER_ASSETS` env var setup to `test.yaml` CI workflow
 
 ---

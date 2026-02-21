@@ -1,7 +1,7 @@
 # High-Level Design
 
 **Version:** 1.3
-**Date:** 2026-02-19
+**Date:** 2026-02-20
 **Status:** Authoritative Specification
 
 ---
@@ -14,6 +14,7 @@
 | 1.1 | 2026-02-19 | Design review fixes: init image, token path, FINDING_NAMESPACE, fingerprint, AGENT_NAMESPACE constraint, config table, RBAC, data flow | LLM / Human |
 | 1.2 | 2026-02-20 | Operator pattern: introduce RemediationJob CRD, split controller into ResultReconciler + RemediationJobReconciler, replace in-memory map with CRD state | LLM / Human |
 | 1.3 | 2026-02-20 | Provider/plugin pattern: SourceProvider interface, SinkProvider concept, ResultReconciler moves to internal/provider/k8sgpt/, sourceType field on RemediationJob | LLM / Human |
+| 1.4 | 2026-02-20 | Unify reconciler types: eliminate ResultReconciler; SourceProviderReconciler is the sole ctrl.Reconciler for source watching; reconciler.go holds only fingerprintFor() | LLM / Human |
 
 ---
 
@@ -69,7 +70,6 @@ containing a proposed fix, with the investigation and reasoning documented inlin
 - Remediating cluster state directly (no `kubectl apply` from the agent)
 - Replacing the k8sgpt-operator (this project depends on it)
 - Supporting GitOps repos other than Flux + Kustomize/Helm (out of v1 scope)
-- Persisting deduplication state across watcher restarts (acceptable limitation in v1)
 
 ---
 
@@ -88,9 +88,9 @@ containing a proposed fix, with the investigation and reasoning documented inlin
 │                                  │  mendabot-watcher             │  │
 │                                  │  (Deployment, 1 replica)      │  │
 │                                  │                               │  │
-│                                  │  K8sGPTSourceProvider         │  │
+│                                  │  K8sGPTProvider               │  │
 │                                  │  (internal/provider/k8sgpt/)  │  │
-│                                  │  - ResultReconciler           │  │
+│                                  │  + SourceProviderReconciler   │  │
 │                                  │  - watches Result CRDs        │  │
 │                                  │  - creates RemediationJob     │  │
 │                                  │                               │  │
@@ -130,11 +130,12 @@ containing a proposed fix, with the investigation and reasoning documented inlin
 A single-binary Go controller built on `controller-runtime`. It runs as a single-replica
 Deployment in the `mendabot` namespace. It contains:
 
-**K8sGPTSourceProvider** (`internal/provider/k8sgpt/`) — the v1 source provider:
-- Owns a `ResultReconciler` that watches `results.core.k8sgpt.ai` across all namespaces
-- Computes the parent-resource fingerprint of each Result
-- Creates a `RemediationJob` CRD per unique fingerprint, setting `spec.sourceType: "k8sgpt"`
-- Delegates all Job creation and status tracking to the RemediationJobReconciler
+**K8sGPTProvider** (`internal/provider/k8sgpt/`) — the v1 source provider:
+- A plain struct implementing `domain.SourceProvider`
+- `ExtractFinding()` reads a `Result` CRD and returns a normalised `Finding`
+- `Fingerprint()` computes SHA256 over namespace + kind + parentObject + sorted error texts
+- Setting `spec.sourceType: "k8sgpt"` is handled by `SourceProviderReconciler`
+- Wrapped by `SourceProviderReconciler` which creates `RemediationJob` CRDs
 
 **RemediationJobReconciler** (`internal/controller/`) — provider-agnostic sink for all
 `RemediationJob` objects regardless of which source created them:
@@ -210,30 +211,44 @@ signal types can be added without touching the core reconciliation logic.
 
 ### 5.2 SourceProvider Interface
 
-A `SourceProvider` is responsible for:
-1. Watching an external signal source (e.g. k8sgpt `Result` CRDs, Prometheus alerts)
-2. Translating each signal into a `RemediationJob` object and creating it via the
-   Kubernetes API
+A `SourceProvider` is responsible for watching an external signal source and translating
+each signal into a normalised `Finding`. The generic `SourceProviderReconciler` owns the
+`RemediationJob` creation logic — the provider only supplies the domain translation.
 
-The interface is defined in `internal/provider/`:
+The interface is defined in `internal/domain/`:
 
 ```go
-// internal/provider/interface.go
+// internal/domain/provider.go
 type SourceProvider interface {
-    // SetupWithManager registers the provider's controller(s) with the manager.
-    // Called once at startup from main.go.
-    SetupWithManager(mgr ctrl.Manager) error
+    // ProviderName returns a stable, lowercase identifier used as
+    // RemediationJobSpec.SourceType (e.g. "k8sgpt", "prometheus").
+    ProviderName() string
+
+    // ObjectType returns a pointer to the runtime.Object type this provider watches.
+    // Used by SourceProviderReconciler to register the correct informer.
+    ObjectType() client.Object
+
+    // ExtractFinding converts a watched object into a Finding.
+    // Returns (nil, nil) if the object should be skipped (e.g. no errors present).
+    // Returns (nil, err) for transient errors that should trigger a requeue.
+    ExtractFinding(obj client.Object) (*Finding, error)
+
+    // Fingerprint computes the deduplication key for the given Finding.
+    // Must be deterministic: same logical finding always produces the same fingerprint.
+    Fingerprint(f *Finding) string
 }
 ```
 
-This is deliberately minimal. Each provider owns its own reconciler and registers it
-with the manager. The `RemediationJob` CRD is the single handoff point.
+`SourceProviderReconciler` (in `internal/provider/`) is a generic controller-runtime
+reconciler that wraps any `SourceProvider`. It handles fetch, skip-if-not-found,
+`ExtractFinding`, `Fingerprint`, dedup-by-CRD, and `RemediationJob` creation.
+The `RemediationJob` CRD is the single handoff point to the sink side.
 
 ### 5.3 Built-in Providers (v1)
 
 | Provider | Package | Signal source | Status |
 |---|---|---|---|
-| `K8sGPTSourceProvider` | `internal/provider/k8sgpt/` | `results.core.k8sgpt.ai` CRDs | v1 |
+| `K8sGPTProvider` | `internal/provider/k8sgpt/` | `results.core.k8sgpt.ai` CRDs | v1 |
 
 Future providers (post-v1, tracked as separate epics):
 - `PrometheusSourceProvider` — alert rules firing in Alertmanager
@@ -243,52 +258,67 @@ Future providers (post-v1, tracked as separate epics):
 
 ```
 internal/
+├── domain/
+│   ├── interfaces.go   # JobBuilder interface
+│   └── provider.go     # SourceProvider interface + Finding + SourceRef types
+│
 ├── provider/
-│   ├── interface.go               # SourceProvider interface
+│   ├── provider.go     # SourceProviderReconciler (generic, wraps any SourceProvider)
 │   └── k8sgpt/
-│       ├── provider.go            # K8sGPTSourceProvider struct + SetupWithManager
-│       ├── reconciler.go          # ResultReconciler (watches Result CRDs)
+│       ├── provider.go        # K8sGPTProvider — implements SourceProvider (plain struct)
+│       ├── provider_test.go
+│       ├── reconciler.go      # fingerprintFor() package-level function (no struct)
 │       └── reconciler_test.go
+│
+└── controller/
+    ├── remediationjob_controller.go   # RemediationJobReconciler
+    └── remediationjob_controller_test.go
 ```
 
-The `ResultReconciler` moves from `internal/controller/` to
-`internal/provider/k8sgpt/`. It is no longer a "controller" in the generic sense —
-it is the k8sgpt source provider's implementation detail.
-
-`internal/controller/` retains only the `RemediationJobReconciler`, which is
-provider-agnostic and handles all `RemediationJob` objects regardless of source.
+`K8sGPTProvider` is a plain struct — it does not own a reconciler and has no
+`SetupWithManager`. The generic `SourceProviderReconciler` wraps it and registers
+the informer. `internal/controller/` contains only the `RemediationJobReconciler`,
+which is provider-agnostic.
 
 ### 5.5 Provider Registration in main.go
 
 ```go
 // cmd/watcher/main.go (provider registration block)
-providers := []provider.SourceProvider{
-    k8sgpt.NewProvider(cfg, logger),
+enabledProviders := []domain.SourceProvider{
+    &k8sgpt.K8sGPTProvider{},
 }
-for _, p := range providers {
-    if err := p.SetupWithManager(mgr); err != nil {
+for _, p := range enabledProviders {
+    if err := (&provider.SourceProviderReconciler{
+        Client:   mgr.GetClient(),
+        Scheme:   mgr.GetScheme(),
+        Log:      logger,
+        Cfg:      cfg,
+        Provider: p,
+    }).SetupWithManager(mgr); err != nil {
         log.Fatal("provider setup failed", zap.Error(err))
     }
 }
 ```
 
 This makes the set of active providers explicit and auditable at startup. Adding a
-new provider requires one line here and nothing else in `main.go`.
+new provider requires implementing `domain.SourceProvider` and adding one entry to
+`enabledProviders` — nothing else in `main.go` changes.
 
-### 5.6 sourceType Field on RemediationJob
+### 5.6 sourceType and sinkType Fields on RemediationJob
 
-`RemediationJob.Spec` gains a `sourceType` field that records which provider created
-the object. This is informational only (does not affect reconciliation) but aids
-debugging and future filtering.
+`RemediationJob.Spec` has two routing fields:
 
 ```go
 type RemediationJobSpec struct {
     // ...existing fields...
-    SourceType string `json:"sourceType"` // e.g. "k8sgpt", "prometheus"
+    SourceType string `json:"sourceType"` // e.g. "k8sgpt", "prometheus" — set by provider
+    SinkType   string `json:"sinkType"`   // e.g. "github" — default "github" in v1
 }
 ```
 
-The `K8sGPTSourceProvider` always sets `SourceType: "k8sgpt"`.
+`SourceType` is set to `SourceProvider.ProviderName()` by `SourceProviderReconciler`
+at `RemediationJob` creation time. `SinkType` defaults to `"github"` (read from
+`Config.SinkType`). Both are immutable after creation.
 
 ### 5.7 SinkProvider Concept (Prompt Layer)
 
@@ -313,7 +343,7 @@ the extensibility point for sinks in v1. See [PROMPT_LLD.md](lld/PROMPT_LLD.md) 
       result.spec.error[]      = [{text: "Back-off restarting failed container"}]
       result.spec.details      = "<LLM explanation>"
 
-2. ResultReconciler triggered
+2. SourceProviderReconciler (K8sGPTProvider) triggered
       fingerprint = sha256("Pod" + "my-deployment" + sorted(["Back-off..."]))
       list RemediationJobs with label remediation.mendabot.io/fingerprint=<fp>
       → none found → create RemediationJob "mendabot-a3f9c2b14d8e"
@@ -388,9 +418,10 @@ to avoid divergence — the LLD is the single source of truth for the exact impl
 
 Deduplication is now performed via the Kubernetes API — no in-memory state:
 
-1. `ResultReconciler` lists `RemediationJob` objects in the `mendabot` namespace with the
+1. `SourceProviderReconciler` lists `RemediationJob` objects in the `mendabot` namespace with the
    label `remediation.mendabot.io/fingerprint=<first-12-of-fp>`
-2. If a `RemediationJob` exists and its phase is not `Failed`, skip
+2. If a `RemediationJob` exists with `spec.fingerprint == fp` (full match) and its phase is
+   not `Failed`, skip
 3. If no matching object exists (or the existing one is `Failed`), create a new one
 
 This is safe across restarts: the `RemediationJob` objects persist in etcd.
@@ -403,7 +434,7 @@ This is safe across restarts: the `RemediationJob` objects persist in etcd.
 
 ### Watcher restart safety
 
-On restart, all Result CRDs re-reconcile. The `ResultReconciler` lists existing
+On restart, all Result CRDs re-reconcile. The `SourceProviderReconciler` lists existing
 `RemediationJob` objects and skips any with a non-Failed phase. No race condition exists
 because the list is against the API server, not in-memory state.
 
@@ -480,7 +511,7 @@ main container
 The OpenCode agent receives the finding context via environment variables and a rendered
 prompt. The prompt instructs OpenCode to follow this investigation sequence:
 
-1. **Search for existing PRs** — `gh pr list --search "fix/k8sgpt-<fingerprint>"`. If found,
+1. **Check for existing PRs** — `gh pr list --repo <GITOPS_REPO> --state open --json number,headRefName --jq ".[] | select(.headRefName == \"fix/k8sgpt-<fingerprint>\") | .number"`. If found,
    add a comment and exit. Do not create a duplicate.
 
 2. **Inspect the specific resource** — `kubectl describe <kind> <name> -n <namespace>`
@@ -532,8 +563,8 @@ prompt. The prompt instructs OpenCode to follow this investigation sequence:
 
 | Failure | Behaviour |
 |---|---|
-| RemediationJob creation fails | ResultReconciler returns error, controller-runtime requeues |
-| RemediationJob already exists | ResultReconciler skips (dedup by fingerprint label) |
+| RemediationJob creation fails | SourceProviderReconciler returns error, controller-runtime requeues |
+| RemediationJob already exists | SourceProviderReconciler skips (dedup by fingerprint label) |
 | Job creation fails (API error) | RemediationJobReconciler returns error, requeues with backoff |
 | Job already exists | RemediationJobReconciler re-fetches, syncs status, moves on |
 | Agent exceeds 15 min deadline | Job killed → RemediationJob.status.phase = Failed |
@@ -541,7 +572,7 @@ prompt. The prompt instructs OpenCode to follow this investigation sequence:
 | OpenCode finds no fix | Agent opens investigation-report PR; exits 0; phase = Succeeded |
 | GitHub token exchange fails | Init container exits non-zero → Job Failed → phase = Failed |
 | GitOps repo clone fails | Init container exits non-zero → same as above |
-| Watcher restarts | RemediationJob CRDs survive; ResultReconciler skips non-Failed ones |
+| Watcher restarts | RemediationJob CRDs survive; SourceProviderReconciler skips non-Failed ones |
 | Status patch (prRef) fails | Logged; agent exits 0 anyway; PR still exists on GitHub |
 
 ---
@@ -557,8 +588,10 @@ prompt. The prompt instructs OpenCode to follow this investigation sequence:
 | `AGENT_IMAGE` | Yes | Full image ref for the agent, e.g. `ghcr.io/lenaxia/mendabot-agent:latest` |
 | `AGENT_NAMESPACE` | Yes | Namespace where agent Jobs are created — **must equal the watcher's own namespace** |
 | `AGENT_SA` | Yes | ServiceAccount name for agent Jobs |
+| `SINK_TYPE` | No | Sink implementation for the agent to use, default `"github"` |
 | `LOG_LEVEL` | No | `debug`, `info` (default), `warn`, `error` |
 | `MAX_CONCURRENT_JOBS` | No | Max agent Jobs running at once, default `3` — enforced by counting Jobs with `app.kubernetes.io/managed-by: mendabot-watcher` label |
+| `REMEDIATION_JOB_TTL_SECONDS` | No | Seconds after which a Succeeded `RemediationJob` is deleted, default `604800` (7 days) |
 
 ### Agent Job environment variables (injected by watcher)
 
@@ -626,7 +659,7 @@ Once v1 is stable and battle-tested:
 
 **In scope:**
 - Watcher controller watching all namespaces
-- In-memory deduplication by parent fingerprint
+- CRD-based deduplication by parent fingerprint via `RemediationJob` objects
 - One agent Job per unique finding
 - Debian-slim agent image with opencode + kubectl + k8sgpt + helm + flux + gh
 - GitHub App authentication
@@ -635,7 +668,7 @@ Once v1 is stable and battle-tested:
 - Full test coverage for watcher (TDD)
 
 **Out of scope for v1:**
-- Persistent deduplication state (Redis, ConfigMap)
+- External deduplication state stores (Redis, external databases)
 - Auto-merging PRs
 - Slack/webhook notifications
 - Supporting non-Flux GitOps patterns

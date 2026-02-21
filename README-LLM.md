@@ -33,7 +33,7 @@ and the GitOps repository, then opens a pull request with a proposed fix.
 - One PR per unique finding, deduplicated by parent resource + error fingerprint
 - Strictly read-only cluster access for the investigation agent
 - No direct commits to the GitOps repo's default branch — PRs only
-- In-memory deduplication (no external state store)
+- CRD-based deduplication state via `RemediationJob` objects (survives restarts, no external store)
 - Self-contained Kubernetes deployment via Kustomize, compatible with Flux GitOps
 
 **Two deliverables:**
@@ -45,7 +45,7 @@ and the GitOps repository, then opens a pull request with a proposed fix.
 
 **Primary source documents:**
 - [`docs/DESIGN/HLD.md`](docs/DESIGN/HLD.md) — Authoritative specification
-- [`docs/DESIGN/lld/`](docs/DESIGN/lld/) — Low-level designs (5 modules)
+- [`docs/DESIGN/lld/`](docs/DESIGN/lld/) — Low-level designs (9 LLDs)
 - [`docs/BACKLOG/`](docs/BACKLOG/) — Epics and user stories
 - [`docs/WORKLOGS/`](docs/WORKLOGS/) — Session worklogs
 
@@ -144,24 +144,42 @@ k8s-mendabot/
 │
 ├── api/
 │   └── v1alpha1/
-│       └── result_types.go            # k8sgpt-operator CRD types (vendored subset)
+│       ├── result_types.go            # Vendored k8sgpt Result + Failure + Sensitive types
+│       └── remediationjob_types.go    # RemediationJob CRD types + deep copy + AddToScheme
 │
 ├── cmd/
 │   └── watcher/
-│       └── main.go                    # Controller entrypoint
+│       └── main.go                    # Scheme registration, provider loop, manager start
 │
 ├── internal/
+│   ├── config/
+│   │   ├── config.go                  # Config struct + FromEnv()
+│   │   └── config_test.go
+│   ├── domain/
+│   │   ├── interfaces.go              # JobBuilder interface
+│   │   └── provider.go                # SourceProvider interface + Finding + SourceRef types
+│   ├── provider/
+│   │   ├── provider.go                # SourceProviderReconciler (generic, wraps any SourceProvider)
+│   │   └── k8sgpt/
+│   │       ├── provider.go            # K8sGPTProvider — implements SourceProvider
+│   │       ├── provider_test.go
+│   │       ├── reconciler.go          # ResultReconciler (concrete ctrl.Reconciler, internal detail)
+│   │       └── reconciler_test.go
 │   ├── controller/
-│   │   ├── result_controller.go       # Reconcile loop for Result CRDs
-│   │   └── result_controller_test.go
-│   └── jobbuilder/
-│       ├── job.go                     # Builds Job spec from a Result
-│       └── job_test.go
+│   │   ├── remediationjob_controller.go
+│   │   ├── remediationjob_controller_test.go
+│   │   └── suite_test.go              # envtest bootstrap
+│   ├── jobbuilder/
+│   │   ├── job.go                     # Builder struct + Build() method
+│   │   └── job_test.go
+│   └── logging/
+│       └── logging.go                 # Zap logger construction
 │
 ├── deploy/
 │   └── kustomize/
 │       ├── kustomization.yaml
 │       ├── namespace.yaml
+│       ├── crd-remediationjob.yaml
 │       ├── serviceaccount-watcher.yaml
 │       ├── serviceaccount-agent.yaml
 │       ├── clusterrole-watcher.yaml
@@ -170,6 +188,8 @@ k8s-mendabot/
 │       ├── clusterrolebinding-agent.yaml
 │       ├── role-watcher.yaml
 │       ├── rolebinding-watcher.yaml
+│       ├── role-agent.yaml
+│       ├── rolebinding-agent.yaml
 │       ├── configmap-prompt.yaml
 │       ├── secret-github-app.yaml     # Placeholder — fill manually, never commit real values
 │       ├── secret-llm.yaml            # Placeholder — fill manually, never commit real values
@@ -177,8 +197,10 @@ k8s-mendabot/
 │
 ├── docker/
 │   ├── Dockerfile.agent               # debian-slim + opencode + kubectl + k8sgpt + helm + flux + gh
+│   ├── Dockerfile.watcher             # multi-stage Go build → debian-slim runtime
 │   └── scripts/
-│       └── get-github-app-token.sh    # Exchanges GitHub App private key for installation token
+│       ├── get-github-app-token.sh    # Exchanges GitHub App private key for installation token
+│       └── agent-entrypoint.sh        # envsubst prompt + opencode run --file
 │
 ├── docs/
 │   ├── README.md
@@ -187,12 +209,17 @@ k8s-mendabot/
 │   │   └── lld/
 │   │       ├── CONTROLLER_LLD.md
 │   │       ├── JOBBUILDER_LLD.md
+│   │       ├── REMEDIATIONJOB_LLD.md
+│   │       ├── PROVIDER_LLD.md
+│   │       ├── SINK_PROVIDER_LLD.md
 │   │       ├── AGENT_IMAGE_LLD.md
+│   │       ├── WATCHER_IMAGE_LLD.md
 │   │       ├── DEPLOY_LLD.md
 │   │       └── PROMPT_LLD.md
 │   ├── BACKLOG/
 │   │   ├── README.md
 │   │   ├── epic00-foundation/
+│   │   ├── epic00.1-interfaces/
 │   │   ├── epic01-controller/
 │   │   ├── epic02-jobbuilder/
 │   │   ├── epic03-agent-image/
@@ -232,12 +259,23 @@ k8s-mendabot/
 │                                  │  mendabot-watcher             │  │
 │                                  │  (Deployment)                 │  │
 │                                  │                               │  │
-│                                  │  - informer on Result CRDs    │  │
-│                                  │  - in-memory dedup by         │  │
-│                                  │    parent fingerprint         │  │
-│                                  │  - creates one Job per        │  │
-│                                  │    unique fingerprint         │  │
+│                                  │  SourceProviderReconciler     │  │
+│                                  │  + K8sGPTProvider             │  │
+│                                  │  - watches Result CRDs        │  │
+│                                  │  - creates RemediationJob CRDs│  │
+│                                  │                               │  │
+│                                  │  RemediationJobReconciler     │  │
+│                                  │  - watches RemediationJob CRDs│  │
+│                                  │  - creates batch/v1 Jobs      │  │
+│                                  │  - syncs Job status back      │  │
 │                                  └──────────────┬───────────────┘  │
+│                                                 │ creates           │
+│                              ┌──────────────────▼──────────────┐   │
+│                              │  RemediationJob CRDs            │   │
+│                              │  (remediation.mendabot.io)      │   │
+│                              │  - durable dedup state          │   │
+│                              │  - survives watcher restarts    │   │
+│                              └──────────────────┬──────────────┘   │
 │                                                 │ creates           │
 │                                  ┌──────────────▼───────────────┐  │
 │                                  │  mendabot-agent Job           │  │
@@ -260,7 +298,8 @@ k8s-mendabot/
 
 ### Deduplication logic
 
-The watcher holds an in-memory map keyed by a **parent-resource fingerprint**:
+Deduplication is performed via the Kubernetes API using `RemediationJob` CRDs as durable
+state, keyed by a **parent-resource fingerprint**:
 
 ```
 fingerprint = sha256( namespace + kind + parentObject + sorted(error[].text) )
@@ -270,10 +309,9 @@ Using `parentObject` (e.g. the owning Deployment) rather than the individual res
 means repeated pod restarts from the same bad Deployment produce one investigation, not one
 per pod. If the error set changes materially (hash changes), a new investigation is triggered.
 
-State is intentionally not persisted. On watcher restart, Result CRDs will re-trigger
-reconciliation. Duplicate PR detection is delegated to the OpenCode agent (via `gh pr list`
-search), so reprocessing is safe — it just results in a comment on the existing PR rather
-than a new one.
+State is stored in `RemediationJob` objects in etcd — it survives watcher restarts. On
+restart, Result CRDs re-reconcile; the `SourceProviderReconciler` lists existing `RemediationJob`
+objects and skips any with a non-Failed phase. No in-memory map is used.
 
 ### Job lifecycle
 
@@ -298,7 +336,7 @@ container for git clone and `gh` operations.
 
 | Component | Technology | Reason |
 |---|---|---|
-| Controller language | Go 1.24 | Type-safe, matches k8sgpt ecosystem |
+| Controller language | Go 1.23 | Type-safe, matches k8sgpt ecosystem |
 | Controller framework | controller-runtime v0.19.3 | Standard Kubernetes controller pattern |
 | Logging | go.uber.org/zap | Structured logging, matches k8sgpt |
 | Agent base image | debian:bookworm-slim | Stable, rich apt ecosystem |
@@ -307,7 +345,7 @@ container for git clone and `gh` operations.
 | helm | Official release binary | GitOps repo uses Helm releases |
 | flux | Official release binary | GitOps repo uses Flux |
 | gh | GitHub CLI | PR creation, search, and commenting |
-| opencode | Official install script | AI agent driver |
+| opencode | Pinned GitHub release binary (not install script) | AI agent driver |
 | Manifests | Kustomize | Matches talos-ops-prod GitOps pattern |
 | Image registry | ghcr.io | Free, integrated with GitHub Actions |
 

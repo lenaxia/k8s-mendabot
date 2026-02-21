@@ -24,9 +24,12 @@ watcher binary is runnable end-to-end.
 - [ ] `RemediationJobReconciler` instantiated with config, logger, and jobbuilder, and
   registered via `SetupWithManager`
 - [ ] Provider loop registers all source providers:
-  `[]provider.SourceProvider{k8sgpt.NewProvider(cfg, logger)}`
+  `[]domain.SourceProvider{&k8sgpt.K8sGPTProvider{}}` wrapped by `SourceProviderReconciler`
 - [ ] `mgr.Start(ctrl.SetupSignalHandler())` called — blocks until signal received
 - [ ] `log.Fatal` on any setup error (fail fast, never silently start degraded)
+- [ ] Binary responds to `--version` flag by printing the version string and exiting 0
+  (controller-runtime does not add this automatically — `main()` must check `os.Args`
+  for `"--version"`, print `Version`, and call `os.Exit(0)`)
 
 ---
 

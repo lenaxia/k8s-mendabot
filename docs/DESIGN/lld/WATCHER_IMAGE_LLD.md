@@ -114,7 +114,8 @@ The binary lives at `cmd/watcher/main.go`. Its `main()` function:
 
 1. Parses environment variables (no flags — configuration is entirely via env)
 2. Creates a `controller-runtime` manager
-3. Registers the `ResultReconciler`
+3. Registers the `RemediationJobReconciler` and one `SourceProviderReconciler` per
+   enabled provider (v1: `K8sGPTProvider`)
 4. Starts the manager (blocking; handles SIGTERM gracefully)
 
 The binary exposes two HTTP endpoints on separate ports:
@@ -160,8 +161,11 @@ extra toolchain is required in the builder stage.
 After each image build, a smoke test step in CI runs:
 
 ```bash
-# Binary is present and executable
-docker run --rm ghcr.io/lenaxia/mendabot-watcher:<tag> watcher --version
+# Binary is present and executable; --version flag must be implemented in main()
+# (controller-runtime does not add --version automatically — main() must check
+# os.Args for "--version", print the Version variable, and os.Exit(0)).
+# Note: ENTRYPOINT is /usr/local/bin/watcher, so --version is passed as CMD arg.
+docker run --rm ghcr.io/lenaxia/mendabot-watcher:<tag> --version
 
 # Binary exits cleanly without a cluster (expect a non-zero exit from the controller
 # failing to connect, but the binary itself must start and print startup logs)
@@ -194,6 +198,16 @@ securityContext:
   readOnlyRootFilesystem: true
   capabilities:
     drop: ["ALL"]
+```
+
+The Pod-level security context additionally sets:
+
+```yaml
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  seccompProfile:
+    type: RuntimeDefault
 ```
 
 The watcher binary must not write to the container filesystem at runtime. All

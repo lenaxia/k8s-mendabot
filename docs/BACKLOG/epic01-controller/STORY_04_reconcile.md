@@ -18,9 +18,13 @@ As a **developer**, I want the `RemediationJobReconciler.Reconcile()` method to 
 ## Acceptance Criteria
 
 - [ ] `Reconcile()` fetches the `RemediationJob`; returns nil if NotFound
-- [ ] Returns nil immediately if phase is `Succeeded` or `Failed` (terminal state, no action)
+- [ ] If phase is `Succeeded`: applies TTL check per CONTROLLER_LLD.md §6.2 step 2 —
+  if `CompletedAt + RemediationJobTTL <= now` deletes the object and returns nil;
+  if TTL is not yet due returns `ctrl.Result{RequeueAfter: time.Until(deadline)}, nil`;
+  if `CompletedAt` is not yet set returns nil (will be set when Job syncs)
+- [ ] If phase is `Failed`: returns nil immediately (terminal, retained indefinitely, no TTL)
 - [ ] Looks for an owned Job (label `remediation.mendabot.io/remediation-job=rjob.Name`);
-  if found, syncs phase and returns nil (covered in STORY_05)
+  if found, syncs phase via `syncPhaseFromJob` (defined in CONTROLLER_LLD.md §6.3) and returns nil
 - [ ] Checks `MAX_CONCURRENT_JOBS` — counts active Jobs with label
   `app.kubernetes.io/managed-by=mendabot-watcher`; if at limit, requeues after 30s
 - [ ] Calls `jobBuilder.Build(rjob)` to produce the Job spec
@@ -59,8 +63,8 @@ As a **developer**, I want the `RemediationJobReconciler.Reconcile()` method to 
 
 ## Dependencies
 
-**Depends on:** STORY_03 (RemediationJob creation by ResultReconciler), STORY_05_fakes (fakeJobBuilder)
-**Blocks:** STORY_05 (status sync), STORY_07 (integration tests)
+**Depends on:** STORY_03 (RemediationJob creation by SourceProviderReconciler), epic00.1-interfaces/STORY_05 (fakeJobBuilder)
+**Blocks:** STORY_05 (error-filter predicate), STORY_07 (integration tests)
 
 ---
 

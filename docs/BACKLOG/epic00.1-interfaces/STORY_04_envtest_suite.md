@@ -84,7 +84,9 @@ Ginkgo/Gomega — the rest of the test suite uses plain `testing` and table-driv
 
 **Depends on:** STORY_01 (RemediationJob types — suite uses `v1alpha1.RemediationJobList`)
 **Depends on:** STORY_03 (provider + reconciler skeletons — suites start them)
-**Depends on:** epic04-deploy/CRD manifest (testdata CRD is sourced from there)
+**Depends on:** DEPLOY_LLD.md §2.1 (hand-write the CRD YAML from the schema defined there
+  — do not wait for epic04; the CRD manifest is committed under `testdata/crds/` as part
+  of this story)
 **Blocks:** epic01-controller/STORY_07 (integration tests)
 
 ---

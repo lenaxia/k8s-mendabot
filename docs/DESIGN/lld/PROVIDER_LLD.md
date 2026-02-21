@@ -1,9 +1,9 @@
 # Domain: Provider Interfaces — Low-Level Design
 
-**Version:** 1.0
+**Version:** 1.1
 **Date:** 2026-02-20
 **Status:** Authoritative Specification
-**HLD Reference:** [Section 4](../HLD.md)
+**HLD Reference:** [Section 5](../HLD.md)
 
 ---
 
@@ -54,7 +54,9 @@ internal/
     ├── provider.go         # SourceProviderReconciler: wraps any SourceProvider as a ctrl.Reconciler
     ├── k8sgpt/
     │   ├── provider.go     # K8sGPTProvider — implements SourceProvider for Result CRDs
-    │   └── provider_test.go
+    │   ├── provider_test.go
+    │   ├── reconciler.go      # fingerprintFor() package-level function (no struct)
+    │   └── reconciler_test.go # fingerprintFor unit tests + envtest integration tests
     └── github/
         ├── config.go       # GitHubSinkConfig (env vars, prompt template path)
         └── README.md       # Documents the GitHub sink: prompt conventions, gh CLI usage
@@ -235,13 +237,15 @@ func (r *SourceProviderReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 ```go
 for _, p := range enabledProviders {
-    (&provider.SourceProviderReconciler{
+    if err := (&provider.SourceProviderReconciler{
         Client:   mgr.GetClient(),
         Scheme:   mgr.GetScheme(),
         Log:      logger,
         Cfg:      cfg,
         Provider: p,
-    }).SetupWithManager(mgr)
+    }).SetupWithManager(mgr); err != nil {
+        log.Fatal("provider setup failed", zap.Error(err))
+    }
 }
 ```
 
@@ -260,7 +264,7 @@ The v1 implementation of `SourceProvider`.
 // K8sGPTProvider watches k8sgpt Result CRDs and extracts Findings from them.
 type K8sGPTProvider struct{}
 
-func (p *K8sGPTProvider) ProviderName() string { return "k8sgpt" }
+func (p *K8sGPTProvider) ProviderName() string { return v1alpha1.SourceTypeK8sGPT }
 
 func (p *K8sGPTProvider) ObjectType() client.Object { return &v1alpha1.Result{} }
 
@@ -300,9 +304,37 @@ func (p *K8sGPTProvider) ExtractFinding(obj client.Object) (*domain.Finding, err
 }
 
 func (p *K8sGPTProvider) Fingerprint(f *domain.Finding) string {
-    // Same algorithm as before: namespace + kind + parentObject + sorted(error texts)
-    // Error texts are parsed back from the JSON string for sorting.
-    // See full implementation in CONTROLLER_LLD.md §4.
+    // Re-parse error texts from the pre-serialised JSON string in f.Errors so they
+    // can be sorted before hashing. This mirrors fingerprintFor() in CONTROLLER_LLD §4
+    // which operates on the original []Failure slice — both produce identical output
+    // because f.Errors is produced by the same serialisation (redacted Failure structs).
+    var failures []struct {
+        Text string `json:"text"`
+    }
+    _ = json.Unmarshal([]byte(f.Errors), &failures) // empty slice on error → still deterministic
+
+    texts := make([]string, 0, len(failures))
+    for _, fv := range failures {
+        texts = append(texts, fv.Text)
+    }
+    sort.Strings(texts)
+
+    payload := struct {
+        Namespace    string   `json:"namespace"`
+        Kind         string   `json:"kind"`
+        ParentObject string   `json:"parentObject"`
+        ErrorTexts   []string `json:"errorTexts"`
+    }{
+        Namespace:    f.Namespace,
+        Kind:         f.Kind,
+        ParentObject: f.ParentObject,
+        ErrorTexts:   texts,
+    }
+    b, err := json.Marshal(payload)
+    if err != nil {
+        panic(fmt.Sprintf("K8sGPTProvider.Fingerprint: json.Marshal failed: %v", err))
+    }
+    return fmt.Sprintf("%x", sha256.Sum256(b))
 }
 ```
 
@@ -348,17 +380,33 @@ the filtering is provider-specific and belongs in the provider.
 
 ### Unit tests (`internal/provider/k8sgpt/`)
 
-| Test | Description |
-|---|---|
-| `TestK8sGPTProvider_ProviderName` | Returns "k8sgpt" |
-| `TestK8sGPTProvider_ExtractFinding_NoErrors` | Returns nil, nil |
-| `TestK8sGPTProvider_ExtractFinding_WithErrors` | Returns populated Finding |
-| `TestK8sGPTProvider_ExtractFinding_SensitiveRedacted` | Sensitive fields absent from Finding.Errors |
-| `TestK8sGPTProvider_ExtractFinding_WrongType` | Non-Result object returns error |
-| `TestK8sGPTProvider_Fingerprint_Deterministic` | Same Finding → same fingerprint |
-| `TestK8sGPTProvider_Fingerprint_ErrorOrderIndependent` | Reversed errors → same fingerprint |
+These tests live in `provider_test.go` and `reconciler_test.go`.
+
+| Test | File | Description |
+|---|---|---|
+| `TestK8sGPTProvider_ProviderName` | provider_test.go | Returns "k8sgpt" |
+| `TestK8sGPTProvider_ExtractFinding_NoErrors` | provider_test.go | Returns nil, nil |
+| `TestK8sGPTProvider_ExtractFinding_WithErrors` | provider_test.go | Returns populated Finding |
+| `TestK8sGPTProvider_ExtractFinding_SensitiveRedacted` | provider_test.go | Sensitive fields absent from Finding.Errors |
+| `TestK8sGPTProvider_ExtractFinding_WrongType` | provider_test.go | Non-Result object returns error |
+| `TestFingerprintFor_Deterministic` | reconciler_test.go | Same ResultSpec input twice → same output |
+| `TestFingerprintFor_ErrorOrderIndependent` | reconciler_test.go | Reversed errors → same fingerprint |
+| `TestFingerprintFor_SameParentDifferentPods` | reconciler_test.go | Same namespace/parent/errors → same fingerprint |
+| `TestFingerprintFor_DifferentErrors` | reconciler_test.go | Different error texts → different fingerprint |
+| `TestFingerprintFor_DifferentParents` | reconciler_test.go | Same errors, different parent → different fingerprint |
+| `TestFingerprintFor_DifferentNamespaces` | reconciler_test.go | Same parent/errors, different namespace → different fingerprint |
+| `TestFingerprintFor_EmptyErrors` | reconciler_test.go | nil vs empty slice → same fingerprint |
+| `TestFingerprintEquivalence` | reconciler_test.go | Cross-function equivalence: `fingerprintFor` and `K8sGPTProvider.Fingerprint` must produce identical output for the same logical finding. Table-driven; **must include a case with `<`, `>`, and `&` in error text** to guard against json.Marshal HTML-escaping divergence. Steps: (1) build a `*v1alpha1.Result`, (2) call `fingerprintFor(result.Namespace, result.Spec)`, (3) call `provider.ExtractFinding(result)` to get a `*domain.Finding`, (4) call `provider.Fingerprint(finding)`, (5) assert both outputs are equal. |
+
+Note: `fingerprintFor()` (standalone function in `reconciler.go`) and `K8sGPTProvider.Fingerprint()`
+(method in `provider.go`) implement the same algorithm at different abstraction levels.
+`fingerprintFor` operates on `v1alpha1.ResultSpec`; `Fingerprint()` operates on `*domain.Finding`
+by re-parsing the pre-serialised `Finding.Errors` JSON. Both must produce identical output for
+the same logical finding. See CONTROLLER_LLD.md §4 and PROVIDER_LLD.md §6.
 
 ### Unit tests (`internal/provider/`)
+
+These tests live in `internal/provider/provider_test.go`.
 
 | Test | Description |
 |---|---|

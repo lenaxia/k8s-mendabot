@@ -17,19 +17,6 @@ duplication.
 
 ## Acceptance Criteria
 
-- [ ] `internal/domain/types.go` defines `JobBuilderConfig`:
-  ```go
-  type JobBuilderConfig struct {
-      GitOpsRepo         string
-      GitOpsManifestRoot string
-      AgentImage         string
-      AgentNamespace     string
-      AgentSA            string
-  }
-  ```
-  The job builder must not depend on the full `config.Config` struct — it receives only
-  the fields it needs via this type.
-
 - [ ] `api/v1alpha1/remediationjob_types.go` defines all types from REMEDIATIONJOB_LLD.md §2:
   - `RemediationJobSpec`, `ResultRef`, `FindingSpec`
   - `SourceType` constant(s): `SourceTypeK8sGPT = "k8sgpt"`
@@ -38,11 +25,20 @@ duplication.
   - `RemediationJob` (with kubebuilder markers)
   - `RemediationJobList`
   - `DeepCopyObject()` and `DeepCopyInto()` for both `RemediationJob` and `RemediationJobList`
-  - `AddToScheme` that registers both `Result`/`ResultList` (from STORY_04 of epic00) and
-    `RemediationJob`/`RemediationJobList` under scheme group `remediation.mendabot.io/v1alpha1`
+  - One `AddToScheme` function for the `remediation.mendabot.io/v1alpha1` group:
+    registers `RemediationJob` and `RemediationJobList`.
+    This is called in `cmd/watcher/main.go` alongside the k8sgpt scheme registration.
+
+- [ ] The `core.k8sgpt.ai/v1alpha1` scheme registration (Result + ResultList) is done
+  by a separate `AddToScheme` function in `api/v1alpha1/result_types.go`
+  (see epic00-foundation/STORY_04). Do NOT add a second Result scheme registration
+  inside `remediationjob_types.go` — that would create duplicate registrations.
 
 - [ ] `RemediationJobSpec.SourceType` is a required string field, immutable after creation;
-  `K8sGPTSourceProvider` always sets it to `"k8sgpt"`
+  `K8sGPTProvider` always sets it to `"k8sgpt"`
+
+- [ ] `internal/domain/provider.go` defines `SourceProvider`, `Finding`, and `SourceRef`
+  as specified in PROVIDER_LLD.md §3. This file is owned by this story.
 
 - [ ] Unit tests in `api/v1alpha1/remediationjob_types_test.go` verify:
   - `DeepCopyObject()` produces an independent copy (mutating copy does not affect original)
@@ -53,6 +49,11 @@ duplication.
 
 - [ ] No other package duplicates these types
 
+- [ ] **Note:** There is no `domain.JobBuilderConfig` type. The `jobbuilder.Builder` reads
+  all finding context (`AgentImage`, `AgentSA`, `GitOpsRepo`, `GitOpsManifestRoot`) directly
+  from `rjob.Spec`. The only `jobbuilder.Config` field is `AgentNamespace` (see JOBBUILDER_LLD §3).
+  Do not create a `JobBuilderConfig` in `internal/domain/`.
+
 ---
 
 ## Why `FindingSpec` Stores Errors as a String
@@ -62,7 +63,7 @@ needing to define the full `Failure` schema inside the `RemediationJob` CRD and 
 that what the agent receives via env var is exactly what is stored in the CRD — no
 additional serialisation step at Job creation time.
 
-Redaction of `Sensitive` fields happens in the `ResultReconciler` before the
+Redaction of `Sensitive` fields happens in `SourceProviderReconciler.Reconcile()` before the
 `RemediationJob` is created.
 
 ---
@@ -71,8 +72,8 @@ Redaction of `Sensitive` fields happens in the `ResultReconciler` before the
 
 - [ ] Create `api/v1alpha1/remediationjob_types_test.go` (TDD — tests first)
 - [ ] Create `api/v1alpha1/remediationjob_types.go` with all types and deep copy
-- [ ] Create `internal/domain/types.go` with `JobBuilderConfig`
-- [ ] Create `internal/domain/types_test.go`
+- [ ] Create `internal/domain/provider.go` with `SourceProvider`, `Finding`, `SourceRef`
+- [ ] Create `internal/domain/provider_test.go`
 - [ ] Verify `go build ./...` still clean
 
 ---

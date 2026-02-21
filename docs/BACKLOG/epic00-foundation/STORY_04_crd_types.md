@@ -21,6 +21,33 @@ watch and read Result objects with full type safety.
   `ResultStatus`, `Failure`, `Sensitive`
   (`AutoRemediationStatus` is intentionally omitted — the watcher does not use it;
   see CONTROLLER_LLD.md §3.1)
+
+  The types are defined as follows:
+  ```go
+  type ResultSpec struct {
+      Backend      string    `json:"backend"`
+      Kind         string    `json:"kind"`
+      Name         string    `json:"name"`
+      Error        []Failure `json:"error"`
+      Details      string    `json:"details"`
+      ParentObject string    `json:"parentObject"`
+  }
+
+  type Failure struct {
+      Text      string      `json:"text,omitempty"`
+      Sensitive []Sensitive `json:"sensitive,omitempty"`
+  }
+
+  type Sensitive struct {
+      Unmasked string `json:"unmasked,omitempty"`
+      Masked   string `json:"masked,omitempty"`
+  }
+
+  // ResultStatus is intentionally minimal — the watcher reads Results but never
+  // writes their status. Only the fields needed for scheme completeness are defined.
+  type ResultStatus struct{}
+  ```
+
 - [ ] Both `Result` and `ResultList` implement `runtime.Object` via `DeepCopyObject()`
 - [ ] `DeepCopyInto()` performs a true deep copy (no shared slice references)
 - [ ] `AddToScheme` registers both types with a `runtime.Scheme`

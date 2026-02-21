@@ -4,7 +4,7 @@
 
 Implement the full controller layer across two packages:
 
-1. **K8sGPTSourceProvider + ResultReconciler** (`internal/provider/k8sgpt/`) — watches
+1. **K8sGPTProvider + SourceProviderReconciler** (`internal/provider/`) — watches
    `results.core.k8sgpt.ai`, computes fingerprints, and creates `RemediationJob` CRDs
    (with `spec.sourceType: "k8sgpt"`) as the durable deduplication record
 2. **RemediationJobReconciler** (`internal/controller/`) — watches `RemediationJob`
@@ -25,9 +25,9 @@ Implement the full controller layer across two packages:
 
 ## Success Criteria
 
-- [ ] `ResultReconciler` creates a `RemediationJob` (with `sourceType="k8sgpt"`) for each new unique fingerprint
-- [ ] `ResultReconciler` skips Results whose fingerprint already has a non-Failed `RemediationJob`
-- [ ] `ResultReconciler` deletes Pending/Dispatched `RemediationJob` when its source Result is deleted
+- [ ] `SourceProviderReconciler` creates a `RemediationJob` (with `sourceType="k8sgpt"`) for each new unique fingerprint
+- [ ] `SourceProviderReconciler` skips Results whose fingerprint already has a non-Failed `RemediationJob`
+- [ ] `SourceProviderReconciler` deletes Pending/Dispatched `RemediationJob` when its source Result is deleted
 - [ ] `RemediationJobReconciler` creates a `batch/v1 Job` with the correct ownerReference
 - [ ] `RemediationJobReconciler` enforces `MAX_CONCURRENT_JOBS`
 - [ ] `RemediationJobReconciler` syncs Job status back to `RemediationJob.Status.Phase`
@@ -41,10 +41,10 @@ Implement the full controller layer across two packages:
 |-------|------|--------|
 | Result CRD scheme registration | [STORY_01_scheme.md](STORY_01_scheme.md) | Not Started |
 | fingerprintFor implementation + tests | [STORY_02_fingerprint.md](STORY_02_fingerprint.md) | Not Started |
-| ResultReconciler — RemediationJob creation | [STORY_03_result_reconciler.md](STORY_03_result_reconciler.md) | Not Started |
-| RemediationJobReconciler — Job dispatch | [STORY_04_remediationjob_reconciler.md](STORY_04_remediationjob_reconciler.md) | Not Started |
-| Job status sync (Owns + phase mapping) | [STORY_05_status_sync.md](STORY_05_status_sync.md) | Not Started |
-| Error-filter predicate | [STORY_06_predicate.md](STORY_06_predicate.md) | Not Started |
+| SourceProviderReconciler — RemediationJob creation | [STORY_03_dedup_map.md](STORY_03_dedup_map.md) | Not Started |
+| RemediationJobReconciler — Job dispatch | [STORY_04_reconcile.md](STORY_04_reconcile.md) | Not Started |
+| Error-filter predicate | [STORY_05_predicate.md](STORY_05_predicate.md) | Not Started |
+| Manager wiring (main.go) | [STORY_06_manager.md](STORY_06_manager.md) | Not Started |
 | Integration tests (envtest) | [STORY_07_integration_tests.md](STORY_07_integration_tests.md) | Not Started |
 
 ## Technical Overview
@@ -52,8 +52,11 @@ Implement the full controller layer across two packages:
 The controller layer is specified in [`docs/DESIGN/lld/CONTROLLER_LLD.md`](../../DESIGN/lld/CONTROLLER_LLD.md).
 
 The key architectural split:
-- `ResultReconciler` lives in `internal/provider/k8sgpt/` — it is the k8sgpt source
-  provider's implementation detail, not a generic controller.
+- `SourceProviderReconciler` (in `internal/provider/provider.go`) is the single
+  `ctrl.Reconciler` for source watching. It holds the full reconcile loop and calls
+  into `K8sGPTProvider` for provider-specific logic. There is no separate
+  `ResultReconciler` type — `internal/provider/k8sgpt/reconciler.go` holds only the
+  `fingerprintFor()` package-level function.
 - `RemediationJobReconciler` lives in `internal/controller/` — it is provider-agnostic.
 
 TDD is mandatory. Write `fingerprintFor` tests before implementing it. Write reconciler

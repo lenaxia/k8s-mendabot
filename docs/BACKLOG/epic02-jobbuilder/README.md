@@ -47,7 +47,7 @@ every agent Job looks like.
 spec is in [`docs/DESIGN/lld/JOBBUILDER_LLD.md`](../../DESIGN/lld/JOBBUILDER_LLD.md).
 
 The `FINDING_ERRORS` field is read directly from `rjob.Spec.Finding.Errors` — the
-`ResultReconciler` already redacted Sensitive fields when it created the `RemediationJob`.
+`SourceProviderReconciler` already redacted Sensitive fields when it created the `RemediationJob`.
 The builder does not perform redaction.
 
 ## Definition of Done

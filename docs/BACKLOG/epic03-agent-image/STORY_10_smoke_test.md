@@ -20,6 +20,9 @@ and callable in the built image so CI catches any broken installs immediately.
 - [ ] Tests all tools: opencode, kubectl, k8sgpt, helm, flux, talosctl, kustomize, gh,
   git, jq, yq, kubeconform, stern, age, sops, curl, openssl
 - [ ] Each tool called with `--version`, `version`, or `-v` as appropriate
+- [ ] Verifies entrypoint scripts are present and executable:
+  `test -x /usr/local/bin/agent-entrypoint.sh`
+  `test -x /usr/local/bin/get-github-app-token.sh`
 - [ ] Script exits non-zero on any failure with a clear message identifying which tool failed
 - [ ] Script used in `build-agent.yaml` CI workflow as a post-build step
 

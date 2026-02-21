@@ -44,11 +44,11 @@ objects or touching the Kubernetes API.
 - [ ] `internal/provider/k8sgpt/fakes_test.go` (package `k8sgpt_test`) defines:
 
   ```go
-  // No fake needed for SourceProvider in unit tests — the ResultReconciler
-  // is tested directly. This file is a placeholder for future provider fakes.
+  // No fake needed for SourceProvider in unit tests — SourceProviderReconciler
+  // is tested directly in envtest integration tests (no fake needed).
   ```
 
-  For now, the `K8sGPTSourceProvider` is tested by exercising `ResultReconciler`
+  For now, `K8sGPTProvider` is tested by exercising `SourceProviderReconciler`
   directly in envtest integration tests (no fake needed).
 
 - [ ] A `defaultFakeJob(rjob *v1alpha1.RemediationJob) *batchv1.Job` helper returns a
@@ -57,6 +57,10 @@ objects or touching the Kubernetes API.
   - Correct namespace
   - The ownerReference pointing at `rjob`
   - Label `remediation.mendabot.io/remediation-job=rjob.Name`
+  - `Spec.BackoffLimit: ptr(int32(1))` — required so that `syncPhaseFromJob` can
+    safely dereference `BackoffLimit` without a nil pointer panic. The Kubernetes API
+    server applies a default of 6, but test environments (fakeJobBuilder, envtest without
+    defaulting) do not; always set it explicitly in test helpers.
   This allows controller tests to call `fakeJobBuilder.returnJob = defaultFakeJob(rjob)`
   and proceed past the `Build()` call without asserting on the full Job spec.
 
@@ -73,7 +77,7 @@ This story defines `fakeJobBuilder` for `RemediationJobReconciler` tests. For lo
 fakes, use `zap.NewNop()` directly. For the scheme, use `runtime.NewScheme()`. No client
 fake — controller integration tests use envtest's real client.
 
-`SourceProvider` has no fake in v1: `ResultReconciler` is tested directly in envtest.
+`SourceProvider` has no fake in v1: `SourceProviderReconciler` is tested directly in envtest.
 
 ---
 

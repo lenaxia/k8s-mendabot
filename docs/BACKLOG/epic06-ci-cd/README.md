@@ -44,8 +44,8 @@ All workflows use:
 - `docker/build-push-action` with `platforms: linux/amd64,linux/arm64`
 - `docker/metadata-action` for tag generation
 
-The watcher image is a simple Go binary build — `CGO_DISABLED=1`, static binary,
-`scratch` or `distroless` base.
+The watcher image is a simple Go binary build — `CGO_ENABLED=0`, static binary,
+`debian:bookworm-slim` runtime base (consistent with the agent image; see WATCHER_IMAGE_LLD.md §3 and §4).
 
 The agent image is heavier and takes longer to build. Layer caching via
 `cache-from: type=gha` and `cache-to: type=gha,mode=max` is important.

@@ -3,7 +3,7 @@
 **Version:** 1.1
 **Date:** 2026-02-19
 **Status:** Implementation Ready
-**HLD Reference:** [Sections 4.3, 9](../HLD.md)
+**HLD Reference:** [Sections 4.3, 10](../HLD.md)
 
 ---
 

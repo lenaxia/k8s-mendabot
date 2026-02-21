@@ -276,6 +276,14 @@ TTL, the agent will be re-dispatched — Step 1's branch-name check is the only 
 against opening a duplicate PR in this window. This is the designed and acceptable
 behaviour.
 
+**Merged PR gap — accepted design decision:** Step 1 uses `--state open`. If the original
+PR was already merged, it will not be found by this check. The agent will create a new
+branch and open a new PR for the same fingerprint. This is intentional: a merged PR means
+the fix was accepted; if the same finding recurs after the fix is merged, it is a new
+regression and warrants a new investigation. The `RemediationJob` TTL and Job TTL together
+define the window during which a recurrence is suppressed. After both TTLs expire the
+finding is treated as fresh.
+
 ---
 
 ## 4. Prompt Versioning

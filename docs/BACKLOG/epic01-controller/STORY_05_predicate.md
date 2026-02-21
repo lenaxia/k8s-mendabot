@@ -1,4 +1,4 @@
-# Story: Error-Filter Predicate
+# Story: No-Error Filtering in ExtractFinding
 
 **Epic:** [Controller](README.md)
 **Priority:** High
@@ -9,32 +9,38 @@
 
 ## User Story
 
-As a **developer**, I want Results with zero errors filtered out before entering the
-reconcile queue so the controller never dispatches an investigation for a healthy resource.
+As a **developer**, I want Results with zero errors to be silently skipped by the provider
+so the controller never dispatches an investigation for a healthy resource.
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] `predicate.NewPredicateFuncs` filter applied in `SetupWithManager`
-- [ ] Results with `len(spec.error) == 0` do not enter the reconcile queue
-- [ ] Results with `len(spec.error) > 0` pass through normally
-- [ ] Non-Result objects (e.g. owned Jobs) pass through unchanged
-- [ ] Unit test verifies the predicate function directly
+- [ ] `K8sGPTProvider.ExtractFinding()` returns `(nil, nil)` when `len(result.Spec.Error) == 0`
+- [ ] Results with `len(spec.error) == 0` produce no `RemediationJob` (skipped in `SourceProviderReconciler.Reconcile`)
+- [ ] Results with `len(spec.error) > 0` proceed normally
+- [ ] **No manager-level predicate** — filtering is provider-specific and belongs in `ExtractFinding()`
+  (see CONTROLLER_LLD.md §5.3 and PROVIDER_LLD.md §8)
+- [ ] Unit test in `internal/provider/k8sgpt/provider_test.go` verifies the skip directly:
+  ```go
+  func TestK8sGPTProvider_ExtractFinding_NoErrors(t *testing.T) {
+      // result with empty Spec.Error → returns nil, nil
+  }
+  ```
 
 ---
 
 ## Tasks
 
-- [ ] Write predicate unit test in `internal/provider/k8sgpt/reconciler_test.go` (TDD)
-- [ ] Implement predicate in `ResultReconciler.SetupWithManager` in
-  `internal/provider/k8sgpt/reconciler.go`
+- [ ] Write unit test for `ExtractFinding` with empty errors first (TDD)
+- [ ] Implement the early-return in `K8sGPTProvider.ExtractFinding()`
+- [ ] Verify `SourceProviderReconciler.Reconcile()` returns nil when `ExtractFinding` returns nil, nil
 
 ---
 
 ## Dependencies
 
-**Depends on:** STORY_02 (fingerprint)
+**Depends on:** epic00.1-interfaces/STORY_03 (K8sGPTProvider stub exists)
 **Blocks:** STORY_07 (integration tests)
 
 ---

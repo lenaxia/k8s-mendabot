@@ -1,4 +1,4 @@
-# Story: ResultReconciler — RemediationJob Creation
+# Story: SourceProviderReconciler — RemediationJob Creation
 
 **Epic:** [Controller](README.md)
 **Priority:** Critical
@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **developer**, I want the `ResultReconciler.Reconcile()` method to fetch a Result,
+As a **developer**, I want `SourceProviderReconciler.Reconcile()` to fetch a Result,
 compute its fingerprint, check for an existing `RemediationJob` via the Kubernetes API
 (CRD-as-state, no in-memory map), and create a `RemediationJob` if none exists — handling
 all error cases correctly.
@@ -19,8 +19,9 @@ all error cases correctly.
 ## Acceptance Criteria
 
 - [ ] `Reconcile()` fetches the Result; if NotFound, finds and deletes any
-  Pending/Dispatched `RemediationJob` with annotation `opencode.io/result-name=req.Name`
-  in the Result's namespace, then returns nil
+  Pending/Dispatched `RemediationJob` where `rjob.Spec.SourceResultRef.Name == req.Name`
+  and `rjob.Spec.SourceResultRef.Namespace == req.Namespace` in `cfg.AgentNamespace`,
+  then returns nil
 - [ ] Computes fingerprint via `fingerprintFor(namespace, spec)`
 - [ ] Lists `RemediationJob` objects with label `remediation.mendabot.io/fingerprint=fp[:12]`
   in `cfg.AgentNamespace`; if a match exists with `spec.fingerprint == fp` and phase is
@@ -42,20 +43,25 @@ all error cases correctly.
 
 | Test | Expected |
 |------|----------|
-| `TestResultReconciler_CreatesRemediationJob` | New Result → RemediationJob created with sourceType="k8sgpt" |
-| `TestResultReconciler_DuplicateFingerprint_Skips` | Same fingerprint, non-Failed phase → no second RemediationJob |
-| `TestResultReconciler_FailedPhase_ReDispatches` | Existing Failed RemediationJob → new one created |
-| `TestResultReconciler_NoErrors_Skipped` | Result with no errors → no RemediationJob (predicate filtered) |
-| `TestResultReconciler_ResultDeleted_CancelsPending` | Result deleted → Pending RemediationJob deleted |
-| `TestResultReconciler_DifferentParents_TwoJobs` | Two Results, different parents → two RemediationJobs |
-| `TestResultReconciler_ErrorTextChanges_NewJob` | Same parent, changed error text → new fingerprint, new RemediationJob |
+| `TestSourceProviderReconciler_CreatesRemediationJob` | New Result → RemediationJob created with sourceType="k8sgpt" |
+| `TestSourceProviderReconciler_DuplicateFingerprint_Skips` | Same fingerprint, non-Failed phase → no second RemediationJob |
+| `TestSourceProviderReconciler_FailedPhase_ReDispatches` | Existing Failed RemediationJob → new one created |
+| `TestSourceProviderReconciler_NoErrors_Skipped` | Result with no errors → `ExtractFinding` returns nil, nil → no RemediationJob created |
+| `TestSourceProviderReconciler_ResultDeleted_CancelsPending` | Result deleted → Pending RemediationJob deleted |
+| `TestSourceProviderReconciler_ResultDeleted_CancelsDispatched` | Result deleted → Dispatched RemediationJob deleted |
+| `TestSourceProviderReconciler_DifferentParents_TwoJobs` | Two Results, different parents → two RemediationJobs |
+| `TestSourceProviderReconciler_ErrorTextChanges_NewJob` | Same parent, changed error text → new fingerprint, new RemediationJob |
 
 ---
 
 ## Tasks
 
-- [ ] Write all 7 envtest integration tests first (must fail before implementation)
-- [ ] Implement `Reconcile()` method body in `internal/provider/k8sgpt/reconciler.go`
+- [ ] Write all 8 envtest integration tests first (must fail before implementation)
+- [ ] Implement `SourceProviderReconciler.Reconcile()` method body in `internal/provider/provider.go`
+      (Note: provider-specific logic — `ExtractFinding`, `Fingerprint` — is called via the
+      `domain.SourceProvider` interface. `fingerprintFor()` is a package-level function in
+      `internal/provider/k8sgpt/reconciler.go` called after `ExtractFinding` returns a
+      non-nil Finding. There is no `ResultReconciler` type.)
 - [ ] Run tests — all must pass
 
 ---
@@ -69,6 +75,6 @@ all error cases correctly.
 
 ## Definition of Done
 
-- [ ] All 7 integration tests pass with `-race`
+- [ ] All 8 integration tests pass with `-race`
 - [ ] `go vet` clean
 - [ ] No in-memory map — deduplication is entirely via CRD label lookup

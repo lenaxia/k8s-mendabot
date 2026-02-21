@@ -40,6 +40,15 @@ metadata:
 
 ## 2.1 CRD
 
+**Minimum Kubernetes version:** 1.25 (`x-kubernetes-validations` CEL rules entered beta
+in 1.25; GA in 1.29). Kubernetes 1.29+ is recommended for production deployments where
+CEL validation stability is required.
+
+**CEL transition rules:** The immutability rules use `!has(oldSelf.field)` guards so
+they only enforce immutability on UPDATE (where `oldSelf` is populated), not on CREATE
+(where `oldSelf` fields are absent). Without this guard the rules would reject CREATE
+requests where the field is set for the first time.
+
 ```yaml
 # crd-remediationjob.yaml
 # Hand-written until code generation is adopted.
@@ -82,24 +91,29 @@ spec:
     - name: Age
       type: date
       jsonPath: .metadata.creationTimestamp
-            schema:
+    schema:
       openAPIV3Schema:
         type: object
         properties:
           spec:
             type: object
-            required: [fingerprint, sourceType, finding, gitOpsRepo, gitOpsManifestRoot, agentImage, agentSA, sourceResultRef]
+            required: [fingerprint, sourceType, sinkType, finding, gitOpsRepo, gitOpsManifestRoot, agentImage, agentSA, sourceResultRef]
             x-kubernetes-validations:
-            - rule: "self.fingerprint == oldSelf.fingerprint"
+            - rule: "!has(oldSelf.fingerprint) || self.fingerprint == oldSelf.fingerprint"
               message: "spec.fingerprint is immutable"
-            - rule: "self.sourceType == oldSelf.sourceType"
+            - rule: "!has(oldSelf.sourceType) || self.sourceType == oldSelf.sourceType"
               message: "spec.sourceType is immutable"
+            - rule: "!has(oldSelf.sinkType) || self.sinkType == oldSelf.sinkType"
+              message: "spec.sinkType is immutable"
             properties:
               fingerprint:
                 type: string
               sourceType:
                 type: string
                 description: "Which source provider created this object, e.g. k8sgpt"
+              sinkType:
+                type: string
+                description: "Which sink the agent should use, e.g. github"
               sourceResultRef:
                 type: object
                 required: [name, namespace]
@@ -328,10 +342,19 @@ roleRef:
 These files contain only the structure — no real values. They must be filled out of band
 before applying the manifests. They should never contain real values in git.
 
+The `-placeholder` suffix is intentional: `.gitignore` ignores `secret-*.yaml` but
+explicitly un-ignores `secret-*-placeholder.yaml` via a negation rule. This means the
+placeholder files are committed to git (so `kubectl apply -k` finds them), while any
+file without the suffix (e.g. a copy renamed to `secret-github-app.yaml` after filling in
+real values) is gitignored and safe from accidental commit.
+
+**Operator instructions:** Copy the placeholder file, rename it to remove `-placeholder`,
+and fill in real values. Never commit the renamed file.
+
 ### 6.1 github-app
 
 ```yaml
-# secret-github-app.yaml
+# secret-github-app-placeholder.yaml
 apiVersion: v1
 kind: Secret
 metadata:
@@ -348,7 +371,7 @@ stringData:
 ### 6.2 llm-credentials
 
 ```yaml
-# secret-llm.yaml
+# secret-llm-placeholder.yaml
 apiVersion: v1
 kind: Secret
 metadata:
@@ -440,10 +463,14 @@ spec:
           value: "mendabot"  # must equal the watcher's own namespace
         - name: AGENT_SA
           value: "mendabot-agent"
+        - name: SINK_TYPE
+          value: "github"
         - name: LOG_LEVEL
           value: "info"
         - name: MAX_CONCURRENT_JOBS
           value: "3"
+        - name: REMEDIATION_JOB_TTL_SECONDS
+          value: "604800"
         ports:
         - name: metrics
           containerPort: 8080
@@ -498,8 +525,8 @@ resources:
 - role-agent.yaml
 - rolebinding-agent.yaml
 - configmap-prompt.yaml
-- secret-github-app.yaml
-- secret-llm.yaml
+- secret-github-app-placeholder.yaml
+- secret-llm-placeholder.yaml
 - deployment-watcher.yaml
 ```
 

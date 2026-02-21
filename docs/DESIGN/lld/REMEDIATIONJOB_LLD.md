@@ -61,11 +61,23 @@ eventually contributed to `k8sgpt-ai/k8sgpt-operator`, the group is already corr
 ```go
 type RemediationJobSpec struct {
     // SourceResultRef identifies the k8sgpt Result that triggered this remediation.
+    // +kubebuilder:validation:Required
     SourceResultRef ResultRef `json:"sourceResultRef"`
 
     // Fingerprint is the SHA256 hash used for deduplication.
     // Computed from namespace + kind + parentObject + sorted(error texts).
+    // Immutable after creation.
     Fingerprint string `json:"fingerprint"`
+
+    // SourceType identifies which SourceProvider created this RemediationJob.
+    // Set to the value of SourceProvider.ProviderName() (e.g. "k8sgpt", "prometheus").
+    // Immutable after creation.
+    SourceType string `json:"sourceType"`
+
+    // SinkType identifies which sink the agent should use for output.
+    // Defaults to "github". Injected as SINK_TYPE env var into the agent Job.
+    // Immutable after creation.
+    SinkType string `json:"sinkType"`
 
     // Finding contains the extracted finding context passed to the agent Job.
     Finding FindingSpec `json:"finding"`
@@ -149,6 +161,12 @@ type RemediationJobStatus struct {
 type RemediationJobPhase string
 
 const (
+    // SourceTypeK8sGPT is the SourceType value set by K8sGPTProvider.
+    // Used in RemediationJobSpec.SourceType and as the return value of
+    // K8sGPTProvider.ProviderName(). Defined here so all packages share one
+    // authoritative constant instead of duplicating the magic string "k8sgpt".
+    SourceTypeK8sGPT = "k8sgpt"
+
     // PhasePending means the RemediationJob has been created but no batch/v1 Job
     // exists yet (e.g. MAX_CONCURRENT_JOBS limit is currently reached).
     PhasePending RemediationJobPhase = "Pending"
@@ -202,7 +220,8 @@ type RemediationJob struct {
     metav1.TypeMeta   `json:",inline"`
     metav1.ObjectMeta `json:"metadata,omitempty"`
 
-    Spec   RemediationJobSpec   `json:"spec,omitempty"`
+    // Spec is required — omitempty is intentionally absent.
+    Spec   RemediationJobSpec   `json:"spec"`
     Status RemediationJobStatus `json:"status,omitempty"`
 }
 
@@ -222,28 +241,45 @@ type RemediationJobList struct {
 Introducing the `RemediationJob` CRD splits what was one controller into two reconcilers.
 Both run in the same `mendabot-watcher` binary.
 
-### 3.1 ResultReconciler
+### 3.1 SourceProviderReconciler
 
-**Watches:** `results.core.k8sgpt.ai` (all namespaces)
+**Watches:** `results.core.k8sgpt.ai` (all namespaces) — via `K8sGPTProvider.ObjectType()`
 **Writes:** `RemediationJob` objects (in `mendabot` namespace)
 **Does NOT:** create `batch/v1 Jobs` directly — that is now the job of the RemediationJobReconciler
 
+`SourceProviderReconciler` (in `internal/provider/provider.go`) is itself the
+`ctrl.Reconciler` registered with the manager. There is no separate `ResultReconciler`
+type. Provider-specific logic (`ExtractFinding`, `Fingerprint`) lives in `K8sGPTProvider`;
+all reconcile boilerplate lives in `SourceProviderReconciler`.
+
 ```
 Reconcile(Result):
-  1. Fetch Result. If NotFound → delete corresponding RemediationJob (if any). Return nil.
-  2. Compute fingerprint.
-  3. List RemediationJobs in AgentNamespace with label
-     remediation.mendabot.io/fingerprint=<fingerprint>
+  1. Fetch Result.
+     If NotFound:
+       List RemediationJobs in AgentNamespace.
+       For each where rjob.Spec.SourceResultRef.Name == req.Name
+       AND rjob.Spec.SourceResultRef.Namespace == req.Namespace
+       AND rjob.Status.Phase is Pending or Dispatched:
+         delete the RemediationJob.
+       (A deleted Result means the problem is resolved — only cancel pending work;
+       Running/Succeeded/Failed RemediationJobs are left intact.)
+       Return nil.
+  2. provider.ExtractFinding(result) → finding
+     If nil, nil: return nil (skip — no errors on this Result).
+     If nil, err: return err (requeue).
+  3. fingerprintFor(result.Namespace, result.Spec) → fp
+  4. List RemediationJobs in AgentNamespace with label
+     remediation.mendabot.io/fingerprint=<fp[:12]>
      If one exists and its Phase is not Failed → return nil (already handled).
-  4. Build RemediationJob spec from Result + watcher config.
-  5. client.Create(RemediationJob).
+  5. Build RemediationJob spec from Result + watcher config.
+  6. client.Create(RemediationJob).
      If AlreadyExists → return nil.
      If other error → return error (requeue).
-  6. Return nil.
+  7. Return nil.
 ```
 
-The `ResultReconciler` no longer needs an in-memory map. The CRD is the deduplication
-state. It also no longer enforces `MAX_CONCURRENT_JOBS` — that is enforced by the
+`SourceProviderReconciler` does not need an in-memory map. The CRD is the deduplication
+state. It also does not enforce `MAX_CONCURRENT_JOBS` — that is enforced by the
 `RemediationJobReconciler`.
 
 ### 3.2 RemediationJobReconciler
@@ -255,21 +291,30 @@ state. It also no longer enforces `MAX_CONCURRENT_JOBS` — that is enforced by 
 ```
 Reconcile(RemediationJob):
   1. Fetch RemediationJob. If NotFound → return nil.
-  2. If Phase is Succeeded or Failed → return nil (terminal, nothing to do).
+   2. If Phase is Succeeded:
+        Apply TTL deletion logic (see §9 and CONTROLLER_LLD §6.2 step 2).
+        If TTL has expired: delete and return nil.
+        If TTL is not yet due: return RequeueAfter(deadline - now).
+        If CompletedAt is not set: return nil (will be set when Job syncs).
+      If Phase is Failed → return nil (terminal, retained indefinitely for postmortem).
   3. Look up owned Job by label remediation.mendabot.io/remediation-job=<rjob.Name>.
      If Job exists:
        a. Sync phase from Job status → update RemediationJob.Status.
        b. Return nil.
-  4. Check MAX_CONCURRENT_JOBS:
-     List Jobs with label app.kubernetes.io/managed-by=mendabot-watcher in AgentNamespace.
-     Count those where CompletionTime == nil.
-     If count >= MaxConcurrentJobs → requeue after 30s. Return.
+   4. Check MAX_CONCURRENT_JOBS:
+      List Jobs with label app.kubernetes.io/managed-by=mendabot-watcher in AgentNamespace.
+      Count those where job.Status.Active > 0 OR
+                       (job.Status.Succeeded == 0 AND job.Status.CompletionTime == nil).
+      (This counts Jobs that are actively running or pending; it excludes Failed jobs
+      which have CompletionTime==nil but Status.Succeeded==0 and Status.Active==0.)
+      If count >= MaxConcurrentJobs → requeue after 30s. Return.
   5. jobBuilder.Build(rjob) → job (with ownerReference pointing at rjob).
   6. client.Create(job).
      If AlreadyExists → re-fetch, sync status. Return nil.
      If other error → return error (requeue).
-  7. Patch RemediationJob.Status:
-     Phase=Dispatched, JobRef=job.Name, DispatchedAt=now.
+   7. Patch RemediationJob.Status:
+      Phase=Dispatched, JobRef=job.Name, DispatchedAt=now,
+      Condition ConditionJobDispatched=True.
   8. Return nil.
 ```
 
@@ -406,10 +451,19 @@ rules:
 `RemediationJob` objects should be cleaned up after a configurable retention period.
 Two mechanisms:
 
-1. **Succeeded jobs:** A `ttlSecondsAfterFinished`-equivalent is implemented in the
-   `RemediationJobReconciler`: once `Phase == Succeeded`, requeue after
-   `RemediationJobTTL` (default 7 days) and delete the object. This cascades to the
-   owned `batch/v1 Job` (which has its own `ttlSecondsAfterFinished: 86400`).
+1. **Succeeded jobs:** A TTL check is implemented in the `RemediationJobReconciler`: once
+   `Phase == Succeeded`, on each reconcile triggered by the `Owns()` watch the controller
+   checks `CompletedAt + RemediationJobTTL`. If now is past that deadline it deletes the
+   object. This cascades to the owned `batch/v1 Job` (which has its own
+   `ttlSecondsAfterFinished: 86400`). See `CONTROLLER_LLD.md §6.2 step 2` for the
+   exact reconcile logic.
+   TTL is configured via `REMEDIATION_JOB_TTL_SECONDS`, default `604800` (7 days).
+
+   **Re-trigger guarantee:** When the TTL is not yet due, the reconciler returns
+   `ctrl.Result{RequeueAfter: time.Until(deadline)}` rather than bare `nil`. This
+   ensures the TTL deletion fires even when no `Owns()` events arrive after the owned
+   `batch/v1 Job` is deleted by Kubernetes (which happens after `ttlSecondsAfterFinished:
+   86400` — potentially 6 days before the `RemediationJob` TTL expires).
 
 2. **Failed jobs:** Retained indefinitely by default for postmortem — operator must
    delete manually or implement their own cleanup. A future story can add a
@@ -419,23 +473,23 @@ Two mechanisms:
 
 ## 10. Testing Strategy
 
-### Unit tests (`api/v1alpha1/`)
+### Unit tests (`internal/provider/k8sgpt/`)
 
 | Test | Description |
 |---|---|
 | `TestRemediationJob_DeepCopy` | DeepCopyObject produces independent copy |
 | `TestRemediationJob_DeepCopyStatus` | Mutating status copy does not affect original |
 
-### Unit tests (`internal/controller/`)
+### Integration tests (`internal/provider/` + `internal/controller/`)
 
-| Test | Description |
-|---|---|
-| `TestResultReconciler_CreatesRemediationJob` | New Result → RemediationJob created |
-| `TestResultReconciler_DuplicateFingerprint_Skips` | Same fingerprint → no second RemediationJob |
-| `TestResultReconciler_FailedPhase_ReDispatches` | Existing RemediationJob in Failed phase → new one created |
-| `TestRemediationJobReconciler_CreatesJob` | Pending RemediationJob → batch/v1 Job created |
-| `TestRemediationJobReconciler_SyncsStatus_Running` | Job pod running → phase = Running |
-| `TestRemediationJobReconciler_SyncsStatus_Succeeded` | Job succeeded → phase = Succeeded |
-| `TestRemediationJobReconciler_SyncsStatus_Failed` | Job failed → phase = Failed |
-| `TestRemediationJobReconciler_MaxConcurrentJobs` | At limit → requeues, no new Job |
-| `TestRemediationJobReconciler_OwnerReference` | Created Job has correct ownerRef |
+| Test | Package | Description |
+|---|---|---|
+| `TestSourceProviderReconciler_CreatesRemediationJob` | provider | Valid finding → RemediationJob with correct SourceType and SinkType |
+| `TestSourceProviderReconciler_DuplicateFingerprint_Skips` | provider | Non-Failed RemediationJob exists → skip |
+| `TestSourceProviderReconciler_FailedPhase_ReDispatches` | provider | Failed RemediationJob → new one created |
+| `TestRemediationJobReconciler_CreatesJob` | controller | Pending RemediationJob → batch/v1 Job created |
+| `TestRemediationJobReconciler_SyncsStatus_Running` | controller | Job pod running → phase = Running |
+| `TestRemediationJobReconciler_SyncsStatus_Succeeded` | controller | Job succeeded → phase = Succeeded |
+| `TestRemediationJobReconciler_SyncsStatus_Failed` | controller | Job failed → phase = Failed |
+| `TestRemediationJobReconciler_MaxConcurrentJobs` | controller | At limit → requeues, no new Job |
+| `TestRemediationJobReconciler_OwnerReference` | controller | Created Job has correct ownerRef |

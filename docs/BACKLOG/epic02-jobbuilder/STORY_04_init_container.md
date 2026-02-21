@@ -18,7 +18,7 @@ workspace volume so the main container starts with a ready repo checkout.
 ## Acceptance Criteria
 
 - [ ] Init container named `git-token-clone`
-- [ ] Uses `b.cfg.AgentImage` (same image as main container — has bash, openssl, curl, jq, git)
+- [ ] Uses `rjob.Spec.AgentImage` (same image as main container — has bash, openssl, curl, jq, git)
 - [ ] Shell script (from JOBBUILDER_LLD.md §5) injected as `command: ["/bin/bash", "-c"]` + `args`
 - [ ] Mounts `shared-workspace` at `/workspace`
 - [ ] Mounts `github-app-secret` at `/secrets/github-app` read-only

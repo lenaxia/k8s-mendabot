@@ -11,8 +11,8 @@
 
 ### 1.1 Purpose
 
-The job builder constructs a fully-specified `batch/v1 Job` object from a `Result` CRD
-and a precomputed fingerprint. It is the single source of truth for what the agent Job
+The job builder constructs a fully-specified `batch/v1 Job` object from a `*RemediationJob`
+CRD. It is the single source of truth for what the agent Job
 looks like — the controller calls it and creates whatever it returns.
 
 ### 1.2 Responsibilities
@@ -48,19 +48,19 @@ internal/
 
 ```go
 type Config struct {
-    GitOpsRepo          string // e.g. "lenaxia/talos-ops-prod"
-    GitOpsManifestRoot  string // e.g. "kubernetes" — path within the cloned repo
-    AgentImage          string // e.g. "ghcr.io/lenaxia/mendabot-agent:latest"
-    AgentNamespace      string // namespace where Jobs are created — must equal watcher namespace
-    AgentSA             string // ServiceAccount for the agent Job
+    AgentNamespace string // namespace where Jobs are created — must equal watcher namespace
 }
 
 type Builder struct {
     cfg Config
 }
 
-func New(cfg Config) *Builder
+func New(cfg Config) (*Builder, error)
 ```
+
+All other values needed to build the Job (`AgentImage`, `AgentSA`, `GitOpsRepo`,
+`GitOpsManifestRoot`) are read directly from `rjob.Spec` in `Build()`. `Config`
+only holds values that are not part of the `RemediationJob` spec.
 
 ---
 
@@ -86,14 +86,14 @@ jobName := "mendabot-agent-" + rjob.Spec.Fingerprint[:12]
 
 ```
 name:    "git-token-clone"
-image:   b.cfg.AgentImage   (same image as main container — debian-slim, has bash/openssl/curl/jq/git)
+image:   rjob.Spec.AgentImage   (same image as main container — debian-slim, has bash/openssl/curl/jq/git)
 command: ["/bin/bash", "-c"]
 args:    ["<inline shell script — see §5>"]
 env:
   - GITHUB_APP_ID              (from Secret github-app, key: app-id)
   - GITHUB_APP_INSTALLATION_ID (from Secret github-app, key: installation-id)
   - GITHUB_APP_PRIVATE_KEY     (from Secret github-app, key: private-key)
-  - GITOPS_REPO                (from Config)
+  - GITOPS_REPO                = rjob.Spec.GitOpsRepo
 volumeMounts:
   - name: shared-workspace, mountPath: /workspace
   - name: github-app-secret,  mountPath: /secrets/github-app, readOnly: true
@@ -103,8 +103,8 @@ volumeMounts:
 
 ```
 name:    "mendabot-agent"
-image:   b.cfg.AgentImage
-command: ["/usr/local/bin/agent-entrypoint.sh"]
+image:   rjob.Spec.AgentImage
+# No command override — ENTRYPOINT ["/usr/local/bin/agent-entrypoint.sh"] is set in the image.
 env:
   - FINDING_KIND          = rjob.Spec.Finding.Kind
   - FINDING_NAME          = rjob.Spec.Finding.Name
@@ -115,21 +115,29 @@ env:
   - FINDING_FINGERPRINT   = rjob.Spec.Fingerprint (full 64-char hex)
   - GITOPS_REPO           = rjob.Spec.GitOpsRepo
   - GITOPS_MANIFEST_ROOT  = rjob.Spec.GitOpsManifestRoot
+  - SINK_TYPE             = rjob.Spec.SinkType
   - OPENAI_API_KEY             (from Secret llm-credentials, key: api-key)
   - OPENAI_BASE_URL            (from Secret llm-credentials, key: base-url, optional)
   - OPENAI_MODEL               (from Secret llm-credentials, key: model, optional)
 volumeMounts:
   - name: shared-workspace, mountPath: /workspace
   - name: prompt-configmap,  mountPath: /prompt, readOnly: true
-  - name: github-app-secret, mountPath: /secrets/github-app, readOnly: true
 ```
+
+**Security:** `github-app-secret` is intentionally NOT mounted in the main container.
+The main container (which runs the LLM agent) must not have filesystem access to the
+GitHub App private key. It reads only the short-lived installation token from
+`/workspace/github-token` (written by the init container via the shared `emptyDir`).
+Mounting the secret into the main container would expose the long-lived private key to
+a potentially compromised or prompt-injected agent.
 
 **Secret key mapping:** The Secret keys (`api-key`, `base-url`, `model`) differ from the
 environment variable names. The `secretKeyRef.key` in the Job spec must reference the
 Secret's key names exactly — not the env var name.
 
 **GitHub App credentials in main container:** `GITHUB_APP_ID`, `GITHUB_APP_INSTALLATION_ID`,
-and `GITHUB_APP_PRIVATE_KEY` are intentionally NOT injected into the main container. The
+and `GITHUB_APP_PRIVATE_KEY` are intentionally NOT injected into the main container, and the
+`github-app-secret` volume is intentionally NOT mounted in the main container. The
 main container only needs the installation token, which is read from `/workspace/github-token`
 (written by the init container). Exposing the long-lived private key to the LLM agent is a
 security risk — a compromised or manipulated agent could use it to mint arbitrary tokens.
@@ -168,7 +176,7 @@ batchv1.Job{
         TTLSecondsAfterFinished: ptr(int32(86400)),
         Template: corev1.PodTemplateSpec{
             Spec: corev1.PodSpec{
-                ServiceAccountName: b.cfg.AgentSA,
+                ServiceAccountName: rjob.Spec.AgentSA,
                 RestartPolicy:      corev1.RestartPolicyNever,
                 SecurityContext: &corev1.PodSecurityContext{
                     RunAsNonRoot: ptr(true),
@@ -250,9 +258,10 @@ container. Both containers mount `shared-workspace` at `/workspace`.
 ## 6. FINDING_ERRORS — Already Redacted
 
 In the CRD-based design, `FINDING_ERRORS` is pre-computed during `RemediationJob`
-creation (in the `ResultReconciler`) and stored in `rjob.Spec.Finding.Errors` as a
-redacted JSON string. The job builder reads this field directly — it does not perform
-Sensitive field redaction. Redaction is the ResultReconciler's responsibility.
+creation (in `SourceProviderReconciler.Reconcile()`) and stored in
+`rjob.Spec.Finding.Errors` as a redacted JSON string. The job builder reads this field
+directly — it does not perform Sensitive field redaction. Redaction is
+`SourceProviderReconciler`'s responsibility.
 
 This simplifies the builder and makes the stored `RemediationJob` spec itself auditable:
 what the agent receives is exactly what is stored in the CRD.
@@ -270,16 +279,17 @@ function that takes a `*RemediationJob` and returns a `*batchv1.Job`.
 | `TestBuild_JobNameDeterministic` | Same input twice → same Job name |
 | `TestBuild_Namespace` | Job is in configured namespace |
 | `TestBuild_ServiceAccount` | Job uses configured ServiceAccount |
-| `TestBuild_EnvVars_AllPresent` | All FINDING_*, GITOPS_REPO, GITOPS_MANIFEST_ROOT env vars present |
+| `TestBuild_EnvVars_AllPresent` | All FINDING_*, GITOPS_REPO, GITOPS_MANIFEST_ROOT, SINK_TYPE env vars present |
 | `TestBuild_EnvVars_FindingNameNoNamespacePrefix` | FINDING_NAME is plain name |
 | `TestBuild_EnvVars_FindingNamespace` | FINDING_NAMESPACE equals rjob.Spec.Finding.Namespace |
 | `TestBuild_EnvVars_ErrorsJSON` | FINDING_ERRORS equals rjob.Spec.Finding.Errors verbatim |
+| `TestBuild_EnvVars_SinkType` | SINK_TYPE equals rjob.Spec.SinkType |
 | `TestBuild_InitContainer_Present` | Init container named "git-token-clone" exists |
 | `TestBuild_InitContainer_UsesAgentImage` | Init container uses same image as main container |
 | `TestBuild_MainContainer_Present` | Main container named "mendabot-agent" exists |
-| `TestBuild_MainContainer_Command` | Main container command is ["/usr/local/bin/agent-entrypoint.sh"] |
+| `TestBuild_MainContainer_NoCommandOverride` | Main container has no Command field set (entrypoint is in image) |
 | `TestBuild_SecretKeyRefs` | secretKeyRef keys match Secret key names |
-| `TestBuild_Volumes_AllPresent` | shared-workspace, prompt-configmap, github-app-secret |
+| `TestBuild_Volumes_AllPresent` | shared-workspace, prompt-configmap, github-app-secret (pod volumes); main container has only shared-workspace + prompt-configmap mounts |
 | `TestBuild_JobSettings` | BackoffLimit=1, ActiveDeadlineSeconds=900, TTL=86400 |
 | `TestBuild_RestartPolicy` | RestartPolicy is Never |
 | `TestBuild_Labels` | managed-by, fingerprint, remediation-job labels present |

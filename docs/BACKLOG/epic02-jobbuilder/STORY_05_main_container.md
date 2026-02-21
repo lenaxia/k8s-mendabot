@@ -18,13 +18,17 @@ everything it needs to run.
 ## Acceptance Criteria
 
 - [ ] Main container named `mendabot-agent`
-- [ ] Uses `b.cfg.AgentImage`
+- [ ] Uses `rjob.Spec.AgentImage`
 - [ ] Mounts `shared-workspace` at `/workspace`
 - [ ] Mounts `prompt-configmap` at `/prompt` read-only
-- [ ] Mounts `github-app-secret` at `/secrets/github-app` read-only
+- [ ] **Does NOT mount `github-app-secret`** — the private key must only be accessible to
+  the init container. The main container reads the short-lived token from
+  `/workspace/github-token` (written by the init container via the shared `emptyDir`).
+  See JOBBUILDER_LLD.md §4 security note.
 - [ ] All env vars from STORY_03 present
 - [ ] No `command` override — entrypoint is set in the image itself
-- [ ] Unit test verifies name, image, all mounts, and env var count
+- [ ] Unit test verifies name, image, all mounts (shared-workspace + prompt-configmap only),
+  and env var count
 
 ---
 

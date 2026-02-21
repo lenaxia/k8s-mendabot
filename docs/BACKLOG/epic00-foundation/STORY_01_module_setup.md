@@ -17,7 +17,7 @@ structure so that all subsequent epics have a consistent base to build on.
 ## Acceptance Criteria
 
 - [x] `go.mod` declares module `github.com/lenaxia/k8s-mendabot`
-- [x] Go version is 1.24 or later
+- [x] Go version is 1.23 or later
 - [x] Core dependencies added: `sigs.k8s.io/controller-runtime`, `k8s.io/api`,
   `k8s.io/apimachinery`, `k8s.io/client-go`, `go.uber.org/zap`
 - [x] `go mod tidy` runs without errors
@@ -33,7 +33,10 @@ structure so that all subsequent epics have a consistent base to build on.
 api/v1alpha1/
 cmd/watcher/
 internal/controller/
+internal/domain/
 internal/jobbuilder/
+internal/provider/
+internal/provider/k8sgpt/
 deploy/kustomize/
 docker/scripts/
 docs/          (already exists)

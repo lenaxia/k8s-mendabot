@@ -9,13 +9,15 @@ import (
 // Config holds all runtime configuration for the mendabot-watcher controller.
 // All fields are populated from environment variables at startup via FromEnv.
 type Config struct {
-	GitOpsRepo         string // GITOPS_REPO — required
-	GitOpsManifestRoot string // GITOPS_MANIFEST_ROOT — required
-	AgentImage         string // AGENT_IMAGE — required
-	AgentNamespace     string // AGENT_NAMESPACE — required; must equal watcher namespace
-	AgentSA            string // AGENT_SA — required
-	LogLevel           string // LOG_LEVEL — default "info"
-	MaxConcurrentJobs  int    // MAX_CONCURRENT_JOBS — default 3
+	GitOpsRepo               string // GITOPS_REPO — required
+	GitOpsManifestRoot       string // GITOPS_MANIFEST_ROOT — required
+	AgentImage               string // AGENT_IMAGE — required
+	AgentNamespace           string // AGENT_NAMESPACE — required; must equal watcher namespace
+	AgentSA                  string // AGENT_SA — required
+	SinkType                 string // SINK_TYPE — default "github"
+	LogLevel                 string // LOG_LEVEL — default "info"
+	MaxConcurrentJobs        int    // MAX_CONCURRENT_JOBS — default 3
+	RemediationJobTTLSeconds int    // REMEDIATION_JOB_TTL_SECONDS — default 604800 (7 days)
 }
 
 // FromEnv reads configuration from environment variables and returns a Config.
@@ -47,6 +49,11 @@ func FromEnv() (Config, error) {
 		cfg.LogLevel = "info"
 	}
 
+	cfg.SinkType = os.Getenv("SINK_TYPE")
+	if cfg.SinkType == "" {
+		cfg.SinkType = "github"
+	}
+
 	maxJobsStr := os.Getenv("MAX_CONCURRENT_JOBS")
 	if maxJobsStr == "" {
 		cfg.MaxConcurrentJobs = 3
@@ -59,6 +66,20 @@ func FromEnv() (Config, error) {
 			return Config{}, fmt.Errorf("MAX_CONCURRENT_JOBS must be a positive integer, got %d", n)
 		}
 		cfg.MaxConcurrentJobs = n
+	}
+
+	ttlStr := os.Getenv("REMEDIATION_JOB_TTL_SECONDS")
+	if ttlStr == "" {
+		cfg.RemediationJobTTLSeconds = 604800
+	} else {
+		n, err := strconv.Atoi(ttlStr)
+		if err != nil {
+			return Config{}, fmt.Errorf("REMEDIATION_JOB_TTL_SECONDS must be an integer: %w", err)
+		}
+		if n <= 0 {
+			return Config{}, fmt.Errorf("REMEDIATION_JOB_TTL_SECONDS must be a positive integer, got %d", n)
+		}
+		cfg.RemediationJobTTLSeconds = n
 	}
 
 	return cfg, nil

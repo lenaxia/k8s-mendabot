@@ -15,8 +15,8 @@ refactoring later.
 
 ## Blocks
 
-- epic01-controller (uses ResultReconciler interface, processedEntry, fingerprintFor)
-- epic02-jobbuilder (uses Builder interface, JobBuilderConfig)
+- epic01-controller (uses SourceProvider interface, fingerprintFor, RemediationJob CRD)
+- epic02-jobbuilder (uses JobBuilder interface, jobbuilder.Config)
 
 ## Stories
 
@@ -31,7 +31,8 @@ refactoring later.
 ## Success Criteria
 
 - [ ] All interfaces compile and are reachable from the packages that will use them
-- [ ] `processedEntry` and `JobBuilderConfig` are defined and tested
+- [ ] `SourceProvider`, `Finding`, `SourceRef` defined in `internal/domain/provider.go`
+- [ ] `JobBuilder` interface defined in `internal/domain/interfaces.go`
 - [ ] envtest suite bootstraps a real API server and tears it down cleanly
 - [ ] Fake `JobBuilder` exists and is usable in controller unit tests without a cluster
 - [ ] `go build ./...` and `go vet ./...` are clean

@@ -18,7 +18,7 @@ without dependency issues.
 ## Acceptance Criteria
 
 - [ ] Base image is `debian:bookworm-slim`
-- [ ] Installed packages: `bash`, `ca-certificates`, `curl`, `git`, `gnupg`, `jq`,
+- [ ] Installed packages: `bash`, `ca-certificates`, `curl`, `gettext-base`, `git`, `gnupg`, `jq`,
   `openssl`, `unzip`
 - [ ] `apt-get` cache cleaned in the same `RUN` layer
 - [ ] `DEBIAN_FRONTEND=noninteractive` set
