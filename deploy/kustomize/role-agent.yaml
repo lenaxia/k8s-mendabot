@@ -1,0 +1,9 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mendabot-agent
+  namespace: mendabot
+rules:
+- apiGroups: ["remediation.mendabot.io"]
+  resources: ["remediationjobs/status"]
+  verbs: ["get", "patch"]

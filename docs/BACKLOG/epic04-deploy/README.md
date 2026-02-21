@@ -6,7 +6,7 @@ Write every Kubernetes manifest needed to deploy the watcher and agent into a cl
 All manifests live in `deploy/kustomize/` and are designed to be applied via
 `kubectl apply -k` or a Flux `Kustomization`.
 
-## Status: Not Started
+## Status: Complete
 
 ## Dependencies
 
@@ -32,14 +32,14 @@ All manifests live in `deploy/kustomize/` and are designed to be applied via
 
 | Story | File | Status |
 |-------|------|--------|
-| Namespace and ServiceAccounts | [STORY_01_namespace_sa.md](STORY_01_namespace_sa.md) | Not Started |
-| Watcher ClusterRole and bindings | [STORY_02_watcher_rbac.md](STORY_02_watcher_rbac.md) | Not Started |
-| Agent ClusterRole and bindings | [STORY_03_agent_rbac.md](STORY_03_agent_rbac.md) | Not Started |
-| Watcher Role and RoleBinding (own namespace) | [STORY_04_watcher_role.md](STORY_04_watcher_role.md) | Not Started |
-| Secret placeholder files | [STORY_05_secrets.md](STORY_05_secrets.md) | Not Started |
-| Watcher Deployment manifest | [STORY_06_deployment.md](STORY_06_deployment.md) | Not Started |
-| kustomization.yaml | [STORY_07_kustomization.md](STORY_07_kustomization.md) | Not Started |
-| Flux integration example | [STORY_08_flux.md](STORY_08_flux.md) | Not Started |
+| Namespace and ServiceAccounts | [STORY_01_namespace_sa.md](STORY_01_namespace_sa.md) | Complete |
+| Watcher ClusterRole and bindings | [STORY_02_watcher_rbac.md](STORY_02_watcher_rbac.md) | Complete |
+| Agent ClusterRole and bindings | [STORY_03_agent_rbac.md](STORY_03_agent_rbac.md) | Complete |
+| Watcher Role and RoleBinding (own namespace) | [STORY_04_watcher_role.md](STORY_04_watcher_role.md) | Complete |
+| Secret placeholder files | [STORY_05_secrets.md](STORY_05_secrets.md) | Complete |
+| Watcher Deployment manifest | [STORY_06_deployment.md](STORY_06_deployment.md) | Complete |
+| kustomization.yaml | [STORY_07_kustomization.md](STORY_07_kustomization.md) | Complete |
+| Flux integration example | [STORY_08_flux.md](STORY_08_flux.md) | Complete |
 
 ## Technical Overview
 

@@ -33,16 +33,16 @@ repo, and open a pull request.
 
 | Story | File | Status |
 |-------|------|--------|
-| Dockerfile base and system packages | [STORY_01_base_image.md](STORY_01_base_image.md) | Not Started |
-| Install kubectl, k8sgpt, helm, flux, talosctl | [STORY_02_k8s_tools.md](STORY_02_k8s_tools.md) | Not Started |
-| Install kustomize, yq, jq, kubeconform | [STORY_03_yaml_tools.md](STORY_03_yaml_tools.md) | Not Started |
-| Install stern, age, sops | [STORY_04_misc_tools.md](STORY_04_misc_tools.md) | Not Started |
-| Install gh CLI and git | [STORY_05_github_tools.md](STORY_05_github_tools.md) | Not Started |
-| Install opencode | [STORY_06_opencode.md](STORY_06_opencode.md) | Not Started |
-| get-github-app-token.sh script | [STORY_07_token_script.md](STORY_07_token_script.md) | Not Started |
-| Non-root user and entrypoint | [STORY_08_entrypoint.md](STORY_08_entrypoint.md) | Not Started |
-| Multi-arch build verification | [STORY_09_multiarch.md](STORY_09_multiarch.md) | Not Started |
-| Smoke test script | [STORY_10_smoke_test.md](STORY_10_smoke_test.md) | Not Started |
+| Dockerfile base and system packages | [STORY_01_base_image.md](STORY_01_base_image.md) | Complete |
+| Install kubectl, k8sgpt, helm, flux, talosctl | [STORY_02_k8s_tools.md](STORY_02_k8s_tools.md) | Complete |
+| Install kustomize, yq, jq, kubeconform | [STORY_03_yaml_tools.md](STORY_03_yaml_tools.md) | Complete |
+| Install stern, age, sops | [STORY_04_misc_tools.md](STORY_04_misc_tools.md) | Complete |
+| Install gh CLI and git | [STORY_05_github_tools.md](STORY_05_github_tools.md) | Complete |
+| Install opencode | [STORY_06_opencode.md](STORY_06_opencode.md) | Complete |
+| get-github-app-token.sh script | [STORY_07_token_script.md](STORY_07_token_script.md) | Complete |
+| Non-root user and entrypoint | [STORY_08_entrypoint.md](STORY_08_entrypoint.md) | Complete |
+| Multi-arch build verification | [STORY_09_multiarch.md](STORY_09_multiarch.md) | Complete |
+| Smoke test script | [STORY_10_smoke_test.md](STORY_10_smoke_test.md) | Complete |
 
 ## Technical Overview
 

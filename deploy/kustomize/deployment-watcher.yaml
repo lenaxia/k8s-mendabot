@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mendabot-watcher
+  namespace: mendabot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mendabot-watcher
+  template:
+    metadata:
+      labels:
+        app: mendabot-watcher
+    spec:
+      serviceAccountName: mendabot-watcher
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: watcher
+        image: ghcr.io/lenaxia/mendabot-watcher:latest
+        env:
+        - name: GITOPS_REPO
+          value: "lenaxia/talos-ops-prod"
+        - name: GITOPS_MANIFEST_ROOT
+          value: "kubernetes"
+        - name: AGENT_IMAGE
+          value: "ghcr.io/lenaxia/mendabot-agent:latest"
+        - name: AGENT_NAMESPACE
+          value: "mendabot"
+        - name: AGENT_SA
+          value: "mendabot-agent"
+        - name: SINK_TYPE
+          value: "github"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: MAX_CONCURRENT_JOBS
+          value: "3"
+        - name: REMEDIATION_JOB_TTL_SECONDS
+          value: "604800"
+        ports:
+        - name: metrics
+          containerPort: 8080
+        - name: healthz
+          containerPort: 8081
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]

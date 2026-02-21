@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opencode-prompt
+  namespace: mendabot
+data:
+  prompt.txt: |
+    # Mendabot Investigation Prompt
+    #
+    # This file is a placeholder. Replace with the real prompt from PROMPT_LLD.md
+    # when epic05 is implemented.
+    #
+    # The prompt will be rendered via envsubst before being passed to opencode.
+    PLACEHOLDER — see docs/DESIGN/lld/PROMPT_LLD.md

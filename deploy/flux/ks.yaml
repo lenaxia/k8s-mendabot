@@ -1,0 +1,16 @@
+# Flux Kustomization for mendabot-watcher.
+# Add this file to your GitOps repo at kubernetes/apps/mendabot/ks.yaml
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: mendabot-watcher
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./deploy/kustomize
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: k8s-mendabot
+  dependsOn:
+  - name: k8sgpt-operator

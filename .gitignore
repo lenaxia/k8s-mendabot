@@ -8,7 +8,7 @@ coverage.out
 *.pem
 *.key
 /deploy/kustomize/secret-*.yaml
-!deploy/kustomize/secret-*-placeholder.yaml
+!/deploy/kustomize/secret-*-placeholder.yaml
 .vscode/
 .idea/
 *.swp

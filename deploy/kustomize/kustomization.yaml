@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- namespace.yaml
+- crd-remediationjob.yaml
+- serviceaccount-watcher.yaml
+- serviceaccount-agent.yaml
+- clusterrole-watcher.yaml
+- clusterrole-agent.yaml
+- clusterrolebinding-watcher.yaml
+- clusterrolebinding-agent.yaml
+- role-watcher.yaml
+- rolebinding-watcher.yaml
+- role-agent.yaml
+- rolebinding-agent.yaml
+- configmap-prompt.yaml
+- secret-github-app-placeholder.yaml
+- secret-llm-placeholder.yaml
+- deployment-watcher.yaml
