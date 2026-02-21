@@ -29,7 +29,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GHCR_TOKEN }}
 
       - name: Extract metadata
         id: meta
@@ -59,6 +59,4 @@ jobs:
 
       - name: Smoke test
         run: |
-          docker run --rm \
-            --entrypoint /usr/local/bin/smoke-test.sh \
-            ghcr.io/lenaxia/mendabot-agent:sha-${{ steps.sha.outputs.short }}
+          docker/scripts/smoke-test.sh ghcr.io/lenaxia/mendabot-agent:sha-${{ steps.sha.outputs.short }}
