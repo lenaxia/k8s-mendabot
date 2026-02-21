@@ -126,11 +126,11 @@ RUN curl -fsSL "https://github.com/FiloSottile/age/releases/download/v${AGE_VERS
     && tar -xz -C /usr/local/bin --strip-components=1 -f /tmp/age.tar.gz "age/age" "age/age-keygen" \
     && rm /tmp/age.tar.gz
 
-# sops — with SHA256 sidecar
+# sops — sops releases use .checksums.txt (lowercase, with dot)
 RUN curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.${TARGETARCH}" \
       -o /usr/local/bin/sops \
-    && curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.CHECKSUMS" \
-      | grep "sops-v${SOPS_VERSION}.linux.${TARGETARCH}$" \
+    && curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.checksums.txt" \
+      | grep "sops-v${SOPS_VERSION}.linux.${TARGETARCH} " \
       | awk '{print $1 "  /usr/local/bin/sops"}' | sha256sum --check \
     && chmod +x /usr/local/bin/sops
 
