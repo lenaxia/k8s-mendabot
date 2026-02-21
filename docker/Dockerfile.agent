@@ -8,7 +8,7 @@ ARG FLUX_VERSION=2.5.1
 ARG TALOSCTL_VERSION=1.9.4
 ARG KUSTOMIZE_VERSION=5.6.0
 ARG YQ_VERSION=4.45.1
-ARG KUBECONFORM_VERSION=0.6.7
+ARG KUBECONFORM_VERSION=0.7.0
 ARG STERN_VERSION=1.31.0
 ARG AGE_VERSION=1.2.1
 ARG SOPS_VERSION=3.9.4
@@ -49,7 +49,7 @@ RUN curl -fsSL "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${TARGET
     && rm /tmp/kubectl.sha256 \
     && chmod +x /usr/local/bin/kubectl
 
-# k8sgpt — with SHA256 verification (checksums.txt from GitHub releases)
+# k8sgpt — with SHA256 verification (CHECKSUMS from GitHub releases)
 RUN ARCH=$([ "$TARGETARCH" = "amd64" ] && echo "x86_64" || echo "arm64") \
     && curl -fsSL "https://github.com/k8sgpt-ai/k8sgpt/releases/download/v${K8SGPT_VERSION}/k8sgpt_Linux_${ARCH}.tar.gz" \
       -o /tmp/k8sgpt.tar.gz \
@@ -67,7 +67,7 @@ RUN curl -fsSL "https://get.helm.sh/helm-v${HELM_VERSION}-linux-${TARGETARCH}.ta
     && tar -xz -C /usr/local/bin --strip-components=1 -f /tmp/helm.tar.gz "linux-${TARGETARCH}/helm" \
     && rm /tmp/helm.tar.gz
 
-# flux — with checksums.txt
+# flux — with CHECKSUMS
 RUN curl -fsSL "https://github.com/fluxcd/flux2/releases/download/v${FLUX_VERSION}/flux_${FLUX_VERSION}_linux_${TARGETARCH}.tar.gz" \
       -o /tmp/flux.tar.gz \
     && curl -fsSL "https://github.com/fluxcd/flux2/releases/download/v${FLUX_VERSION}/flux_${FLUX_VERSION}_checksums.txt" \
@@ -104,7 +104,7 @@ RUN curl -fsSL "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}
 # kubeconform — with checksums
 RUN curl -fsSL "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-${TARGETARCH}.tar.gz" \
       -o /tmp/kubeconform.tar.gz \
-    && curl -fsSL "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/checksums.txt" \
+    && curl -fsSL "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/CHECKSUMS" \
       | grep "kubeconform-linux-${TARGETARCH}.tar.gz$" \
       | awk '{print $1 "  /tmp/kubeconform.tar.gz"}' | sha256sum --check \
     && tar -xz -C /usr/local/bin -f /tmp/kubeconform.tar.gz kubeconform \
@@ -122,7 +122,7 @@ RUN curl -fsSL "https://github.com/stern/stern/releases/download/v${STERN_VERSIO
 # age — with checksums
 RUN curl -fsSL "https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/age-v${AGE_VERSION}-linux-${TARGETARCH}.tar.gz" \
       -o /tmp/age.tar.gz \
-    && curl -fsSL "https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/checksums.txt" \
+    && curl -fsSL "https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/CHECKSUMS" \
       | grep "age-v${AGE_VERSION}-linux-${TARGETARCH}.tar.gz$" \
       | awk '{print $1 "  /tmp/age.tar.gz"}' | sha256sum --check \
     && tar -xz -C /usr/local/bin --strip-components=1 -f /tmp/age.tar.gz "age/age" "age/age-keygen" \
@@ -131,7 +131,7 @@ RUN curl -fsSL "https://github.com/FiloSottile/age/releases/download/v${AGE_VERS
 # sops — with SHA256 sidecar
 RUN curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.${TARGETARCH}" \
       -o /usr/local/bin/sops \
-    && curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.checksums.txt" \
+    && curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.CHECKSUMS" \
       | grep "sops-v${SOPS_VERSION}.linux.${TARGETARCH}$" \
       | awk '{print $1 "  /usr/local/bin/sops"}' | sha256sum --check \
     && chmod +x /usr/local/bin/sops
@@ -141,7 +141,7 @@ RUN curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSIO
 RUN ARCH=$([ "$TARGETARCH" = "amd64" ] && echo "x86_64" || echo "aarch64") \
     && curl -fsSL "https://github.com/sst/opencode/releases/download/v${OPENCODE_VERSION}/opencode-linux-${ARCH}.tar.gz" \
       -o /tmp/opencode.tar.gz \
-    && curl -fsSL "https://github.com/sst/opencode/releases/download/v${OPENCODE_VERSION}/checksums.txt" \
+    && curl -fsSL "https://github.com/sst/opencode/releases/download/v${OPENCODE_VERSION}/CHECKSUMS" \
       | grep "opencode-linux-${ARCH}.tar.gz$" \
       | awk '{print $1 "  /tmp/opencode.tar.gz"}' | sha256sum --check \
     && tar -xz -C /usr/local/bin -f /tmp/opencode.tar.gz opencode \
@@ -158,15 +158,15 @@ ENV GIT_COMMITTER_NAME="mendabot-agent"
 ENV GIT_COMMITTER_EMAIL="mendabot-agent@users.noreply.github.com"
 
 # GitHub App token helper (writes token to stdout)
-COPY scripts/get-github-app-token.sh /usr/local/bin/get-github-app-token.sh
+COPY docker/scripts/get-github-app-token.sh /usr/local/bin/get-github-app-token.sh
 RUN chmod +x /usr/local/bin/get-github-app-token.sh
 
-# Agent entrypoint: runs envsubst on the prompt then calls opencode run
-COPY scripts/agent-entrypoint.sh /usr/local/bin/agent-entrypoint.sh
+# Agent entrypoint: runs envsubst on prompt then calls opencode run
+COPY docker/scripts/agent-entrypoint.sh /usr/local/bin/agent-entrypoint.sh
 RUN chmod +x /usr/local/bin/agent-entrypoint.sh
 
 # Smoke test: verifies all expected binaries are present and executable
-COPY scripts/smoke-test.sh /usr/local/bin/smoke-test.sh
+COPY docker/scripts/smoke-test.sh /usr/local/bin/smoke-test.sh
 RUN chmod +x /usr/local/bin/smoke-test.sh
 
 USER agent
