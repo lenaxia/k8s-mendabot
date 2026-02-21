@@ -70,7 +70,11 @@ func (p *K8sGPTProvider) Fingerprint(f *domain.Finding) (string, error) {
 	var failures []struct {
 		Text string `json:"text"`
 	}
-	_ = json.Unmarshal([]byte(f.Errors), &failures)
+	if f.Errors != "" {
+		if err := json.Unmarshal([]byte(f.Errors), &failures); err != nil {
+			return "", fmt.Errorf("K8sGPTProvider.Fingerprint: malformed errors JSON: %w", err)
+		}
+	}
 
 	texts := make([]string, 0, len(failures))
 	for _, fv := range failures {

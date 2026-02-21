@@ -212,3 +212,38 @@ func TestK8sGPTProvider_Fingerprint_OrderIndependent(t *testing.T) {
 		t.Error("Fingerprint must be order-independent")
 	}
 }
+
+// TestK8sGPTProvider_Fingerprint_MalformedErrors verifies that malformed Errors JSON
+// returns an error rather than silently producing a collision-prone fingerprint.
+func TestK8sGPTProvider_Fingerprint_MalformedErrors(t *testing.T) {
+	p := &k8sgpt.K8sGPTProvider{}
+	f := &domain.Finding{
+		Namespace:    "default",
+		Kind:         "Pod",
+		ParentObject: "my-deployment",
+		Errors:       "this is not json {{{",
+	}
+	_, err := p.Fingerprint(f)
+	if err == nil {
+		t.Fatal("expected error for malformed Errors JSON, got nil")
+	}
+}
+
+// TestK8sGPTProvider_Fingerprint_EmptyErrors verifies that an empty Errors string
+// (e.g. a finding with no error details) produces a valid fingerprint, not an error.
+func TestK8sGPTProvider_Fingerprint_EmptyErrors(t *testing.T) {
+	p := &k8sgpt.K8sGPTProvider{}
+	f := &domain.Finding{
+		Namespace:    "default",
+		Kind:         "Pod",
+		ParentObject: "my-deployment",
+		Errors:       "",
+	}
+	fp, err := p.Fingerprint(f)
+	if err != nil {
+		t.Fatalf("unexpected error for empty Errors: %v", err)
+	}
+	if len(fp) != 64 {
+		t.Errorf("expected 64-char hex fingerprint, got %d chars", len(fp))
+	}
+}
