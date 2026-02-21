@@ -5,7 +5,7 @@ IMAGE=${1:?Usage: smoke-test.sh <image-tag>}
 
 check() {
     echo "Checking: $*"
-    docker run --rm "$IMAGE" "$@"
+    docker run --rm --entrypoint /bin/sh "$IMAGE" -c "$*"
 }
 
 check opencode --version
@@ -28,6 +28,6 @@ check curl --version
 check openssl version
 
 echo "Checking: agent-entrypoint.sh executable"
-docker run --rm "$IMAGE" test -x /usr/local/bin/agent-entrypoint.sh
+docker run --rm --entrypoint /bin/sh "$IMAGE" -c "test -x /usr/local/bin/agent-entrypoint.sh"
 echo "Checking: get-github-app-token.sh executable"
-docker run --rm "$IMAGE" test -x /usr/local/bin/get-github-app-token.sh
+docker run --rm --entrypoint /bin/sh "$IMAGE" -c "test -x /usr/local/bin/get-github-app-token.sh"
