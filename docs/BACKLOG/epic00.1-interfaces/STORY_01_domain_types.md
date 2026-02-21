@@ -2,7 +2,7 @@
 
 **Epic:** [Interfaces and Test Infrastructure](README.md)
 **Priority:** Critical
-**Status:** Not Started
+**Status:** Complete
 **Estimated Effort:** 1.5 hours
 
 ---
@@ -17,7 +17,7 @@ duplication.
 
 ## Acceptance Criteria
 
-- [ ] `api/v1alpha1/remediationjob_types.go` defines all types from REMEDIATIONJOB_LLD.md §2:
+- [x] `api/v1alpha1/remediationjob_types.go` defines all types from REMEDIATIONJOB_LLD.md §2:
   - `RemediationJobSpec`, `ResultRef`, `FindingSpec`
   - `SourceType` constant(s): `SourceTypeK8sGPT = "k8sgpt"`
   - `RemediationJobStatus`, `RemediationJobPhase` constants
@@ -25,31 +25,31 @@ duplication.
   - `RemediationJob` (with kubebuilder markers)
   - `RemediationJobList`
   - `DeepCopyObject()` and `DeepCopyInto()` for both `RemediationJob` and `RemediationJobList`
-  - One `AddToScheme` function for the `remediation.mendabot.io/v1alpha1` group:
+  - One `AddRemediationToScheme` function for the `remediation.mendabot.io/v1alpha1` group:
     registers `RemediationJob` and `RemediationJobList`.
     This is called in `cmd/watcher/main.go` alongside the k8sgpt scheme registration.
 
-- [ ] The `core.k8sgpt.ai/v1alpha1` scheme registration (Result + ResultList) is done
-  by a separate `AddToScheme` function in `api/v1alpha1/result_types.go`
-  (see epic00-foundation/STORY_04). Do NOT add a second Result scheme registration
-  inside `remediationjob_types.go` — that would create duplicate registrations.
+- [x] The `core.k8sgpt.ai/v1alpha1` scheme registration (Result + ResultList) is done
+  by a separate `AddResultToScheme` function in `api/v1alpha1/result_types.go`
+  (see epic00-foundation/STORY_04). `AddRemediationToScheme` only registers
+  remediation.mendabot.io types — no bundled Result registration.
 
-- [ ] `RemediationJobSpec.SourceType` is a required string field, immutable after creation;
+- [x] `RemediationJobSpec.SourceType` is a required string field, immutable after creation;
   `K8sGPTProvider` always sets it to `"k8sgpt"`
 
-- [ ] `internal/domain/provider.go` defines `SourceProvider`, `Finding`, and `SourceRef`
-  as specified in PROVIDER_LLD.md §3. This file is owned by this story.
+- [x] `internal/domain/provider.go` defines `SourceProvider`, `Finding`, `SourceRef`,
+  and `SinkConfig` as specified in PROVIDER_LLD.md §3 and §4. This file is owned by this story.
 
-- [ ] Unit tests in `api/v1alpha1/remediationjob_types_test.go` verify:
+- [x] Unit tests in `api/v1alpha1/remediationjob_types_test.go` verify:
   - `DeepCopyObject()` produces an independent copy (mutating copy does not affect original)
   - `DeepCopyInto()` performs true deep copy of slice fields (`Conditions`, `Spec.Finding`)
   - Phase constants have the expected string values
   - `SourceType` constants have the expected string values (`"k8sgpt"`)
   - Zero value `RemediationJobStatus` has empty Phase (not an invalid phase)
 
-- [ ] No other package duplicates these types
+- [x] No other package duplicates these types
 
-- [ ] **Note:** There is no `domain.JobBuilderConfig` type. The `jobbuilder.Builder` reads
+- [x] **Note:** There is no `domain.JobBuilderConfig` type. The `jobbuilder.Builder` reads
   all finding context (`AgentImage`, `AgentSA`, `GitOpsRepo`, `GitOpsManifestRoot`) directly
   from `rjob.Spec`. The only `jobbuilder.Config` field is `AgentNamespace` (see JOBBUILDER_LLD §3).
   Do not create a `JobBuilderConfig` in `internal/domain/`.
@@ -70,11 +70,11 @@ Redaction of `Sensitive` fields happens in `SourceProviderReconciler.Reconcile()
 
 ## Tasks
 
-- [ ] Create `api/v1alpha1/remediationjob_types_test.go` (TDD — tests first)
-- [ ] Create `api/v1alpha1/remediationjob_types.go` with all types and deep copy
-- [ ] Create `internal/domain/provider.go` with `SourceProvider`, `Finding`, `SourceRef`
-- [ ] Create `internal/domain/provider_test.go`
-- [ ] Verify `go build ./...` still clean
+- [x] Create `api/v1alpha1/remediationjob_types_test.go` (TDD — tests first)
+- [x] Create `api/v1alpha1/remediationjob_types.go` with all types and deep copy
+- [x] Create `internal/domain/provider.go` with `SourceProvider`, `Finding`, `SourceRef`, `SinkConfig`
+- [x] Create `internal/domain/provider_test.go`
+- [x] Verify `go build ./...` still clean
 
 ---
 
@@ -89,6 +89,6 @@ Redaction of `Sensitive` fields happens in `SourceProviderReconciler.Reconcile()
 
 ## Definition of Done
 
-- [ ] Tests pass with `-race`
-- [ ] `go vet` clean
-- [ ] No duplicate type definitions elsewhere in the codebase
+- [x] Tests pass with `-race`
+- [x] `go vet` clean
+- [x] No duplicate type definitions elsewhere in the codebase

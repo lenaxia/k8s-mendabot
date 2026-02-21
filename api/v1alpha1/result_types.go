@@ -1,6 +1,8 @@
 package v1alpha1
 
 import (
+	"fmt"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -29,7 +31,9 @@ func addResultTypes(s *runtime.Scheme) error {
 // registered. Used in tests where a minimal scheme is needed.
 func NewResultScheme() *runtime.Scheme {
 	s := runtime.NewScheme()
-	_ = AddResultToScheme(s)
+	if err := AddResultToScheme(s); err != nil {
+		panic(fmt.Sprintf("failed to register scheme: %v", err))
+	}
 	return s
 }
 

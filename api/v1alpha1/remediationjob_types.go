@@ -1,0 +1,271 @@
+package v1alpha1
+
+import (
+	"fmt"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+)
+
+var (
+	remediationGroupVersion = schema.GroupVersion{
+		Group:   "remediation.mendabot.io",
+		Version: "v1alpha1",
+	}
+	// AddRemediationToScheme registers RemediationJob and RemediationJobList under
+	// remediation.mendabot.io/v1alpha1. Call this in main.go alongside AddResultToScheme.
+	AddRemediationToScheme = addRemediationTypes
+)
+
+func addRemediationTypes(s *runtime.Scheme) error {
+	s.AddKnownTypes(remediationGroupVersion,
+		&RemediationJob{},
+		&RemediationJobList{},
+	)
+	metav1.AddToGroupVersion(s, remediationGroupVersion)
+	return nil
+}
+
+// NewScheme creates a fresh scheme with all v1alpha1 types registered (both group versions).
+func NewScheme() *runtime.Scheme {
+	s := runtime.NewScheme()
+	if err := AddResultToScheme(s); err != nil {
+		panic(fmt.Sprintf("failed to register scheme: %v", err))
+	}
+	if err := AddRemediationToScheme(s); err != nil {
+		panic(fmt.Sprintf("failed to register scheme: %v", err))
+	}
+	return s
+}
+
+// Source and sink type constants.
+const (
+	// SourceTypeK8sGPT is the SourceType value set by K8sGPTProvider.
+	// Defined here so all packages share one authoritative constant.
+	SourceTypeK8sGPT = "k8sgpt"
+)
+
+// RemediationJobPhase represents the lifecycle stage of a RemediationJob.
+type RemediationJobPhase string
+
+const (
+	// PhasePending means the RemediationJob has been created but no batch/v1 Job
+	// exists yet (e.g. MAX_CONCURRENT_JOBS limit is currently reached).
+	PhasePending RemediationJobPhase = "Pending"
+
+	// PhaseDispatched means the batch/v1 Job has been created and is starting.
+	PhaseDispatched RemediationJobPhase = "Dispatched"
+
+	// PhaseRunning means the batch/v1 Job's pod is actively running.
+	PhaseRunning RemediationJobPhase = "Running"
+
+	// PhaseSucceeded means the batch/v1 Job completed successfully.
+	PhaseSucceeded RemediationJobPhase = "Succeeded"
+
+	// PhaseFailed means the batch/v1 Job failed (all retries exhausted or deadline exceeded).
+	PhaseFailed RemediationJobPhase = "Failed"
+)
+
+// Standard condition type constants.
+const (
+	// ConditionJobDispatched is True once the batch/v1 Job has been created.
+	ConditionJobDispatched = "JobDispatched"
+
+	// ConditionJobComplete is True once the batch/v1 Job reached Succeeded state.
+	ConditionJobComplete = "JobComplete"
+
+	// ConditionJobFailed is True if the batch/v1 Job failed.
+	ConditionJobFailed = "JobFailed"
+)
+
+// RemediationJobSpec defines the desired state of a RemediationJob.
+type RemediationJobSpec struct {
+	// SourceResultRef identifies the k8sgpt Result that triggered this remediation.
+	// +kubebuilder:validation:Required
+	SourceResultRef ResultRef `json:"sourceResultRef"`
+
+	// Fingerprint is the SHA256 hash used for deduplication.
+	// Computed from namespace + kind + parentObject + sorted(error texts).
+	// Immutable after creation.
+	Fingerprint string `json:"fingerprint"`
+
+	// SourceType identifies which SourceProvider created this RemediationJob.
+	// Set to the value of SourceProvider.ProviderName() (e.g. "k8sgpt", "prometheus").
+	// Immutable after creation.
+	SourceType string `json:"sourceType"`
+
+	// SinkType identifies which sink the agent should use for output.
+	// Defaults to "github". Injected as SINK_TYPE env var into the agent Job.
+	// Immutable after creation.
+	SinkType string `json:"sinkType"`
+
+	// Finding contains the extracted finding context passed to the agent Job.
+	Finding FindingSpec `json:"finding"`
+
+	// GitOpsRepo is the GitHub repository in owner/repo format.
+	GitOpsRepo string `json:"gitOpsRepo"`
+
+	// GitOpsManifestRoot is the path within the cloned repo to the manifests root.
+	GitOpsManifestRoot string `json:"gitOpsManifestRoot"`
+
+	// AgentImage is the full image reference for the agent container.
+	AgentImage string `json:"agentImage"`
+
+	// AgentSA is the ServiceAccount name for the agent Job.
+	AgentSA string `json:"agentSA"`
+}
+
+// ResultRef is a back-reference to the k8sgpt Result that triggered a RemediationJob.
+type ResultRef struct {
+	// Name is the name of the k8sgpt Result object.
+	Name string `json:"name"`
+
+	// Namespace is the namespace of the k8sgpt Result object.
+	Namespace string `json:"namespace"`
+}
+
+// FindingSpec holds the extracted finding context injected as env vars into the agent Job.
+type FindingSpec struct {
+	// Kind is the Kubernetes resource kind identified by k8sgpt (e.g. "Pod", "Deployment").
+	Kind string `json:"kind"`
+
+	// Name is the plain resource name (no namespace prefix).
+	Name string `json:"name"`
+
+	// Namespace is the namespace of the affected resource.
+	Namespace string `json:"namespace"`
+
+	// ParentObject is the owning resource (e.g. the Deployment owning crashing pods).
+	ParentObject string `json:"parentObject"`
+
+	// Errors is the serialised []Failure with Sensitive fields redacted.
+	// Stored as a JSON string.
+	Errors string `json:"errors"`
+
+	// Details is the k8sgpt LLM explanation of the finding.
+	Details string `json:"details"`
+}
+
+// RemediationJobStatus defines the observed state of a RemediationJob.
+type RemediationJobStatus struct {
+	// Phase is the current lifecycle phase of this RemediationJob.
+	// +kubebuilder:validation:Enum=Pending;Dispatched;Running;Succeeded;Failed
+	Phase RemediationJobPhase `json:"phase,omitempty"`
+
+	// JobRef is the name of the batch/v1 Job created for this remediation.
+	// Set once the Job has been created.
+	JobRef string `json:"jobRef,omitempty"`
+
+	// PRRef is the GitHub PR URL opened or commented on by the agent.
+	// Set by the agent via a status patch before it exits (best-effort).
+	PRRef string `json:"prRef,omitempty"`
+
+	// DispatchedAt is the time the batch/v1 Job was created.
+	DispatchedAt *metav1.Time `json:"dispatchedAt,omitempty"`
+
+	// CompletedAt is the time the batch/v1 Job reached a terminal state.
+	CompletedAt *metav1.Time `json:"completedAt,omitempty"`
+
+	// Message is a human-readable description of the current state,
+	// e.g. an error message if Phase is Failed.
+	Message string `json:"message,omitempty"`
+
+	// Conditions follows the standard Kubernetes condition pattern.
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+}
+
+// RemediationJob represents one investigation and remediation attempt for a
+// k8sgpt finding.
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:scope=Namespaced,shortName=rjob
+// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
+// +kubebuilder:printcolumn:name="Kind",type=string,JSONPath=`.spec.finding.kind`
+// +kubebuilder:printcolumn:name="Parent",type=string,JSONPath=`.spec.finding.parentObject`
+// +kubebuilder:printcolumn:name="Job",type=string,JSONPath=`.status.jobRef`
+// +kubebuilder:printcolumn:name="PR",type=string,JSONPath=`.status.prRef`
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
+type RemediationJob struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	// Spec is required — omitempty is intentionally absent.
+	Spec   RemediationJobSpec   `json:"spec"`
+	Status RemediationJobStatus `json:"status,omitempty"`
+}
+
+// DeepCopyInto copies all properties of this object into another object of the
+// same type that is provided as a pointer.
+func (in *RemediationJob) DeepCopyInto(out *RemediationJob) {
+	*out = *in
+	out.TypeMeta = in.TypeMeta
+	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
+	out.Spec = in.Spec
+	out.Status.Phase = in.Status.Phase
+	out.Status.JobRef = in.Status.JobRef
+	out.Status.PRRef = in.Status.PRRef
+	out.Status.Message = in.Status.Message
+	if in.Status.DispatchedAt != nil {
+		t := *in.Status.DispatchedAt
+		out.Status.DispatchedAt = &t
+	}
+	if in.Status.CompletedAt != nil {
+		t := *in.Status.CompletedAt
+		out.Status.CompletedAt = &t
+	}
+	if in.Status.Conditions != nil {
+		conditions := make([]metav1.Condition, len(in.Status.Conditions))
+		copy(conditions, in.Status.Conditions)
+		out.Status.Conditions = conditions
+	}
+}
+
+// DeepCopyObject implements runtime.Object.
+func (in *RemediationJob) DeepCopyObject() runtime.Object {
+	if in == nil {
+		return nil
+	}
+	out := new(RemediationJob)
+	in.DeepCopyInto(out)
+	return out
+}
+
+// RemediationJobList contains a list of RemediationJob.
+// +kubebuilder:object:root=true
+type RemediationJobList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []RemediationJob `json:"items"`
+}
+
+// DeepCopyInto copies all properties of this object into another object of the
+// same type that is provided as a pointer.
+func (in *RemediationJobList) DeepCopyInto(out *RemediationJobList) {
+	*out = *in
+	out.TypeMeta = in.TypeMeta
+	in.ListMeta.DeepCopyInto(&out.ListMeta)
+	if in.Items != nil {
+		items := make([]RemediationJob, len(in.Items))
+		for i := range in.Items {
+			in.Items[i].DeepCopyInto(&items[i])
+		}
+		out.Items = items
+	}
+}
+
+// DeepCopyObject implements runtime.Object.
+func (in *RemediationJobList) DeepCopyObject() runtime.Object {
+	if in == nil {
+		return nil
+	}
+	out := new(RemediationJobList)
+	in.DeepCopyInto(out)
+	return out
+}
+
+// Ensure RemediationJob and RemediationJobList implement runtime.Object at compile time.
+var _ runtime.Object = (*RemediationJob)(nil)
+var _ runtime.Object = (*RemediationJobList)(nil)
