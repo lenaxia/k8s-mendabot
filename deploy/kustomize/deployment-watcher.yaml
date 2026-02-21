@@ -21,14 +21,14 @@ spec:
           type: RuntimeDefault
       containers:
       - name: watcher
-        image: ghcr.io/lenaxia/mendabot-watcher:latest
+        image: ghcr.io/lenaxia/mendabot-watcher:v0.2.5
         env:
         - name: GITOPS_REPO
           value: "lenaxia/talos-ops-prod"
         - name: GITOPS_MANIFEST_ROOT
           value: "kubernetes"
         - name: AGENT_IMAGE
-          value: "ghcr.io/lenaxia/mendabot-agent:latest"
+          value: "ghcr.io/lenaxia/mendabot-agent:v0.2.5"
         - name: AGENT_NAMESPACE
           value: "mendabot"
         - name: AGENT_SA
