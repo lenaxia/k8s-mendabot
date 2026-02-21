@@ -60,4 +60,4 @@ jobs:
 
       - name: Smoke test
         run: |
-          docker/scripts/smoke-test.sh ghcr.io/lenaxia/mendabot-agent:sha-${{ steps.sha.outputs.short }}
+          ./docker/scripts/smoke-test.sh ghcr.io/lenaxia/mendabot-agent:sha-${{ steps.sha.outputs.short }}
