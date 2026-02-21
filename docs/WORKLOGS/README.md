@@ -33,3 +33,6 @@ else.
 | [0011](0011_2026-02-20_epic01-controller-core-logic.md) | 2026-02-20 | Epic 01 S02–S05: fingerprintFor, K8sGPTProvider, SourceProviderReconciler, RemediationJobReconciler | Complete |
 | [0012](0012_2026-02-20_story07-integration-tests.md) | 2026-02-20 | Epic 01 S07: 13 envtest integration tests + 3 bug fixes | Complete |
 | [0013](0013_2026-02-20_epic02-jobbuilder-complete.md) | 2026-02-20 | Epic 02: Build() pure function, 28 tests, 9-gap review cycle | Complete |
+| [0014](0014_2026-02-20_epic03-agent-image-complete.md) | 2026-02-20 | Epic 03: Dockerfile.agent, entrypoint, token script, smoke test; 14 gaps fixed | Complete |
+| [0015](0015_2026-02-20_robustness-audit.md) | 2026-02-20 | Robustness audit: Fingerprint error return, PhaseCancelled, 21 findings fixed | Complete |
+| [0016](0016_2026-02-20_epic04-deploy-manifests.md) | 2026-02-20 | Epic 04: Kustomize manifests — namespace, CRD, RBAC, secrets, deployment | Complete |
