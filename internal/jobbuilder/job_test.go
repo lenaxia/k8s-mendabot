@@ -165,6 +165,7 @@ func TestBuild_EnvVars_AllPresent(t *testing.T) {
 		"OPENAI_API_KEY",
 		"OPENAI_BASE_URL",
 		"OPENAI_MODEL",
+		"KUBE_API_SERVER",
 	}
 	for _, name := range required {
 		if _, ok := getEnv(main, name); !ok {
@@ -305,6 +306,7 @@ func TestBuild_SecretKeyRefs(t *testing.T) {
 		{"OPENAI_API_KEY", "llm-credentials", "api-key"},
 		{"OPENAI_BASE_URL", "llm-credentials", "base-url"},
 		{"OPENAI_MODEL", "llm-credentials", "model"},
+		{"KUBE_API_SERVER", "llm-credentials", "kube-api-server"},
 	}
 
 	for _, tt := range tests {

@@ -146,6 +146,15 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob) (*batchv1.Job, error) {
 					},
 				},
 			},
+			{
+				Name: "KUBE_API_SERVER",
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "llm-credentials"},
+						Key:                  "kube-api-server",
+					},
+				},
+			},
 		},
 		VolumeMounts: []corev1.VolumeMount{
 			{

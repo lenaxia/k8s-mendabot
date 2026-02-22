@@ -14,6 +14,7 @@ set -euo pipefail
 : "${OPENAI_API_KEY:?OPENAI_API_KEY must be set}"
 : "${OPENAI_BASE_URL:?OPENAI_BASE_URL must be set}"
 : "${OPENAI_MODEL:?OPENAI_MODEL must be set}"
+: "${KUBE_API_SERVER:?KUBE_API_SERVER must be set}"
 # FINDING_PARENT is optional - not all k8sgpt findings have a parent object
 FINDING_PARENT="${FINDING_PARENT:-<none>}"
 
@@ -47,17 +48,17 @@ OPENCODE_CONFIG_CONTENT=$(printf '{
   "model": "custom/%s"
 }' "$OPENAI_BASE_URL" "$OPENAI_API_KEY" "$OPENAI_MODEL" "$OPENAI_MODEL")
 
-# Build a kubeconfig using the SA token's own issuer as the server address.
-# On some Talos nodes the token audience is the node IP rather than the
-# kubernetes service VIP (10.96.0.1), causing kubectl to get 401 Unauthorized.
-# Reading the issuer from the token itself guarantees we hit the right endpoint.
+# Build a kubeconfig pointing at the correct API server address.
+# KUBE_API_SERVER is injected from the llm-credentials secret and overrides
+# the token issuer, which on some Talos worker nodes is the node IP rather
+# than the load balancer address, causing 401 Unauthorized errors.
 SA_TOKEN=/var/run/secrets/kubernetes.io/serviceaccount/token
 SA_CA=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-KUBE_ISSUER=$(cat "$SA_TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null | jq -r '.iss // empty')
-if [ -n "$KUBE_ISSUER" ]; then
+KUBE_SERVER="${KUBE_API_SERVER:-$(cat "$SA_TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null | jq -r '.iss // empty')}"
+if [ -n "$KUBE_SERVER" ]; then
     mkdir -p /home/agent/.kube
     kubectl config set-cluster in-cluster \
-        --server="$KUBE_ISSUER" \
+        --server="$KUBE_SERVER" \
         --certificate-authority="$SA_CA" \
         --embed-certs=true \
         --kubeconfig=/home/agent/.kube/config
