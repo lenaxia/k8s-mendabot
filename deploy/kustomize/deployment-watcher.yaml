@@ -20,7 +20,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: watcher
-        image: ghcr.io/lenaxia/mendabot-watcher:latest
+        image: ghcr.io/lenaxia/mendabot-watcher:sha-0cf8e0d
         env:
         - name: GITOPS_REPO
           value: "lenaxia/talos-ops-prod"
