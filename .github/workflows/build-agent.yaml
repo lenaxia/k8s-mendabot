@@ -2,8 +2,6 @@ name: Build Agent
 
 on:
   push:
-    branches:
-      - main
     tags:
       - 'v*'
   workflow_dispatch:
