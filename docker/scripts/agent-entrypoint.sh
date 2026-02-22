@@ -24,6 +24,12 @@ export OPENCODE_CONFIG_CONTENT
 OPENCODE_CONFIG_CONTENT=$(printf '{
   "$schema": "https://opencode.ai/config.json",
   "autoupdate": false,
+  "permission": {
+    "bash": "allow",
+    "read": "allow",
+    "write": "allow",
+    "edit": "allow"
+  },
   "provider": {
     "custom": {
       "npm": "@ai-sdk/openai-compatible",
@@ -64,6 +70,9 @@ if [ -n "$KUBE_ISSUER" ]; then
     kubectl config use-context in-cluster \
         --kubeconfig=/home/agent/.kube/config
     export KUBECONFIG=/home/agent/.kube/config
+    # Also write to shell profile so opencode's bash subshells inherit it
+    echo "export KUBECONFIG=/home/agent/.kube/config" >> /home/agent/.bashrc
+    echo "export KUBECONFIG=/home/agent/.kube/config" >> /home/agent/.profile
 fi
 
 # Authenticate gh CLI using the token written by the init container.
