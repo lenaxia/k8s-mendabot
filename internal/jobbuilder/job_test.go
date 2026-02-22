@@ -360,7 +360,7 @@ func TestBuild_Volumes_AllPresent(t *testing.T) {
 	job := buildJob(t)
 	podSpec := job.Spec.Template.Spec
 
-	podVolumeTests := []string{"shared-workspace", "prompt-configmap", "github-app-secret"}
+	podVolumeTests := []string{"shared-workspace", "prompt-configmap", "github-app-secret", "agent-token"}
 	for _, name := range podVolumeTests {
 		if _, ok := findVolume(podSpec, name); !ok {
 			t.Errorf("pod volume %q not found", name)
@@ -374,7 +374,7 @@ func TestBuild_Volumes_AllPresent(t *testing.T) {
 			break
 		}
 	}
-	for _, name := range []string{"shared-workspace", "prompt-configmap"} {
+	for _, name := range []string{"shared-workspace", "prompt-configmap", "agent-token"} {
 		if _, ok := findVolumeMount(main, name); !ok {
 			t.Errorf("main container volume mount %q not found", name)
 		}

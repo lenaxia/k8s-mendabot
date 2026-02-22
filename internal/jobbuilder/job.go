@@ -166,6 +166,11 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob) (*batchv1.Job, error) {
 				MountPath: "/prompt",
 				ReadOnly:  true,
 			},
+			{
+				Name:      "agent-token",
+				MountPath: "/var/run/secrets/mendabot/serviceaccount",
+				ReadOnly:  true,
+			},
 		},
 		SecurityContext: &corev1.SecurityContext{
 			AllowPrivilegeEscalation: ptr(false),
@@ -195,6 +200,14 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob) (*batchv1.Job, error) {
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName: "github-app",
+				},
+			},
+		},
+		{
+			Name: "agent-token",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: "mendabot-agent-token",
 				},
 			},
 		},

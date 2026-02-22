@@ -49,12 +49,17 @@ OPENCODE_CONFIG_CONTENT=$(printf '{
 }' "$OPENAI_BASE_URL" "$OPENAI_API_KEY" "$OPENAI_MODEL" "$OPENAI_MODEL")
 
 # Build a kubeconfig pointing at the correct API server address.
-# KUBE_API_SERVER is injected from the llm-credentials secret and overrides
-# the token issuer, which on some Talos worker nodes is the node IP rather
-# than the load balancer address, causing 401 Unauthorized errors.
-SA_TOKEN=/var/run/secrets/kubernetes.io/serviceaccount/token
+# Use the long-lived legacy SA token (no audience claim) mounted from the
+# mendabot-agent-token secret, which is accepted by the API server regardless
+# of the projected token issuer mismatch on worker nodes in this Talos cluster.
+LEGACY_TOKEN=/var/run/secrets/mendabot/serviceaccount/token
 SA_CA=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-KUBE_SERVER="${KUBE_API_SERVER:-$(cat "$SA_TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null | jq -r '.iss // empty')}"
+KUBE_SERVER="${KUBE_API_SERVER:-}"
+SA_TOKEN_FILE="${LEGACY_TOKEN}"
+if [ ! -f "$LEGACY_TOKEN" ]; then
+    SA_TOKEN_FILE=/var/run/secrets/kubernetes.io/serviceaccount/token
+    KUBE_SERVER="${KUBE_API_SERVER:-$(cat "$SA_TOKEN_FILE" | cut -d. -f2 | base64 -d 2>/dev/null | jq -r '.iss // empty')}"
+fi
 if [ -n "$KUBE_SERVER" ]; then
     mkdir -p /home/agent/.kube
     kubectl config set-cluster in-cluster \
@@ -63,7 +68,7 @@ if [ -n "$KUBE_SERVER" ]; then
         --embed-certs=true \
         --kubeconfig=/home/agent/.kube/config
     kubectl config set-credentials in-cluster \
-        --token="$(cat $SA_TOKEN)" \
+        --token="$(cat $SA_TOKEN_FILE)" \
         --kubeconfig=/home/agent/.kube/config
     kubectl config set-context in-cluster \
         --cluster=in-cluster \
