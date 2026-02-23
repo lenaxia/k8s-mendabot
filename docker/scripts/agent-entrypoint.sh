@@ -8,13 +8,14 @@ set -euo pipefail
 : "${FINDING_NAMESPACE:?FINDING_NAMESPACE must be set}"
 : "${FINDING_FINGERPRINT:?FINDING_FINGERPRINT must be set}"
 : "${FINDING_ERRORS:?FINDING_ERRORS must be set}"
-: "${FINDING_DETAILS:?FINDING_DETAILS must be set}"
 : "${GITOPS_REPO:?GITOPS_REPO must be set}"
 : "${GITOPS_MANIFEST_ROOT:?GITOPS_MANIFEST_ROOT must be set}"
 : "${OPENAI_API_KEY:?OPENAI_API_KEY must be set}"
 : "${OPENAI_BASE_URL:?OPENAI_BASE_URL must be set}"
 : "${OPENAI_MODEL:?OPENAI_MODEL must be set}"
 : "${KUBE_API_SERVER:?KUBE_API_SERVER must be set}"
+# FINDING_DETAILS is optional — native providers may not include additional context
+FINDING_DETAILS="${FINDING_DETAILS:-}"
 # FINDING_PARENT is optional — not all native provider findings have a parent object
 FINDING_PARENT="${FINDING_PARENT:-<none>}"
 
