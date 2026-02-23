@@ -3,7 +3,7 @@ name: mendabot
 description: Kubernetes-native SRE remediation bot
 type: application
 version: 0.1.0
-appVersion: v0.3.0
+appVersion: v0.3.2
 kubeVersion: ">=1.28.0-0"
 keywords:
   - kubernetes

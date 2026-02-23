@@ -203,7 +203,122 @@ README.md                            ← Quick Start + Configuration Reference u
 
 ---
 
-## Post-Implementation Bug Fixes (Session 2)
+## Post-Implementation Bug Fixes (Session 3 — Adversarial Deep Review)
+
+A second adversarial review pass found 10 additional failures. All 10 were fixed.
+
+### CHECK-2 — `status.conditions` fields silently pruned by Kubernetes
+
+**Files:** both CRD files
+
+The `status.conditions` array items had `type: object` but no declared properties and no
+`x-kubernetes-preserve-unknown-fields: true`. Kubernetes structural schema validation
+silently prunes unknown fields from `type: object` items. Every `metav1.Condition` field
+(`type`, `status`, `reason`, `message`, `lastTransitionTime`) would be stripped on every
+status patch. The conditions list would always appear empty in etcd.
+
+**Fix:** Added `x-kubernetes-preserve-unknown-fields: true` to `status.conditions.items`
+in both `deploy/kustomize/crd-remediationjob.yaml` and `charts/mendabot/crds/remediationjob.yaml`.
+
+### CHECK-3 — Dead config in `values.yaml` (`secrets.githubApp.name`, `secrets.llm.name`)
+
+**File:** `charts/mendabot/values.yaml`, `charts/mendabot/templates/NOTES.txt`
+
+The `secrets.githubApp.name` and `secrets.llm.name` keys were declared and documented
+but never referenced in any template. `job.go` hardcodes `"github-app"` and
+`"llm-credentials"`. A user who set these values expecting them to work would be silently
+misled.
+
+**Fix:** Removed the two sub-keys from `values.yaml` entirely. Replaced with a single
+`secrets: {}` placeholder and a clear comment explaining the names are compile-time
+constants in `job.go`. Updated `NOTES.txt` to use the literal hardcoded names instead of
+the now-removed `.Values.secrets.*` references.
+
+### CHECK-5a — `events` write missing from watcher ClusterRole
+
+**File:** `charts/mendabot/templates/clusterrole-watcher.yaml`
+
+The watcher ClusterRole only granted `get/list/watch` on `events`. controller-runtime
+emits Kubernetes Events on reconciliation errors via the EventRecorder. Without
+`create` and `patch` on `events`, all controller events are silently dropped.
+
+**Fix:** Split `events` into its own rule with `["get", "list", "watch", "create", "patch"]`
+while keeping the other core resources at read-only.
+
+### CHECK-5b — `coordination.k8s.io/leases` missing from watcher ClusterRole
+
+**File:** `charts/mendabot/templates/clusterrole-watcher.yaml`
+
+controller-runtime's Manager uses `coordination.k8s.io/leases` for leader election by
+default in recent versions. The watcher ClusterRole had no rule for leases. The controller
+would fail to start with a permission-denied error if leader election is active.
+
+**Fix:** Added a `coordination.k8s.io` rule with full CRUD on `leases`.
+
+### CHECK-7d — `kubectl apply` fails on read-only root filesystem
+
+**File:** `charts/mendabot/templates/job-crd-upgrade.yaml`
+
+The CRD hook Job had `readOnlyRootFilesystem: true` but no writable directory for
+`kubectl`'s cache files (written to `$HOME/.kube/cache`). With no writable mount,
+`kubectl apply` fails immediately with a permission error, meaning the CRD upgrade hook
+never applies the CRD.
+
+**Fix:** Added an `emptyDir` volume named `kube-cache` mounted at `/tmp`, and set
+`HOME=/tmp` in the container's environment so `kubectl` writes its cache to `/tmp`.
+
+### CHECK-9a — CI lint step missing required `--set` flags
+
+**File:** `.github/workflows/chart-test.yaml`
+
+The `helm lint --strict` step ran without providing `gitops.repo` or `gitops.manifestRoot`.
+Depending on the Helm version, this either silently passed despite the `required` WARNs or
+failed for an ambiguous reason. The template render step already had the flags but lint did not.
+
+**Fix:** Added `--set gitops.repo=org/repo --set gitops.manifestRoot=kubernetes` to the
+lint step.
+
+### CHECK-9b — Hook RBAC not gated by `rbac.create`
+
+**Files:** `clusterrole-crd-hook.yaml`, `clusterrolebinding-crd-hook.yaml`
+
+The hook ClusterRole and ClusterRoleBinding had no `{{- if .Values.rbac.create }}` guard.
+When `rbac.create=false` (for externally managed RBAC), these two resources were still
+rendered, creating an inconsistency: all namespace RBAC is suppressed but two hook
+cluster-scoped roles are not.
+
+**Fix:** Wrapped both hook RBAC templates in `{{- if .Values.rbac.create }}` guards.
+
+### CHECK-12c — `appVersion` stale at `v0.3.0`
+
+**File:** `charts/mendabot/Chart.yaml`
+
+`appVersion` was `v0.3.0`. The latest git tag is `v0.3.2`. When `image.tag` is empty
+(the default), the chart resolves to `appVersion` — meaning default deployments would
+pin to an image two patch versions behind.
+
+**Fix:** Updated `appVersion` from `v0.3.0` to `v0.3.2`.
+
+---
+
+## Validation Results (Session 3)
+
+```
+helm lint charts/mendabot/ --strict \
+  --set gitops.repo=org/repo \
+  --set gitops.manifestRoot=kubernetes
+→ 1 chart(s) linted, 0 chart(s) failed   (INFO: icon is recommended — cosmetic)
+```
+
+Edge cases:
+- `rbac.create=false` — 10 RBAC resources suppressed (all namespaced + hook cluster RBAC) ✓
+- Missing `gitops.repo` — hard error, no silent render ✓
+- `metrics.enabled=true + serviceMonitor.enabled=true` — Service + ServiceMonitor rendered ✓
+- `createNamespace=true` — Namespace rendered ✓
+
+---
+
+## Post-Implementation Bug Fixes (Session 2 — First Review Pass)
 
 A skeptical deep-dive review identified four issues fixed in the same session:
 

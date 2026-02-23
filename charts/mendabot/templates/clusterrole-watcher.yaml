@@ -7,8 +7,11 @@ metadata:
     {{- include "mendabot.labels" . | nindent 4 }}
 rules:
 - apiGroups: [""]
-  resources: ["pods", "persistentvolumeclaims", "nodes", "namespaces", "events"]
+  resources: ["pods", "persistentvolumeclaims", "nodes", "namespaces"]
   verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["get", "list", "watch", "create", "patch"]
 - apiGroups: ["apps"]
   resources: ["deployments", "statefulsets", "replicasets", "daemonsets"]
   verbs: ["get", "list", "watch"]
@@ -24,4 +27,7 @@ rules:
 - apiGroups: ["remediation.mendabot.io"]
   resources: ["remediationjobs/finalizers"]
   verbs: ["update"]
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 {{- end }}

@@ -5,17 +5,18 @@ Verify the watcher is running:
   kubectl get rjob -n {{ .Release.Namespace }}
 
 REQUIRED: Create the following Secrets before the watcher can function.
-The key names below are hardcoded in the mendabot jobbuilder — do not change them.
+The names and keys below are hardcoded in the mendabot jobbuilder and cannot
+be overridden via Helm values.
 
-1. GitHub App credentials (Secret name: {{ .Values.secrets.githubApp.name }}):
-   kubectl create secret generic {{ .Values.secrets.githubApp.name }} \
+1. GitHub App credentials (Secret name must be exactly "github-app"):
+   kubectl create secret generic github-app \
      --namespace {{ .Release.Namespace }} \
      --from-literal=app-id=<your-app-id> \
      --from-literal=installation-id=<your-installation-id> \
      --from-file=private-key=<path-to-private-key.pem>
 
-2. LLM + cluster credentials (Secret name: {{ .Values.secrets.llm.name }}):
-   kubectl create secret generic {{ .Values.secrets.llm.name }} \
+2. LLM + cluster credentials (Secret name must be exactly "llm-credentials"):
+   kubectl create secret generic llm-credentials \
      --namespace {{ .Release.Namespace }} \
      --from-literal=api-key=<your-llm-api-key> \
      --from-literal=base-url=<your-llm-base-url> \

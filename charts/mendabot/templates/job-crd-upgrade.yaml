@@ -27,6 +27,9 @@ spec:
       - name: kubectl
         image: registry.k8s.io/kubectl:v1.28.16
         command: ["kubectl", "apply", "-f", "/crds/remediationjob.yaml"]
+        env:
+        - name: HOME
+          value: /tmp
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
@@ -35,7 +38,11 @@ spec:
         volumeMounts:
         - name: crd
           mountPath: /crds
+        - name: kube-cache
+          mountPath: /tmp
       volumes:
       - name: crd
         configMap:
           name: {{ include "mendabot.fullname" . }}-crd-upgrader
+      - name: kube-cache
+        emptyDir: {}

@@ -54,25 +54,19 @@ selfRemediation:
   # (PRs go to gitops.repo only).
   disableUpstreamContributions: false
 
-# References to pre-existing Secrets. The chart never creates Secret content.
-# Create these Secrets before running helm install.
+# Pre-existing Secrets that must be created before helm install.
+# The chart never creates Secret content.
 #
-# WARNING: These name fields are DOCUMENTATION-ONLY. They do NOT affect the
-# Secret names mounted into agent Jobs. The agent Job spec in internal/controller/job.go
-# hardcodes "github-app" and "llm-credentials" at compile time. If you rename the
-# Secrets, every agent Job will fail with CreateContainerConfigError. To use custom
-# names you must rebuild the watcher image with updated constants in job.go.
-secrets:
-  githubApp:
-    # Name of the Secret containing GitHub App credentials.
-    # Required keys: app-id, installation-id, private-key
-    # MUST be "github-app" unless you rebuild the watcher image (see WARNING above).
-    name: github-app
-  llm:
-    # Name of the Secret containing LLM API credentials.
-    # Required keys: api-key, base-url, model, kube-api-server
-    # MUST be "llm-credentials" unless you rebuild the watcher image (see WARNING above).
-    name: llm-credentials
+# IMPORTANT: The Secret names below are hardcoded compile-time constants in
+# internal/controller/job.go. They cannot be overridden via Helm values.
+# Any operator that changes these names without rebuilding the watcher image
+# will see CreateContainerConfigError on every agent Job.
+#
+#   Secret "github-app"      — keys: app-id, installation-id, private-key
+#   Secret "llm-credentials" — keys: api-key, base-url, model, kube-api-server
+#
+# See NOTES.txt for the exact kubectl create secret commands.
+secrets: {}  # placeholder — no configurable fields; names are hardcoded in job.go
 
 # Prompt configuration
 prompt:

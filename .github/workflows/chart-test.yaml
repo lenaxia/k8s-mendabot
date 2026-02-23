@@ -19,7 +19,10 @@ jobs:
         uses: azure/setup-helm@v4
 
       - name: Lint chart (strict)
-        run: helm lint charts/mendabot/ --strict
+        run: |
+          helm lint charts/mendabot/ --strict \
+            --set gitops.repo=org/repo \
+            --set gitops.manifestRoot=kubernetes
 
       - name: Template render check
         run: |
