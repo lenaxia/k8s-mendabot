@@ -69,6 +69,15 @@ func (r *RemediationJobReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			if err := r.Delete(ctx, &rjob); err != nil && !apierrors.IsNotFound(err) {
 				return ctrl.Result{}, err
 			}
+			if r.Log != nil {
+				r.Log.Info("RemediationJob deleted by TTL",
+					zap.Bool("audit", true),
+					zap.String("event", "remediationjob.deleted_ttl"),
+					zap.String("remediationJob", rjob.Name),
+					zap.String("namespace", rjob.Namespace),
+					zap.String("prRef", rjob.Status.PRRef),
+				)
+			}
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, nil
@@ -114,6 +123,20 @@ func (r *RemediationJobReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 		if err := r.Status().Patch(ctx, &rjob, client.MergeFrom(rjobCopy)); err != nil {
 			return ctrl.Result{}, err
+		}
+		if r.Log != nil && (newPhase == v1alpha1.PhaseSucceeded || newPhase == v1alpha1.PhaseFailed) {
+			event := "job.succeeded"
+			if newPhase == v1alpha1.PhaseFailed {
+				event = "job.failed"
+			}
+			r.Log.Info("agent job terminal",
+				zap.Bool("audit", true),
+				zap.String("event", event),
+				zap.String("remediationJob", rjob.Name),
+				zap.String("job", job.Name),
+				zap.String("namespace", rjob.Namespace),
+				zap.String("prRef", rjob.Status.PRRef),
+			)
 		}
 		return ctrl.Result{}, nil
 	}

@@ -75,3 +75,6 @@ else.
 | [0053](0053_2026-02-23_epic12-story00-security-infra.md) | 2026-02-23 | Epic 12 STORY_00: Makefile, kind-config, Trivy CI steps, gosec baseline placeholder | Complete |
 | [0054](0054_2026-02-23_story01-secret-redaction.md) | 2026-02-23 | STORY_01: RedactSecrets applied at all 6 native provider error text sites, 8 new tests | Complete |
 | [0055](0055_2026-02-23_story05-prompt-injection-defence.md) | 2026-02-23 | STORY_05: injection detection, truncate helper, config field, prompt envelope, HARD RULE 8 | Complete |
+| [0056](0056_2026-02-23_story03-audit-log.md) | 2026-02-23 | STORY_03: structured audit log lines at all 10 decision points in both reconcilers | Complete |
+| [0057](0057_2026-02-23_story02-network-policy.md) | 2026-02-23 | STORY_02: NetworkPolicy egress restriction for agent Jobs, security overlay | Complete |
+| [0058](0058_2026-02-23_story04-agent-rbac-scoping.md) | 2026-02-23 | STORY_04: AgentRBACScope config, NS SA selection, 4 RBAC manifests, 5 TDD tests | Complete |
