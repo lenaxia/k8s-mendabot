@@ -2,7 +2,7 @@
 
 **Epic:** [epic11-self-remediation-cascade](README.md)
 **Priority:** Medium
-**Status:** Not Started
+**Status:** In Progress
 **Estimated Effort:** 4 hours
 
 ---
@@ -15,17 +15,17 @@ As a **mendabot operator**, I want comprehensive monitoring and observability fo
 
 ## Acceptance Criteria
 
-- [ ] Prometheus metrics for cascade prevention events
-- [ ] Structured audit logs for cascade decisions
+- [x] Prometheus metrics for cascade prevention events
+- [x] Structured audit logs for cascade decisions
 - [ ] Kubernetes Events for significant cascade events
-- [ ] Circuit breaker state exposed as metrics
-- [ ] Chain depth distribution metrics
-- [ ] Self-remediation success/failure rates
-- [ ] Suppression reason tracking (circuit breaker, max depth, infrastructure cascade)
-- [ ] Integration with existing controller-runtime metrics
+- [x] Circuit breaker state exposed as metrics
+- [x] Chain depth distribution metrics
+- [x] Self-remediation success/failure rates
+- [x] Suppression reason tracking (circuit breaker, max depth, infrastructure cascade)
+- [x] Integration with existing controller-runtime metrics
 - [ ] Grafana dashboard template for cascade monitoring
 - [ ] Alert rules for cascade anomalies (e.g., deep cascades, circuit breaker stuck open)
-- [ ] Unit tests for metrics collection
+- [x] Unit tests for metrics collection
 - [ ] Integration tests for observability features
 
 ---
@@ -148,16 +148,16 @@ EVENTS_ENABLED=true
 
 ## Tasks
 
-- [ ] Design metrics schema and labels
-- [ ] Implement metrics collection package
-- [ ] Add metrics to CircuitBreaker
-- [ ] Add metrics to SourceProviderReconciler
-- [ ] Add metrics to CascadeChecker
-- [ ] Implement structured audit logging
+- [x] Design metrics schema and labels
+- [x] Implement metrics collection package
+- [x] Add metrics to CircuitBreaker
+- [x] Add metrics to SourceProviderReconciler
+- [x] Add metrics to CascadeChecker
+- [x] Implement structured audit logging
 - [ ] Add Kubernetes Events emission
 - [ ] Create Grafana dashboard template
 - [ ] Write Prometheus alert rules
-- [ ] Write unit tests for metrics
+- [x] Write unit tests for metrics
 - [ ] Write integration tests for observability
 - [ ] Document monitoring setup and dashboards
 
@@ -172,10 +172,10 @@ EVENTS_ENABLED=true
 
 ## Definition of Done
 
-- [ ] All tests pass with `-race`
-- [ ] `go vet` clean
-- [ ] Metrics available on `/metrics` endpoint
-- [ ] Audit logs contain structured cascade events
+- [x] All tests pass with `-race`
+- [x] `go vet` clean
+- [x] Metrics available on `/metrics` endpoint
+- [x] Audit logs contain structured cascade events
 - [ ] Kubernetes Events emitted for significant cascade events
 - [ ] Grafana dashboard template provided
 - [ ] Alert rules documented

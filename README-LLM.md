@@ -867,6 +867,7 @@ kubectl apply -k deploy/kustomize/
 | Branch | Purpose | Status | Created |
 |--------|---------|--------|---------|
 | `main` | Stable code | Active | 2026-02-19 |
+| `feature/epic11-fixes` | Epic 11 bug fixes (7 bugs, 3 tests, race-clean) | Active | 2026-02-23 |
 
 **Merged branches:**
 

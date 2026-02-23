@@ -58,3 +58,4 @@ else.
 | [0036](0036_2026-02-23_helm-chart-design.md) | 2026-02-23 | README overhaul + Helm chart architecture design | Complete |
 | [0037](0037_2026-02-23_epic10-helm-chart-planning.md) | 2026-02-23 | Epic 10 Helm chart: design decisions, backlog created, 4 gaps found and fixed | Complete |
 | [0038](0038_2026-02-23_epic10-helm-chart-implementation.md) | 2026-02-23 | Epic 10 Helm chart: all 13 stories implemented, helm lint passes, CI workflow added | Complete |
+| [0039](0039_2026-02-23_epic11-bug-fixes.md) | 2026-02-23 | Epic 11 bug fixes: 7 bugs fixed, 3 tests added, race detector clean, story DoD updated | Complete |

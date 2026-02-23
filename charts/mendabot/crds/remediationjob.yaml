@@ -85,9 +85,6 @@ spec:
               chainDepth:
                 type: integer
                 description: "Self-remediation chain depth: 0=not self-remediation, 1=first failure, 2+=nested"
-              targetRepoOverride:
-                type: string
-                description: "Alternative repository target for upstream bug-fix PRs"
           status:
             type: object
             properties:

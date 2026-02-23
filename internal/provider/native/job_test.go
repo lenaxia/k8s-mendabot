@@ -11,6 +11,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/lenaxia/k8s-mendabot/api/v1alpha1"
@@ -1046,8 +1047,12 @@ func TestJobProvider_ConcurrentReconciliationRace(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 
+			// Deep-copy parentRJob to avoid a data race: fake.NewClientBuilder().WithObjects()
+			// calls obj.SetResourceVersion("999") on the passed object during Build(), which
+			// mutates the shared pointer concurrently across goroutines.
+			localParent := parentRJob.DeepCopyObject().(client.Object)
 			// Each goroutine gets its own client with the same parent
-			c := fake.NewClientBuilder().WithScheme(s).WithObjects(parentRJob).Build()
+			c := fake.NewClientBuilder().WithScheme(s).WithObjects(localParent).Build()
 			p := NewJobProvider(c, newTestConfig())
 
 			job := newExhaustedJob("mendabot-agent-race", "default", 1)

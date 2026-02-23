@@ -179,17 +179,3 @@ func FromEnv() (Config, error) {
 
 	return cfg, nil
 }
-
-// isValidGitHubIdentifier checks if a string is a valid GitHub owner or repository name
-func isValidGitHubIdentifier(s string) bool {
-	if s == "" {
-		return false
-	}
-	// GitHub repo names can contain alphanumeric characters, hyphens, and underscores
-	for _, r := range s {
-		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_') {
-			return false
-		}
-	}
-	return true
-}

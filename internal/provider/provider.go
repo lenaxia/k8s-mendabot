@@ -40,6 +40,10 @@ type SourceProviderReconciler struct {
 	cascadeChecker cascade.Checker
 	// initOnce ensures thread-safe lazy initialization of firstSeen map
 	initOnce sync.Once
+	// initCascadeOnce ensures thread-safe lazy initialization of cascadeChecker
+	initCascadeOnce sync.Once
+	// initCBOnce ensures thread-safe lazy initialization of circuitBreaker
+	initCBOnce sync.Once
 }
 
 // FirstSeen returns the firstSeen map for inspection in tests.
@@ -128,19 +132,19 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	// Cascade checker for infrastructure failures
-	if r.cascadeChecker == nil {
+	r.initCascadeOnce.Do(func() {
 		cascadeCfg := cascade.Config{
 			Enabled:                 !r.Cfg.DisableCascadeCheck,
 			NamespaceFailurePercent: r.Cfg.CascadeNamespaceThreshold,
 			NodeCacheTTL:            r.Cfg.CascadeNodeCacheTTL,
 		}
-		var err error
-		r.cascadeChecker, err = cascade.NewChecker(cascadeCfg)
+		checker, err := cascade.NewChecker(cascadeCfg)
 		if err != nil {
 			r.Log.Error("failed to create cascade checker", zap.Error(err))
-			// Continue without cascade checking rather than fail
+			return
 		}
-	}
+		r.cascadeChecker = checker
+	})
 	if r.cascadeChecker != nil {
 		suppress, reason, err := r.cascadeChecker.ShouldSuppress(ctx, finding, r.Client)
 		if err != nil {
@@ -170,9 +174,9 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	// Circuit breaker for self-remediations
 	if finding.IsSelfRemediation {
 		// Initialize circuit breaker if not already initialized
-		if r.circuitBreaker == nil {
+		r.initCBOnce.Do(func() {
 			r.circuitBreaker = circuitbreaker.New(r.Client, r.Cfg.AgentNamespace, r.Cfg.SelfRemediationCooldown)
-		}
+		})
 
 		allowed, remaining, err := r.circuitBreaker.ShouldAllow(ctx)
 		if err != nil {
@@ -198,7 +202,7 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 
 		// Log cascade warning for deep chains
-		if finding.ChainDepth > 2 {
+		if finding.ChainDepth > 1 {
 			if r.Log != nil {
 				r.Log.Warn("deep cascade detected in self-remediation",
 					zap.String("fingerprint", fp[:12]),
@@ -209,8 +213,8 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			// Record chain depth metrics
 			metrics.RecordChainDepth(r.Provider.ProviderName(), finding.Namespace, finding.ChainDepth)
 
-			// Record max depth exceeded if chain is too deep (e.g., > 3)
-			if finding.ChainDepth > 3 {
+			// Record max depth exceeded if chain is at or beyond configured max depth
+			if finding.ChainDepth >= r.Cfg.SelfRemediationMaxDepth {
 				metrics.RecordMaxDepthExceeded(r.Provider.ProviderName(), finding.Namespace, finding.ChainDepth)
 				metrics.RecordCascadeSuppression(r.Provider.ProviderName(), finding.Namespace, "max_depth")
 				metrics.RecordCascadeSuppressionReason(r.Provider.ProviderName(), finding.Namespace, "chain_too_deep",
@@ -328,14 +332,12 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	// Record metrics for remediation attempt
 	if finding.IsSelfRemediation {
-		// For self-remediations, we record the attempt
-		// Success/failure will be recorded when the job completes (in another reconciler)
-		metrics.RecordSelfRemediationAttempt(r.Provider.ProviderName(), finding.Namespace, true)
-		// Clear circuit breaker cooldown since we allowed this remediation
+		// Clear circuit breaker cooldown since we allowed this remediation.
+		// The actual attempt outcome (success/failure) is recorded in the
+		// RemediationJob controller when the job completes.
 		metrics.ClearCircuitBreakerCooldown(r.Provider.ProviderName(), finding.Namespace)
 	} else {
-		// For regular remediations, we might want to track them differently
-		// For now, just record chain depth if applicable
+		// For regular remediations, record chain depth if applicable
 		if finding.ChainDepth > 0 {
 			metrics.RecordChainDepth(r.Provider.ProviderName(), finding.Namespace, finding.ChainDepth)
 		}

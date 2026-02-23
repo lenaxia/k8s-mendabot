@@ -495,8 +495,12 @@ func TestConcurrentChainDepthTracking(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 
+			// Deep-copy parentRJob to avoid a data race: fake.NewClientBuilder().WithObjects()
+			// calls obj.SetResourceVersion("999") on the passed object during Build(), which
+			// mutates the shared pointer concurrently across goroutines.
+			localParent := parentRJob.DeepCopyObject().(client.Object)
 			// Each goroutine gets its own client
-			c := fake.NewClientBuilder().WithScheme(s).WithObjects(parentRJob).Build()
+			c := fake.NewClientBuilder().WithScheme(s).WithObjects(localParent).Build()
 			p := native.NewJobProvider(c, cfg)
 
 			job := &batchv1.Job{

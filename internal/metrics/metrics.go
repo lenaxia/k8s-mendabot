@@ -205,3 +205,18 @@ func RecordCascadeSuppression(provider, namespace, suppressionType string) {
 func RecordCascadeSuppressionReason(provider, namespace, reason, description string) {
 	cascadeSuppressionReasons.WithLabelValues(provider, namespace, reason).Inc()
 }
+
+// SelfRemediationAttemptsTotal exposes the counter for test inspection.
+func SelfRemediationAttemptsTotal() *prometheus.CounterVec {
+	return selfRemediationAttemptsTotal
+}
+
+// MaxDepthExceededTotal exposes the counter for test inspection.
+func MaxDepthExceededTotal() *prometheus.CounterVec {
+	return maxDepthExceededTotal
+}
+
+// CascadeSuppressionsTotal exposes the counter for test inspection.
+func CascadeSuppressionsTotal() *prometheus.CounterVec {
+	return cascadeSuppressionsTotal
+}
