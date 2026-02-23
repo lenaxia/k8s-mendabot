@@ -10,19 +10,20 @@ No external operators required.
 ## How it works
 
 ```mermaid
+%%{init: {'flowchart': {'curve': 'linear'}}}%%
 flowchart TD
     subgraph cluster["Kubernetes Cluster"]
         subgraph watcher["mendabot-watcher (Deployment)"]
-            SPR["SourceProviderReconcilers\none per resource type\n─────────────────────\nwatches Pods, Deployments,\nStatefulSets, PVCs, Nodes, Jobs\nextracts findings\ndeduplicates by fingerprint"]
-            RJR["RemediationJobReconciler\n─────────────────────\nwatches RemediationJob CRDs\nenforces MAX_CONCURRENT_JOBS\nsyncs Job status back"]
+            SPR["SourceProviderReconcilers<br/>one per resource type<br/>─────────────────────<br/>watches Pods, Deployments,<br/>StatefulSets, PVCs, Nodes, Jobs<br/>extracts findings<br/>deduplicates by fingerprint"]
+            RJR["RemediationJobReconciler<br/>─────────────────────<br/>watches RemediationJob CRDs<br/>enforces MAX_CONCURRENT_JOBS<br/>syncs Job status back"]
         end
 
-        RJ["RemediationJob CRDs\n(rjob)\n─────────────────────\ndurable dedup state\nsurvives restarts"]
+        RJ["RemediationJob CRDs<br/>(rjob)<br/>─────────────────────<br/>durable dedup state<br/>survives restarts"]
 
-        AJ["mendabot-agent Job\none per finding\n─────────────────────\ninit: git clone repo\nmain: opencode run\n  kubectl read-only\n  gh pr create"]
+        AJ["mendabot-agent Job<br/>one per finding<br/>─────────────────────<br/>init: git clone repo<br/>main: opencode run<br/>  kubectl read-only<br/>  gh pr create"]
     end
 
-    GH["GitOps repository\nGitHub"]
+    GH["GitOps repository<br/>GitHub"]
 
     SPR -->|creates| RJ
     RJ -->|watched by| RJR
@@ -97,16 +98,16 @@ mendabot-f4e2a1c85b67         Failed      Node         Node/worker-03           
 stateDiagram-v2
     [*] --> Pending : finding detected
 
-    Pending --> Dispatched : MAX_CONCURRENT_JOBS\nslot available
+    Pending --> Dispatched : concurrent-job slot available
     Pending --> Cancelled : source object deleted
 
     Dispatched --> Running : Job pod scheduled
 
     Running --> Succeeded : agent Job completed
-    Running --> Failed : exit non-zero or\ndeadline exceeded
+    Running --> Failed : exit non-zero or deadline exceeded
     Running --> Cancelled : source object deleted
 
-    Failed --> [*] : re-triggers on next\nreconcile of source
+    Failed --> [*] : re-triggers on next reconcile of source
     Succeeded --> [*]
     Cancelled --> [*]
 ```
