@@ -867,13 +867,13 @@ kubectl apply -k deploy/kustomize/
 | Branch | Purpose | Status | Created |
 |--------|---------|--------|---------|
 | `main` | Stable code | Active | 2026-02-19 |
-| `feature/epic10-helm-chart` | Helm chart packaging | Active | 2026-02-23 |
 
 **Merged branches:**
 
 | Branch | Purpose | Merged | Commit |
 |--------|---------|--------|--------|
 | `feature/epic09-native-provider` | Native cluster provider (replaces k8sgpt) | 2026-02-22 | df59899 |
+| `feature/epic10-helm-chart` | Helm chart packaging (epic10) | 2026-02-23 | 2dec0ae |
 
 **Branch naming:**
 - Feature: `feature/short-description`
