@@ -47,3 +47,4 @@ else.
 | [0025](0025_2026-02-22_epic09-story05-deployment-provider.md) | 2026-02-22 | Epic 09 STORY_05: DeploymentProvider with replicas/available detection, 13 tests | Complete |
 | [0026](0026_2026-02-22_epic09-story06-pvc-provider.md) | 2026-02-22 | Epic 09 STORY_06: PVCProvider with ProvisioningFailed event detection, 11 tests | Complete |
 | [0027](0027_2026-02-22_epic09-story07-node-provider.md) | 2026-02-22 | Epic 09 STORY_07: NodeProvider with condition-based detection, 16 tests | Complete |
+| [0028](0028_2026-02-22_epic09-story10-statefulset-provider.md) | 2026-02-22 | Epic 09 STORY_10: StatefulSetProvider with generation-based scaling detection, 13 tests | Complete |
