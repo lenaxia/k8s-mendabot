@@ -6,7 +6,7 @@ Replace the k8sgpt operator dependency with a native `SourceProvider` implementa
 that watches core Kubernetes resources directly. mendabot will no longer require
 k8sgpt-operator to be installed in the cluster.
 
-## Status: Not Started
+## Status: Complete
 
 ## Dependencies
 
@@ -209,9 +209,9 @@ be complete before STORY_09.
 
 ## Definition of Done
 
-- [ ] All stories complete
-- [ ] All tests pass with race detector: `go test -timeout 120s -race ./...`
-- [ ] `go vet ./...` clean
-- [ ] `go build ./...` clean
-- [ ] k8sgpt-operator is no longer a deployment prerequisite
-- [ ] Worklog written
+- [x] All stories complete
+- [x] All tests pass with race detector: `go test -timeout 120s -race ./...`
+- [x] `go vet ./...` clean
+- [x] `go build ./...` clean
+- [x] k8sgpt-operator is no longer a deployment prerequisite
+- [x] Worklog written
