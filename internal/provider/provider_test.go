@@ -3,6 +3,7 @@ package provider_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -462,5 +463,261 @@ func TestSourceProviderReconciler_FingerprintError_ReturnsError(t *testing.T) {
 	_, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
 	if err == nil {
 		t.Error("expected error from malformed Errors JSON, got nil")
+	}
+}
+
+// --- Stabilisation window tests ---
+
+func newTestReconcilerWithWindow(p *fakeSourceProvider, c client.Client, window time.Duration) *provider.SourceProviderReconciler {
+	return &provider.SourceProviderReconciler{
+		Client: c,
+		Scheme: newTestScheme(),
+		Cfg: config.Config{
+			AgentNamespace:      agentNamespace,
+			StabilisationWindow: window,
+		},
+		Provider: p,
+	}
+}
+
+func makeFinding() *domain.Finding {
+	return &domain.Finding{
+		Kind:         "Pod",
+		Name:         "pod-abc",
+		Namespace:    "default",
+		ParentObject: "my-deploy",
+		Errors:       `[{"text":"CrashLoopBackOff"}]`,
+	}
+}
+
+// TestStabilisationWindow_WindowZeroImmediate verifies that StabilisationWindow==0 bypasses
+// the firstSeen map entirely and creates a RemediationJob immediately.
+func TestStabilisationWindow_WindowZeroImmediate(t *testing.T) {
+	finding := makeFinding()
+	p := &fakeSourceProvider{
+		name:       "k8sgpt",
+		objectType: &v1alpha1.Result{},
+		finding:    finding,
+	}
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj)
+	r := newTestReconcilerWithWindow(p, c, 0)
+
+	result, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.RequeueAfter != 0 {
+		t.Errorf("expected no RequeueAfter for window=0, got %v", result.RequeueAfter)
+	}
+
+	var list v1alpha1.RemediationJobList
+	if err := c.List(context.Background(), &list, client.InNamespace(agentNamespace)); err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+	if len(list.Items) != 1 {
+		t.Errorf("expected 1 RemediationJob created immediately, got %d", len(list.Items))
+	}
+}
+
+// TestStabilisationWindow_WindowNotElapsed verifies that on first sight of a finding with
+// a non-zero window, the reconciler returns RequeueAfter > 0 and does not create a RemediationJob.
+func TestStabilisationWindow_WindowNotElapsed(t *testing.T) {
+	finding := makeFinding()
+	p := &fakeSourceProvider{
+		name:       "k8sgpt",
+		objectType: &v1alpha1.Result{},
+		finding:    finding,
+	}
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj)
+	window := 2 * time.Minute
+	r := newTestReconcilerWithWindow(p, c, window)
+
+	result, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.RequeueAfter <= 0 {
+		t.Errorf("expected RequeueAfter > 0 on first sight, got %v", result.RequeueAfter)
+	}
+
+	var list v1alpha1.RemediationJobList
+	if err := c.List(context.Background(), &list, client.InNamespace(agentNamespace)); err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+	if len(list.Items) != 0 {
+		t.Errorf("expected 0 RemediationJobs before window elapses, got %d", len(list.Items))
+	}
+}
+
+// TestStabilisationWindow_WindowElapsed verifies that when the window has already elapsed
+// (firstSeen entry is old enough), the reconciler proceeds to create a RemediationJob.
+func TestStabilisationWindow_WindowElapsed(t *testing.T) {
+	finding := makeFinding()
+	fp, err := domain.FindingFingerprint(finding)
+	if err != nil {
+		t.Fatalf("computing fingerprint: %v", err)
+	}
+
+	p := &fakeSourceProvider{
+		name:       "k8sgpt",
+		objectType: &v1alpha1.Result{},
+		finding:    finding,
+	}
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj)
+	window := 2 * time.Minute
+	r := newTestReconcilerWithWindow(p, c, window)
+
+	// Pre-populate firstSeen with a timestamp 3 minutes in the past so the window is elapsed.
+	r.FirstSeen()[fp] = time.Now().Add(-3 * time.Minute)
+
+	result, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.RequeueAfter != 0 {
+		t.Errorf("expected no RequeueAfter after window elapsed, got %v", result.RequeueAfter)
+	}
+
+	var list v1alpha1.RemediationJobList
+	if err := c.List(context.Background(), &list, client.InNamespace(agentNamespace)); err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+	if len(list.Items) != 1 {
+		t.Errorf("expected 1 RemediationJob after window elapsed, got %d", len(list.Items))
+	}
+}
+
+// TestStabilisationWindow_SecondSightWithinWindow verifies that when the window has not elapsed
+// yet (entry in firstSeen is recent), the reconciler returns a RequeueAfter equal to the
+// remaining time, and no RemediationJob is created.
+func TestStabilisationWindow_SecondSightWithinWindow(t *testing.T) {
+	finding := makeFinding()
+	fp, err := domain.FindingFingerprint(finding)
+	if err != nil {
+		t.Fatalf("computing fingerprint: %v", err)
+	}
+
+	p := &fakeSourceProvider{
+		name:       "k8sgpt",
+		objectType: &v1alpha1.Result{},
+		finding:    finding,
+	}
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj)
+	window := 2 * time.Minute
+	r := newTestReconcilerWithWindow(p, c, window)
+
+	// Pre-populate firstSeen with a timestamp 30 seconds ago (within the 2-minute window).
+	elapsed := 30 * time.Second
+	r.FirstSeen()[fp] = time.Now().Add(-elapsed)
+
+	result, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Remaining time should be approximately window - elapsed = 90s.
+	// Allow for a few seconds of test execution time.
+	minExpected := window - elapsed - 2*time.Second
+	if result.RequeueAfter < minExpected {
+		t.Errorf("RequeueAfter = %v, want >= %v (remaining window time)", result.RequeueAfter, minExpected)
+	}
+	if result.RequeueAfter >= window {
+		t.Errorf("RequeueAfter = %v, want < %v (full window)", result.RequeueAfter, window)
+	}
+
+	var list v1alpha1.RemediationJobList
+	if err := c.List(context.Background(), &list, client.InNamespace(agentNamespace)); err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+	if len(list.Items) != 0 {
+		t.Errorf("expected 0 RemediationJobs while window not elapsed, got %d", len(list.Items))
+	}
+}
+
+// TestStabilisationWindow_FindingClearsResetsWindow verifies that when ExtractFinding returns
+// nil (finding cleared), the firstSeen entry is evicted. A subsequent finding restarts the window.
+func TestStabilisationWindow_FindingClearsResetsWindow(t *testing.T) {
+	finding := makeFinding()
+	fp, err := domain.FindingFingerprint(finding)
+	if err != nil {
+		t.Fatalf("computing fingerprint: %v", err)
+	}
+
+	p := &fakeSourceProvider{
+		name:       "k8sgpt",
+		objectType: &v1alpha1.Result{},
+		finding:    finding,
+	}
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj)
+	window := 2 * time.Minute
+	r := newTestReconcilerWithWindow(p, c, window)
+
+	// Pre-populate firstSeen as if we already recorded a first sight.
+	r.FirstSeen()[fp] = time.Now().Add(-30 * time.Second)
+
+	// Now simulate the finding clearing: set provider to return nil.
+	p.finding = nil
+	_, err = r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error on nil-finding reconcile: %v", err)
+	}
+
+	// The firstSeen entry should have been evicted.
+	if _, exists := r.FirstSeen()[fp]; exists {
+		t.Error("expected firstSeen entry to be evicted after finding cleared")
+	}
+
+	// Restore the finding — subsequent reconcile should restart the window (not proceed to create).
+	p.finding = finding
+	result, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error on re-finding reconcile: %v", err)
+	}
+	if result.RequeueAfter <= 0 {
+		t.Errorf("expected window to restart after finding cleared, got RequeueAfter=%v", result.RequeueAfter)
+	}
+
+	var list v1alpha1.RemediationJobList
+	if err := c.List(context.Background(), &list, client.InNamespace(agentNamespace)); err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+	if len(list.Items) != 0 {
+		t.Errorf("expected 0 RemediationJobs after window reset, got %d", len(list.Items))
+	}
+}
+
+// TestStabilisationWindow_NotFoundClearsMap verifies that when the watched object is
+// deleted (not-found path), the firstSeen map is cleared entirely.
+func TestStabilisationWindow_NotFoundClearsMap(t *testing.T) {
+	finding := makeFinding()
+	fp, err := domain.FindingFingerprint(finding)
+	if err != nil {
+		t.Fatalf("computing fingerprint: %v", err)
+	}
+
+	p := &fakeSourceProvider{
+		name:       "k8sgpt",
+		objectType: &v1alpha1.Result{},
+	}
+	// No Result object in the client — it has been deleted.
+	c := newTestClient()
+	window := 2 * time.Minute
+	r := newTestReconcilerWithWindow(p, c, window)
+
+	// Pre-populate firstSeen with an entry.
+	r.FirstSeen()[fp] = time.Now()
+	r.FirstSeen()["other-fp"] = time.Now()
+
+	_, err = r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(r.FirstSeen()) != 0 {
+		t.Errorf("expected firstSeen to be cleared on not-found, got %d entries", len(r.FirstSeen()))
 	}
 }

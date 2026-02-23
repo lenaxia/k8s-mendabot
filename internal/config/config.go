@@ -4,20 +4,22 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 )
 
 // Config holds all runtime configuration for the mendabot-watcher controller.
 // All fields are populated from environment variables at startup via FromEnv.
 type Config struct {
-	GitOpsRepo               string // GITOPS_REPO — required
-	GitOpsManifestRoot       string // GITOPS_MANIFEST_ROOT — required
-	AgentImage               string // AGENT_IMAGE — required
-	AgentNamespace           string // AGENT_NAMESPACE — required; must equal watcher namespace
-	AgentSA                  string // AGENT_SA — required
-	SinkType                 string // SINK_TYPE — default "github"
-	LogLevel                 string // LOG_LEVEL — default "info"
-	MaxConcurrentJobs        int    // MAX_CONCURRENT_JOBS — default 3
-	RemediationJobTTLSeconds int    // REMEDIATION_JOB_TTL_SECONDS — default 604800 (7 days)
+	GitOpsRepo               string        // GITOPS_REPO — required
+	GitOpsManifestRoot       string        // GITOPS_MANIFEST_ROOT — required
+	AgentImage               string        // AGENT_IMAGE — required
+	AgentNamespace           string        // AGENT_NAMESPACE — required; must equal watcher namespace
+	AgentSA                  string        // AGENT_SA — required
+	SinkType                 string        // SINK_TYPE — default "github"
+	LogLevel                 string        // LOG_LEVEL — default "info"
+	MaxConcurrentJobs        int           // MAX_CONCURRENT_JOBS — default 3
+	RemediationJobTTLSeconds int           // REMEDIATION_JOB_TTL_SECONDS — default 604800 (7 days)
+	StabilisationWindow      time.Duration // STABILISATION_WINDOW_SECONDS — default 120s; 0 disables
 }
 
 // FromEnv reads configuration from environment variables and returns a Config.
@@ -80,6 +82,20 @@ func FromEnv() (Config, error) {
 			return Config{}, fmt.Errorf("REMEDIATION_JOB_TTL_SECONDS must be a positive integer, got %d", n)
 		}
 		cfg.RemediationJobTTLSeconds = n
+	}
+
+	windowStr := os.Getenv("STABILISATION_WINDOW_SECONDS")
+	if windowStr == "" {
+		cfg.StabilisationWindow = 120 * time.Second
+	} else {
+		n, err := strconv.Atoi(windowStr)
+		if err != nil {
+			return Config{}, fmt.Errorf("STABILISATION_WINDOW_SECONDS must be an integer: %w", err)
+		}
+		if n < 0 {
+			return Config{}, fmt.Errorf("STABILISATION_WINDOW_SECONDS must be >= 0, got %d", n)
+		}
+		cfg.StabilisationWindow = time.Duration(n) * time.Second
 	}
 
 	return cfg, nil

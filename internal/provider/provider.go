@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"go.uber.org/zap"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -20,22 +21,44 @@ import (
 // SourceProviderReconciler is a controller-runtime Reconciler that wraps a SourceProvider.
 // It handles fetch, skip-if-not-found, ExtractFinding, dedup-by-CRD, and
 // RemediationJob creation. Source-specific logic is entirely in the SourceProvider.
+//
+// firstSeen is not mutex-protected: controller-runtime guarantees a single
+// worker goroutine per controller (MaxConcurrentReconciles defaults to 1).
+// If MaxConcurrentReconciles is ever set > 1 for this reconciler, replace
+// this map with a sync.Map or add a sync.Mutex.
 type SourceProviderReconciler struct {
 	client.Client
-	Scheme   *runtime.Scheme
-	Log      *zap.Logger
-	Cfg      config.Config
-	Provider domain.SourceProvider
+	Scheme    *runtime.Scheme
+	Log       *zap.Logger
+	Cfg       config.Config
+	Provider  domain.SourceProvider
+	firstSeen map[string]time.Time
+}
+
+// FirstSeen returns the firstSeen map for inspection in tests.
+// Do not call this from production code.
+func (r *SourceProviderReconciler) FirstSeen() map[string]time.Time {
+	if r.firstSeen == nil {
+		r.firstSeen = make(map[string]time.Time)
+	}
+	return r.firstSeen
 }
 
 // Reconcile implements ctrl.Reconciler.
 func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	if r.firstSeen == nil {
+		r.firstSeen = make(map[string]time.Time)
+	}
+
 	obj := r.Provider.ObjectType().DeepCopyObject().(client.Object)
 	if err := r.Get(ctx, req.NamespacedName, obj); err != nil {
 		if !apierrors.IsNotFound(err) {
 			return ctrl.Result{}, err
 		}
-		// Watched object was deleted — cancel any Pending/Dispatched RemediationJobs.
+		// Watched object was deleted — clear the firstSeen map entirely.
+		r.firstSeen = make(map[string]time.Time)
+
+		// Cancel any Pending/Dispatched RemediationJobs.
 		var rjobList v1alpha1.RemediationJobList
 		if listErr := r.List(ctx, &rjobList, client.InNamespace(r.Cfg.AgentNamespace)); listErr != nil {
 			return ctrl.Result{}, listErr
@@ -76,6 +99,7 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, err
 	}
 	if finding == nil {
+		r.firstSeen = make(map[string]time.Time)
 		return ctrl.Result{}, nil
 	}
 
@@ -85,6 +109,26 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	if len(fp) < 12 {
 		return ctrl.Result{}, fmt.Errorf("fingerprint too short: got %d chars, need at least 12", len(fp))
+	}
+
+	// Stabilisation window logic.
+	if r.Cfg.StabilisationWindow == 0 {
+		// fast path: no window, proceed directly to dedup + Job creation
+	} else {
+		// window logic: consult firstSeen map
+		if first, seen := r.firstSeen[fp]; !seen {
+			r.firstSeen[fp] = time.Now()
+			return ctrl.Result{RequeueAfter: r.Cfg.StabilisationWindow}, nil
+		} else {
+			elapsed := time.Since(first)
+			if elapsed < r.Cfg.StabilisationWindow {
+				remaining := r.Cfg.StabilisationWindow - elapsed
+				return ctrl.Result{RequeueAfter: remaining}, nil
+			}
+			// Window has elapsed — fall through to dedup + Job creation.
+			// Leave the firstSeen entry so repeated reconciles after Job creation
+			// do not restart the window.
+		}
 	}
 
 	var rjobList v1alpha1.RemediationJobList

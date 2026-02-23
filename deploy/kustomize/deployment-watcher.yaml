@@ -40,6 +40,8 @@ spec:
           value: "3"
         - name: REMEDIATION_JOB_TTL_SECONDS
           value: "604800"
+        # - name: STABILISATION_WINDOW_SECONDS
+        #   value: "120"  # default: 120s; set to 0 to disable and create jobs immediately
         ports:
         - name: metrics
           containerPort: 8080

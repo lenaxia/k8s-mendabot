@@ -3,6 +3,7 @@ package config_test
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/lenaxia/k8s-mendabot/internal/config"
 )
@@ -243,5 +244,75 @@ func TestFromEnv_ZeroRemediationJobTTL(t *testing.T) {
 	_, err := config.FromEnv()
 	if err == nil {
 		t.Fatal("expected error for REMEDIATION_JOB_TTL_SECONDS=0, got nil")
+	}
+}
+
+func setRequiredEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("GITOPS_REPO", "org/repo")
+	t.Setenv("GITOPS_MANIFEST_ROOT", "kubernetes/")
+	t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mendabot-agent:latest")
+	t.Setenv("AGENT_NAMESPACE", "mendabot")
+	t.Setenv("AGENT_SA", "mendabot-agent")
+}
+
+func TestFromEnv_StabilisationWindowDefault(t *testing.T) {
+	setRequiredEnv(t)
+	os.Unsetenv("STABILISATION_WINDOW_SECONDS")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := 120 * time.Second
+	if cfg.StabilisationWindow != want {
+		t.Errorf("StabilisationWindow default: got %v, want %v", cfg.StabilisationWindow, want)
+	}
+}
+
+func TestFromEnv_StabilisationWindowZero(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("STABILISATION_WINDOW_SECONDS", "0")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.StabilisationWindow != 0 {
+		t.Errorf("StabilisationWindow zero: got %v, want 0", cfg.StabilisationWindow)
+	}
+}
+
+func TestFromEnv_StabilisationWindowCustom(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("STABILISATION_WINDOW_SECONDS", "300")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := 300 * time.Second
+	if cfg.StabilisationWindow != want {
+		t.Errorf("StabilisationWindow custom: got %v, want %v", cfg.StabilisationWindow, want)
+	}
+}
+
+func TestFromEnv_StabilisationWindowNegative(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("STABILISATION_WINDOW_SECONDS", "-1")
+
+	_, err := config.FromEnv()
+	if err == nil {
+		t.Fatal("expected error for STABILISATION_WINDOW_SECONDS=-1, got nil")
+	}
+}
+
+func TestFromEnv_StabilisationWindowInvalid(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("STABILISATION_WINDOW_SECONDS", "abc")
+
+	_, err := config.FromEnv()
+	if err == nil {
+		t.Fatal("expected error for STABILISATION_WINDOW_SECONDS=abc, got nil")
 	}
 }
