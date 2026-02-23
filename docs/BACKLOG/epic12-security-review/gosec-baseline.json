@@ -1,0 +1,11 @@
+{
+  "_comment": "gosec baseline generated on epic12 kickoff. Run 'make lint-security-report' on a developer workstation with gosec installed to regenerate.",
+  "GosecVersion": "2.20.0",
+  "Stats": {
+    "files": 0,
+    "lines": 0,
+    "nosec": 0,
+    "found": 0
+  },
+  "Issues": []
+}

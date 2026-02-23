@@ -58,6 +58,15 @@ jobs:
           build-args: |
             WATCHER_VERSION=sha-${{ steps.sha.outputs.short }}
 
+      - name: Scan watcher image for CVEs
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          image-ref: ghcr.io/lenaxia/mendabot-watcher:sha-${{ steps.sha.outputs.short }}
+          format: table
+          exit-code: '1'
+          severity: CRITICAL
+          ignore-unfixed: true
+
       - name: Smoke test
         run: |
           docker run --rm \

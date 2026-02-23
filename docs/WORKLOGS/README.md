@@ -70,3 +70,6 @@ else.
 | [0048](0048_2026-02-23_epic14-count3-finalizer-fix.md) | 2026-02-23 | Epic 14 -count=3: deleteJob helper strips finalizers, corrNS unique namespace counters | Complete |
 | [0049](0049_2026-02-23_epic13-14-review-gaps.md) | 2026-02-23 | Epic 13+14 skeptical review: 9 gaps found and fixed (DC-5, XC-2 major; 7 minor) | Complete |
 | [0050](0050_2026-02-23_epic13-design-review-fixes.md) | 2026-02-23 | Epic 13 design review: off-by-one bug, nondeterminism, prefix over-match, scope docs | Complete |
+| [0051](0051_2026-02-23_epic11-13-branch-extraction-test-fixes.md) | 2026-02-23 | Epic 11+13 branch extraction: test isolation fixes, readiness gate, epic14 test infra | Complete |
+| [0052](0052_2026-02-23_remove-crd-hook-job.md) | 2026-02-23 | Helm: remove CRD hook job in favour of native crds/ directory | Complete |
+| [0053](0053_2026-02-23_epic12-story00-security-infra.md) | 2026-02-23 | Epic 12 STORY_00: Makefile, kind-config, Trivy CI steps, gosec baseline placeholder | Complete |

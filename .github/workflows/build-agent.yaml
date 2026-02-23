@@ -56,6 +56,15 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Scan agent image for CVEs
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          image-ref: ghcr.io/lenaxia/mendabot-agent:sha-${{ steps.sha.outputs.short }}
+          format: table
+          exit-code: '1'
+          severity: CRITICAL
+          ignore-unfixed: true
+
       - name: Smoke test
         run: |
           chmod +x docker/scripts/smoke-test.sh && docker/scripts/smoke-test.sh ghcr.io/lenaxia/mendabot-agent:sha-${{ steps.sha.outputs.short }}
