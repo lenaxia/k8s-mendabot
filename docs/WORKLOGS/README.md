@@ -60,4 +60,7 @@ else.
 | [0038](0038_2026-02-23_epic10-helm-chart-implementation.md) | 2026-02-23 | Epic 10 Helm chart: all 13 stories implemented, helm lint passes, CI workflow added | Complete |
 | [0039](0039_2026-02-23_epic11-bug-fixes.md) | 2026-02-23 | Epic 11 bug fixes: 7 bugs fixed, 3 tests added, race detector clean, story DoD updated | Complete |
 | [0040](0040_2026-02-23_epic11-story06-complete.md) | 2026-02-23 | Epic 11 STORY_06: EventRecorder (3 events, 4 tests), 10-gap review cycle, Grafana dashboard, alert rules | Complete |
+<<<<<<< HEAD
 | [0041](0041_2026-02-23_helm-crd-upgrader-image-fix.md) | 2026-02-23 | Helm CRD upgrader image fix: nonexistent tag v1.28.16 corrected to v1.28.15, image made configurable | Complete |
+| [0042](0042_2026-02-23_remove-crd-hook-job.md) | 2026-02-23 | Helm: remove CRD hook job in favour of native crds/ directory | Complete |
+| [0043](0043_2026-02-23_epic12-story00-security-infra.md) | 2026-02-23 | Epic 12 STORY_00: Makefile, kind-config, Trivy CI steps, gosec baseline placeholder | Complete |
