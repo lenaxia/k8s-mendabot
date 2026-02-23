@@ -26,6 +26,8 @@ the epic and individual story files for each unit of work.
 | epic05 — Prompt | [epic05-prompt/](epic05-prompt/) | OpenCode prompt design and ConfigMap | epic04 | Complete |
 | epic06 — CI/CD | [epic06-ci-cd/](epic06-ci-cd/) | GitHub Actions workflows for both images | epic03, epic00 | Complete |
 | epic07 — Technical Debt | [epic07-technical-debt/](epic07-technical-debt/) | Issues and improvements discovered during implementation | — | Ongoing |
+| epic08 — Pluggable Agent | [epic08-pluggable-agent/](epic08-pluggable-agent/) | Replace hardcoded opencode invocation with a pluggable AgentProvider abstraction | epic02, epic03, epic05 | Not Started |
+| epic09 — Native Provider | [epic09-native-provider/](epic09-native-provider/) | Replace k8sgpt dependency with a native cluster watcher; move Fingerprint to domain | epic01 | Not Started |
 
 ## Implementation Order
 
@@ -39,7 +41,29 @@ epic00-foundation
     ├── epic03-agent-image ──────────────────────────┤
     │                                                  └── epic05-prompt
     └── epic06-ci-cd (parallel with epic01+)
+
+epic08-pluggable-agent (depends on epic02, epic03, epic05)
+epic09-native-provider (depends on epic01)
 ```
+
+## Feature Tracker
+
+[`FEATURE_TRACKER.md`](FEATURE_TRACKER.md) contains the full product-level backlog of
+potential improvements beyond the current epic roadmap. Organised by area:
+
+| Area | Focus |
+|------|-------|
+| **Area A — Accuracy & Precision** | Noise reduction, false positive elimination, root cause quality |
+| **Area R — Reliability** | Retry budgets, HA, token safety, circuit breakers |
+| **Area U — Usability & Operability** | Metrics, events, dry-run, notifications |
+| **Area I — Impact & PR Quality** | PR lifecycle, multi-platform sinks, blast radius |
+| **Area S — Security** | Redaction, RBAC scoping, audit log, prompt injection |
+| **Area P — New Signal Sources** | Prometheus, cert-manager, Velero, HPA, Datadog |
+
+When a feature tracker item is approved for implementation, create an epic folder here
+following the existing naming convention and update the feature's status in the tracker.
+
+---
 
 ## Story Status Key
 
