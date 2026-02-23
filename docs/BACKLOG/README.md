@@ -30,7 +30,7 @@ the epic and individual story files for each unit of work.
 | epic09 — Native Provider | [epic09-native-provider/](epic09-native-provider/) | Replace k8sgpt dependency with a native cluster watcher; move Fingerprint to domain | epic01 | Complete |
 | epic10 — Helm Chart | [epic10-helm-chart/](epic10-helm-chart/) | Package mendabot as a Helm chart with fully custom templates, CRD upgrade hook, and metrics support | epic04, epic05 | In Progress |
 | epic11 — Self-Remediation Cascade Prevention | [epic11-self-remediation-cascade/](epic11-self-remediation-cascade/) | Prevent infinite cascades where mendabot analyzes its own failures | epic01, epic02, epic04 | Complete |
-| epic12 — Security Review | [epic12-security-review/](epic12-security-review/) | Secret redaction, network policy, audit log, RBAC scoping, prompt injection hardening | epic01, epic02, epic04, epic05, epic09 | Not Started |
+| epic12 — Security Review | [epic12-security-review/](epic12-security-review/) | Secret redaction, network policy, audit log, RBAC scoping, prompt injection defence, pentest | epic01, epic02, epic04, epic05, epic09 | Complete |
 | epic13 — Multi-Signal Correlation | [epic13-multi-signal-correlation/](epic13-multi-signal-correlation/) | Correlate related findings into a single investigation via a CorrelationWindow | epic01, epic02, epic09, epic11 | Not Started |
 
 ## Implementation Order

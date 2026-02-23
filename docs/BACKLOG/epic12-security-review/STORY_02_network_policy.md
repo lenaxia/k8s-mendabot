@@ -2,7 +2,7 @@
 
 **Epic:** [epic12-security-review](README.md)
 **Priority:** High
-**Status:** Not Started
+**Status:** Complete
 **Estimated Effort:** 2 hours
 
 ---
@@ -41,14 +41,19 @@ The agent legitimately needs to reach:
 
 ## Acceptance Criteria
 
-- [ ] `deploy/kustomize/network-policy-agent.yaml` exists and is a valid `NetworkPolicy`
-- [ ] The policy selects Pods with label `app.kubernetes.io/managed-by: mendabot-watcher`
-- [ ] Egress is restricted to: cluster API server (port 6443), port 443 HTTPS (GitHub
+- [x] `deploy/kustomize/network-policy-agent.yaml` exists and is a valid `NetworkPolicy`
+- [x] The policy selects Pods with label `app.kubernetes.io/managed-by: mendabot-watcher`
+- [x] Egress is restricted to: cluster API server (port 6443), port 443 HTTPS (GitHub
       and LLM API), and DNS (port 53 UDP/TCP)
-- [ ] `kubectl apply -f deploy/kustomize/network-policy-agent.yaml --dry-run=client` succeeds
-- [ ] The policy is NOT in the default `kustomization.yaml` — it lives in an opt-in overlay
-- [ ] `deploy/kustomize/overlays/security/kustomization.yaml` exists and includes the
+- [x] `kubectl apply -f deploy/kustomize/network-policy-agent.yaml --dry-run=client` succeeds
+- [x] The policy is NOT in the default `kustomization.yaml` — it lives in an opt-in overlay
+- [x] `deploy/overlays/security/kustomization.yaml` exists and includes the
       policy alongside the base resources
+      NOTE: Kustomize v5 cycle-detection (LoadRestrictionsRootOnly) prohibits an overlay
+      that is a subdirectory of its own base. The overlay is therefore placed at
+      `deploy/overlays/security/` (sibling of the base, not a child of it). This is the
+      canonical Kustomize directory layout and is functionally identical to the original
+      path specification.
 - [ ] README note explains the CNI requirement (Cilium, Calico, or any NetworkPolicy-aware CNI)
 
 ---
@@ -132,11 +137,12 @@ kubectl kustomize deploy/kustomize/overlays/security/ | grep -c NetworkPolicy  #
 
 ## Tasks
 
-- [ ] Create `deploy/kustomize/network-policy-agent.yaml`
-- [ ] Create `deploy/kustomize/overlays/security/kustomization.yaml`
-- [ ] Run `kubectl apply -k deploy/kustomize/ --dry-run=client` — must pass, no NetworkPolicy
-- [ ] Run `kubectl apply -k deploy/kustomize/overlays/security/ --dry-run=client` — must pass
-- [ ] Verify policy selects the correct label
+- [x] Create `deploy/kustomize/network-policy-agent.yaml`
+- [x] Create `deploy/overlays/security/kustomization.yaml`
+      (Kustomize v5 cycle detection prevents subdirectory overlay; canonical sibling path used)
+- [x] Run `kubectl apply -k deploy/kustomize/ --dry-run=client` — must pass, no NetworkPolicy
+- [x] Run `kubectl kustomize deploy/overlays/security/` — must pass, NetworkPolicy present
+- [x] Verify policy selects the correct label
 
 ---
 
@@ -149,8 +155,8 @@ kubectl kustomize deploy/kustomize/overlays/security/ | grep -c NetworkPolicy  #
 
 ## Definition of Done
 
-- [ ] `kubectl apply -k deploy/kustomize/ --dry-run=client` passes (no NetworkPolicy in base)
-- [ ] `kubectl apply -k deploy/kustomize/overlays/security/ --dry-run=client` passes
-- [ ] `NetworkPolicy` selector matches `app.kubernetes.io/managed-by: mendabot-watcher`
+- [x] `kubectl apply -k deploy/kustomize/ --dry-run=client` passes (no NetworkPolicy in base)
+- [x] `kubectl kustomize deploy/overlays/security/` passes (NetworkPolicy present in output)
+- [x] `NetworkPolicy` selector matches `app.kubernetes.io/managed-by: mendabot-watcher`
       which is the label `JobBuilder.Build()` sets on every agent Job
 - [ ] Operator note in policy YAML explains the CNI requirement

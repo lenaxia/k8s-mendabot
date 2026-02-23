@@ -68,3 +68,4 @@ else.
 | [0046](0046_2026-02-23_story03-audit-log.md) | 2026-02-23 | STORY_03: structured audit log lines at all 10 decision points in both reconcilers | Complete |
 | [0047](0047_2026-02-23_story02-network-policy.md) | 2026-02-23 | STORY_02: NetworkPolicy egress restriction for agent Jobs, security overlay | Complete |
 | [0048](0048_2026-02-23_story04-agent-rbac-scoping.md) | 2026-02-23 | STORY_04: AgentRBACScope config, NS SA selection, 4 RBAC manifests, 5 TDD tests | Complete |
+| [0049](0049_2026-02-23_epic12-story06-pentest-complete.md) | 2026-02-23 | STORY_06: penetration test plan executed; 5 PASS, 1 SKIP; no HIGH/CRITICAL findings | Complete |

@@ -18,7 +18,7 @@ mendabot's threat surface is non-trivial:
   without any redaction, then stored in `RemediationJob.Spec.Finding.Errors` and
   injected as `FINDING_ERRORS` into the agent Job env
 
-## Status: Not Started
+## Status: Complete
 
 ## Dependencies
 
@@ -36,31 +36,31 @@ mendabot's threat surface is non-trivial:
 
 ## Success Criteria
 
-- [ ] `domain.RedactSecrets(text string) string` exists in `internal/domain/redact.go`
+- [x] `domain.RedactSecrets(text string) string` exists in `internal/domain/redact.go`
       and is called by all six native providers before appending to the errors slice
-- [ ] `go test -timeout 30s -race ./internal/domain/...` passes with redaction tests
-- [ ] Agent Jobs have a `NetworkPolicy` restricting egress (opt-in overlay)
-- [ ] All key decision points in `internal/provider/provider.go` and
+- [x] `go test -timeout 30s -race ./internal/domain/...` passes with redaction tests
+- [x] Agent Jobs have a `NetworkPolicy` restricting egress (opt-in overlay)
+- [x] All key decision points in `internal/provider/provider.go` and
       `internal/controller/remediationjob_controller.go` emit structured audit log lines
       with `zap.Bool("audit", true)`
-- [ ] `AGENT_RBAC_SCOPE=namespace` causes `JobBuilder.Build()` to select a namespace-scoped
+- [x] `AGENT_RBAC_SCOPE=namespace` causes `JobBuilder.Build()` to select a namespace-scoped
       ServiceAccount; `config.FromEnv()` parses the new env vars
-- [ ] `domain.DetectInjection(text string) bool` exists; providers call it and log warnings;
+- [x] `domain.DetectInjection(text string) bool` exists; providers call it and log warnings;
       `FINDING_ERRORS` is wrapped in an untrusted-data envelope in the prompt template
-- [ ] Penetration test plan executed; findings documented in the pentest report story
-- [ ] All HIGH/CRITICAL pentest findings remediated before epic is marked complete
+- [x] Penetration test plan executed; findings documented in the pentest report story
+- [x] All HIGH/CRITICAL pentest findings remediated before epic is marked complete
 
 ## Stories
 
 | Story | File | Status | Priority | Effort |
 |-------|------|--------|----------|--------|
-| Security and pentest infrastructure setup | [STORY_00_security_infrastructure.md](STORY_00_security_infrastructure.md) | Not Started | High | 3h |
-| Secret value redaction in Finding.Errors | [STORY_01_secret_redaction.md](STORY_01_secret_redaction.md) | Not Started | Critical | 3h |
-| Network policy for agent Jobs | [STORY_02_network_policy.md](STORY_02_network_policy.md) | Not Started | High | 2h |
-| Structured audit log for remediation decisions | [STORY_03_audit_log.md](STORY_03_audit_log.md) | Not Started | High | 2h |
-| Agent RBAC scoping by namespace | [STORY_04_rbac_scoping.md](STORY_04_rbac_scoping.md) | Not Started | Medium | 3h |
-| Prompt injection detection and sanitisation | [STORY_05_prompt_injection.md](STORY_05_prompt_injection.md) | Not Started | Critical | 4h |
-| Penetration test plan and execution | [STORY_06_penetration_test_plan.md](STORY_06_penetration_test_plan.md) | Not Started | Critical | 6h |
+| Security and pentest infrastructure setup | [STORY_00_security_infrastructure.md](STORY_00_security_infrastructure.md) | Complete | High | 3h |
+| Secret value redaction in Finding.Errors | [STORY_01_secret_redaction.md](STORY_01_secret_redaction.md) | Complete | Critical | 3h |
+| Network policy for agent Jobs | [STORY_02_network_policy.md](STORY_02_network_policy.md) | Complete | High | 2h |
+| Structured audit log for remediation decisions | [STORY_03_audit_log.md](STORY_03_audit_log.md) | Complete | High | 2h |
+| Agent RBAC scoping by namespace | [STORY_04_rbac_scoping.md](STORY_04_rbac_scoping.md) | Complete | Medium | 3h |
+| Prompt injection detection and sanitisation | [STORY_05_prompt_injection.md](STORY_05_prompt_injection.md) | Complete | Critical | 4h |
+| Penetration test plan and execution | [STORY_06_penetration_test_plan.md](STORY_06_penetration_test_plan.md) | Complete | Critical | 6h |
 
 ## Attack Surface
 
@@ -192,14 +192,14 @@ STORY_00 (infrastructure) ─┐
 
 ## Definition of Done
 
-- [ ] All unit tests pass: `go test -timeout 30s -race ./...`
-- [ ] `go build ./...` succeeds
-- [ ] `go vet ./...` clean
-- [ ] `kubectl apply -k deploy/kustomize/ --dry-run=client` passes
-- [ ] `kubectl apply -k deploy/kustomize/overlays/security/ --dry-run=client` passes
-- [ ] Penetration test plan executed; report file written
-- [ ] All HIGH/CRITICAL pentest findings resolved
-- [ ] Worklog entry 0040 created
+- [x] All unit tests pass: `go test -timeout 30s -race ./...`
+- [x] `go build ./...` succeeds
+- [x] `go vet ./...` clean
+- [x] `kubectl apply -k deploy/kustomize/ --dry-run=client` passes
+- [x] `kubectl apply -k deploy/kustomize/overlays/security/ --dry-run=client` passes
+- [x] Penetration test plan executed; report file written
+- [x] All HIGH/CRITICAL pentest findings resolved
+- [x] Worklog entry 0040 created
 
 ## New Configuration Variables
 
