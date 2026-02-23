@@ -79,8 +79,12 @@ func (p *podProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 
 		// Terminated state (not being restarted — Waiting is nil): non-zero exit code.
 		if cs.State.Terminated != nil && cs.State.Terminated.ExitCode != 0 {
-			text := fmt.Sprintf("container %s: terminated with exit code %d",
-				cs.Name, cs.State.Terminated.ExitCode)
+			msg := cs.State.Terminated.Message
+			if msg != "" {
+				msg = ": " + domain.RedactSecrets(msg)
+			}
+			text := fmt.Sprintf("container %s: terminated with exit code %d%s",
+				cs.Name, cs.State.Terminated.ExitCode, msg)
 			errors = append(errors, errorEntry{Text: text})
 		}
 	}
@@ -91,7 +95,7 @@ func (p *podProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 			if cond.Type == corev1.PodScheduled &&
 				cond.Status == corev1.ConditionFalse &&
 				cond.Reason == "Unschedulable" {
-				text := fmt.Sprintf("pod %s: %s", cond.Reason, cond.Message)
+				text := fmt.Sprintf("pod %s: %s", cond.Reason, domain.RedactSecrets(cond.Message))
 				errors = append(errors, errorEntry{Text: text})
 				break
 			}
@@ -143,6 +147,10 @@ func buildWaitingText(cs corev1.ContainerStatus) string {
 	reason := cs.State.Waiting.Reason
 	msg := cs.State.Waiting.Message
 	if msg != "" {
+		if len(msg) > 500 {
+			msg = msg[:500] + "...[truncated]"
+		}
+		msg = domain.RedactSecrets(msg)
 		return fmt.Sprintf("container %s: %s: %s", cs.Name, reason, msg)
 	}
 	return fmt.Sprintf("container %s: %s", cs.Name, reason)

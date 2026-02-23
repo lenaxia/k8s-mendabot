@@ -245,6 +245,50 @@ func TestNilReplicas_OneReplica_Healthy(t *testing.T) {
 	}
 }
 
+// TestStatefulSetAvailableFalseMessageRedacted: Available=False condition message containing
+// password=secret123 → error text must NOT contain "secret123" and must contain "[REDACTED]".
+func TestStatefulSetAvailableFalseMessageRedacted(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewStatefulSetProvider(c)
+
+	sts := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "redact-sts",
+			Namespace:  "default",
+			Generation: 1,
+		},
+		Spec: appsv1.StatefulSetSpec{
+			Replicas: int32Ptr(3),
+		},
+		Status: appsv1.StatefulSetStatus{
+			ObservedGeneration: 1,
+			ReadyReplicas:      3,
+			Conditions: []appsv1.StatefulSetCondition{
+				{
+					Type:    "Available",
+					Status:  corev1.ConditionFalse,
+					Reason:  "MinimumReplicasUnavailable",
+					Message: "connection failed: password=secret123 wrong",
+				},
+			},
+		},
+	}
+
+	finding, err := p.ExtractFinding(sts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding == nil {
+		t.Fatal("expected finding, got nil")
+	}
+	assertErrorsJSON(t, finding.Errors)
+	if contains(finding.Errors, "secret123") {
+		t.Errorf("error text should not contain raw secret value 'secret123': %s", finding.Errors)
+	}
+	assertErrorTextContains(t, finding.Errors, "[REDACTED]")
+}
+
 // TestStatefulSetWrongType_ReturnsError: passing a non-StatefulSet object → (nil, error).
 func TestStatefulSetWrongType_ReturnsError(t *testing.T) {
 	s := newTestScheme()

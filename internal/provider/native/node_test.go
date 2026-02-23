@@ -489,6 +489,35 @@ func TestNodeProvider_NonStandardConditionTrue_Detected(t *testing.T) {
 	assertNodeErrorTextContains(t, finding.Errors, "GPUFailure")
 }
 
+// TestNodeProvider_ConditionMessageRedacted: node condition message containing password=secret123
+// → error text must NOT contain "secret123" and must contain "[REDACTED]".
+func TestNodeProvider_ConditionMessageRedacted(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewNodeProvider(c)
+
+	node := healthyNode("redact-node")
+	node.Status.Conditions[0] = corev1.NodeCondition{
+		Type:    corev1.NodeReady,
+		Status:  corev1.ConditionFalse,
+		Reason:  "KubeletNotReady",
+		Message: "kubelet failed: password=secret123 invalid",
+	}
+
+	finding, err := p.ExtractFinding(node)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding == nil {
+		t.Fatal("expected finding, got nil")
+	}
+	assertNodeErrorsJSON(t, finding.Errors)
+	if contains(finding.Errors, "secret123") {
+		t.Errorf("error text should not contain raw secret value 'secret123': %s", finding.Errors)
+	}
+	assertNodeErrorTextContains(t, finding.Errors, "[REDACTED]")
+}
+
 // assertNodeErrorsJSON verifies that the errors string is valid JSON with at least one entry.
 func assertNodeErrorsJSON(t *testing.T, errors string) {
 	t.Helper()

@@ -68,7 +68,7 @@ func (p *statefulSetProvider) ExtractFinding(obj client.Object) (*domain.Finding
 	for _, cond := range sts.Status.Conditions {
 		if cond.Type == "Available" && cond.Status == corev1.ConditionFalse {
 			text := fmt.Sprintf("statefulset %s: condition Available is False: %s: %s",
-				sts.Name, cond.Reason, cond.Message)
+				sts.Name, cond.Reason, domain.RedactSecrets(cond.Message))
 			errors = append(errors, errorEntry{Text: text})
 			break
 		}

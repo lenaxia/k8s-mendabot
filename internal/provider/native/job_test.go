@@ -1107,7 +1107,38 @@ func TestJobProvider_ConcurrentReconciliationRace(t *testing.T) {
 	}
 }
 
-// TestJobProvider_MemoryLeakPrevention tests that firstSeen map doesn't leak memory
+// TestJobConditionMessageRedacted: job failed condition message containing password=secret123
+// → error text must NOT contain "secret123" and must contain "[REDACTED]".
+func TestJobConditionMessageRedacted(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewJobProvider(c, newTestConfig())
+
+	job := newExhaustedJob("redact-job", "default", 3)
+	job.Status.Conditions = []batchv1.JobCondition{
+		{
+			Type:    batchv1.JobFailed,
+			Status:  corev1.ConditionTrue,
+			Reason:  "BackoffLimitExceeded",
+			Message: "job failed: password=secret123 rejected",
+		},
+	}
+
+	finding, err := p.ExtractFinding(job)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding == nil {
+		t.Fatal("expected finding, got nil")
+	}
+	assertErrorsJSON(t, finding.Errors)
+	if contains(finding.Errors, "secret123") {
+		t.Errorf("error text should not contain raw secret value 'secret123': %s", finding.Errors)
+	}
+	assertErrorTextContains(t, finding.Errors, "[REDACTED]")
+}
+
+// TestJobProviderMemoryLeakPrevention tests that firstSeen map doesn't leak memory
 // by simulating many unique findings over time
 func TestJobProvider_MemoryLeakPrevention(t *testing.T) {
 	s := newTestScheme()
