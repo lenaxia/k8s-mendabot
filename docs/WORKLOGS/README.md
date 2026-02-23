@@ -50,3 +50,4 @@ else.
 | [0028](0028_2026-02-22_epic09-story10-statefulset-provider.md) | 2026-02-22 | Epic 09 STORY_10: StatefulSetProvider with generation-based scaling detection, 13 tests | Complete |
 | [0029](0029_2026-02-22_epic09-story11-job-provider.md) | 2026-02-22 | Epic 09 STORY_11: JobProvider with backoff-exhaustion detection, 17 tests | Complete |
 | [0030](0030_2026-02-22_epic09-story12-stabilisation-window.md) | 2026-02-22 | Epic 09 STORY_12: stabilisation window in config and SourceProviderReconciler | Complete |
+| [0031](0031_2026-02-22_epic09-story08-main-wiring.md) | 2026-02-22 | Epic 09 STORY_08: wire all six native providers into main.go | Complete |
