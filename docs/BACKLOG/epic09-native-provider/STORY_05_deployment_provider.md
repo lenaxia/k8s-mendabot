@@ -2,7 +2,7 @@
 
 **Epic:** [epic09-native-provider](README.md)
 **Priority:** High
-**Status:** Not Started
+**Status:** Complete
 **Estimated Effort:** 1 hour
 
 ---
@@ -17,28 +17,28 @@ without requiring k8sgpt-operator.
 
 ## Acceptance Criteria
 
-- [ ] `deploymentProvider` struct defined in `internal/provider/native/deployment.go`
+- [x] `deploymentProvider` struct defined in `internal/provider/native/deployment.go`
   (unexported; exported constructor `NewDeploymentProvider(c client.Client) *deploymentProvider`
   in same file; panics if `c == nil`)
-- [ ] Compile-time assertion `var _ domain.SourceProvider = (*deploymentProvider)(nil)` present
-- [ ] `ProviderName()` returns `"native"`
-- [ ] `ObjectType()` returns `&appsv1.Deployment{}`
-- [ ] `ExtractFinding` returns `(nil, nil)` for healthy Deployments
-- [ ] `ExtractFinding` returns a populated `*Finding` when `spec.replicas != status.readyReplicas`,
+- [x] Compile-time assertion `var _ domain.SourceProvider = (*deploymentProvider)(nil)` present
+- [x] `ProviderName()` returns `"native"`
+- [x] `ObjectType()` returns `&appsv1.Deployment{}`
+- [x] `ExtractFinding` returns `(nil, nil)` for healthy Deployments
+- [x] `ExtractFinding` returns a populated `*Finding` when `spec.replicas != status.readyReplicas`,
   ignoring the transient scaling case described below
-- [ ] `ExtractFinding` returns a populated `*Finding` when `status.conditions` contains
+- [x] `ExtractFinding` returns a populated `*Finding` when `status.conditions` contains
   a condition with `Type == "Available"` and `Status == "False"`, even if replica counts
   look healthy (e.g. a progressing rollout stuck due to image pull)
-- [ ] Error text for the replica mismatch case includes both `spec.replicas` and
+- [x] Error text for the replica mismatch case includes both `spec.replicas` and
   `status.readyReplicas` values
-- [ ] Error text for the `Available=False` case includes the condition `Reason` and
+- [x] Error text for the `Available=False` case includes the condition `Reason` and
   `Message` fields (both may be empty strings; include them regardless so the agent has
   full context)
-- [ ] `Finding.ParentObject` is `"Deployment/<name>"` — a Deployment is its own anchor.
+- [x] `Finding.ParentObject` is `"Deployment/<name>"` — a Deployment is its own anchor.
   Call: `getParent(ctx, p.client, deploy.ObjectMeta, "Deployment")` (returns `"Deployment/<name>"`
   since a Deployment has no ownerReferences)
-- [ ] `Finding.Kind` is `"Deployment"`, `Finding.Name` is the Deployment name
-- [ ] `Finding.Errors` is a JSON array; may contain one or two entries if both replica
+- [x] `Finding.Kind` is `"Deployment"`, `Finding.Name` is the Deployment name
+- [x] `Finding.Errors` is a JSON array; may contain one or two entries if both replica
   mismatch and `Available=False` are present simultaneously
 
 ---
@@ -75,9 +75,9 @@ Merging them would make the failure message ambiguous if the test fails. Keep th
 
 ## Tasks
 
-- [ ] Write all 8 tests in `internal/provider/native/deployment_test.go` (TDD — must fail first)
-- [ ] Implement `DeploymentProvider` in `internal/provider/native/deployment.go`
-- [ ] Run tests — all must pass
+- [x] Write all 8 tests in `internal/provider/native/deployment_test.go` (TDD — must fail first)
+- [x] Implement `DeploymentProvider` in `internal/provider/native/deployment.go`
+- [x] Run tests — all must pass
 
 ---
 
@@ -91,6 +91,6 @@ their own anchor; the call is still made so the pattern is uniform)
 
 ## Definition of Done
 
-- [ ] All 8 tests pass with `-race`
-- [ ] `go vet ./...` clean
-- [ ] `go build ./...` clean
+- [x] All 8 tests pass with `-race`
+- [x] `go vet ./...` clean
+- [x] `go build ./...` clean

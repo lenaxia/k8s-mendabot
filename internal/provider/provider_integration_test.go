@@ -1,10 +1,11 @@
-package k8sgpt_test
+package provider_test
 
 import (
 	"context"
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -12,13 +13,13 @@ import (
 
 	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
 	"github.com/lenaxia/k8s-mendabot/internal/config"
+	"github.com/lenaxia/k8s-mendabot/internal/domain"
 	"github.com/lenaxia/k8s-mendabot/internal/provider"
-	"github.com/lenaxia/k8s-mendabot/internal/provider/k8sgpt"
 )
 
 const integrationNamespace = "default"
 
-func integrationCfg() config.Config {
+func integrationProviderCfg() config.Config {
 	return config.Config{
 		AgentNamespace:           integrationNamespace,
 		MaxConcurrentJobs:        10,
@@ -30,16 +31,46 @@ func integrationCfg() config.Config {
 	}
 }
 
-func newSourceReconciler() *provider.SourceProviderReconciler {
+// integrationFakeProvider is a fakeSourceProvider backed by corev1.Pod for integration tests.
+// It watches Pod objects and returns a configured finding.
+type integrationFakeProvider struct {
+	name    string
+	finding *domain.Finding
+}
+
+func (f *integrationFakeProvider) ProviderName() string      { return f.name }
+func (f *integrationFakeProvider) ObjectType() client.Object { return &corev1.Pod{} }
+func (f *integrationFakeProvider) ExtractFinding(obj client.Object) (*domain.Finding, error) {
+	pod, ok := obj.(*corev1.Pod)
+	if !ok {
+		return nil, nil
+	}
+	if f.finding == nil {
+		return nil, nil
+	}
+	// Return a copy with source ref filled in from the pod.
+	result := *f.finding
+	result.SourceRef = domain.SourceRef{
+		APIVersion: "v1",
+		Kind:       "Pod",
+		Name:       pod.Name,
+		Namespace:  pod.Namespace,
+	}
+	return &result, nil
+}
+
+var _ domain.SourceProvider = (*integrationFakeProvider)(nil)
+
+func newIntegrationSourceReconciler(p *integrationFakeProvider) *provider.SourceProviderReconciler {
 	return &provider.SourceProviderReconciler{
 		Client:   k8sClient,
 		Scheme:   k8sClient.Scheme(),
-		Cfg:      integrationCfg(),
-		Provider: &k8sgpt.K8sGPTProvider{},
+		Cfg:      integrationProviderCfg(),
+		Provider: p,
 	}
 }
 
-func eventually(t *testing.T, condition func() bool, timeout, interval time.Duration) {
+func integrationEventually(t *testing.T, condition func() bool, timeout, interval time.Duration) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
@@ -51,53 +82,62 @@ func eventually(t *testing.T, condition func() bool, timeout, interval time.Dura
 	t.Fatal("condition not met within timeout")
 }
 
-func newTestResult(name, namespace string, errors []v1alpha1.Failure) *v1alpha1.Result {
-	return &v1alpha1.Result{
+func newTestPod(name, namespace string) *corev1.Pod {
+	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 		},
-		Spec: v1alpha1.ResultSpec{
-			Kind:         "Pod",
-			Name:         name,
-			ParentObject: "my-deployment",
-			Error:        errors,
-			Details:      "test finding details",
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{Name: "app", Image: "nginx:latest"},
+			},
 		},
 	}
 }
 
-// TestSourceProviderReconciler_CreatesRemediationJob verifies: New Result →
-// RemediationJob created with sourceType="k8sgpt".
-func TestSourceProviderReconciler_CreatesRemediationJob(t *testing.T) {
+func integrationReq(name, namespace string) ctrl.Request {
+	return ctrl.Request{NamespacedName: types.NamespacedName{Name: name, Namespace: namespace}}
+}
+
+// TestIntegration_CreateRemediationJob verifies: provider with finding →
+// RemediationJob created with correct fields.
+func TestIntegration_CreateRemediationJob(t *testing.T) {
 	if !suiteReady {
 		t.Skip("envtest not available: KUBEBUILDER_ASSETS not set")
 	}
 	ctx := context.Background()
-	result := newTestResult("result-creates-rjob", integrationNamespace, []v1alpha1.Failure{
-		{Text: "CrashLoopBackOff"},
-	})
-	if err := k8sClient.Create(ctx, result); err != nil {
-		t.Fatalf("create Result: %v", err)
-	}
-	t.Cleanup(func() {
-		_ = k8sClient.Delete(ctx, result)
-	})
 
-	rec := newSourceReconciler()
-	req := ctrl.Request{NamespacedName: types.NamespacedName{Name: result.Name, Namespace: result.Namespace}}
+	pod := newTestPod("pod-creates-rjob", integrationNamespace)
+	if err := k8sClient.Create(ctx, pod); err != nil {
+		t.Fatalf("create Pod: %v", err)
+	}
+	t.Cleanup(func() { _ = k8sClient.Delete(ctx, pod) })
+
+	finding := &domain.Finding{
+		Kind:         "Pod",
+		Name:         pod.Name,
+		Namespace:    integrationNamespace,
+		ParentObject: "my-deployment",
+		Errors:       `[{"text":"CrashLoopBackOff"}]`,
+		Details:      "test finding details",
+	}
+	p := &integrationFakeProvider{name: "native", finding: finding}
+
+	rec := newIntegrationSourceReconciler(p)
+	req := integrationReq(pod.Name, integrationNamespace)
 	if _, err := rec.Reconcile(ctx, req); err != nil {
 		t.Fatalf("Reconcile: %v", err)
 	}
 
 	var rjobList v1alpha1.RemediationJobList
-	eventually(t, func() bool {
+	integrationEventually(t, func() bool {
 		if err := k8sClient.List(ctx, &rjobList, client.InNamespace(integrationNamespace)); err != nil {
 			return false
 		}
 		for i := range rjobList.Items {
-			if rjobList.Items[i].Spec.SourceResultRef.Name == result.Name &&
-				rjobList.Items[i].Spec.SourceType == v1alpha1.SourceTypeK8sGPT {
+			if rjobList.Items[i].Spec.SourceResultRef.Name == pod.Name &&
+				rjobList.Items[i].Spec.SourceType == "native" {
 				return true
 			}
 		}
@@ -106,7 +146,7 @@ func TestSourceProviderReconciler_CreatesRemediationJob(t *testing.T) {
 
 	var found *v1alpha1.RemediationJob
 	for i := range rjobList.Items {
-		if rjobList.Items[i].Spec.SourceResultRef.Name == result.Name {
+		if rjobList.Items[i].Spec.SourceResultRef.Name == pod.Name {
 			found = &rjobList.Items[i]
 			break
 		}
@@ -114,43 +154,47 @@ func TestSourceProviderReconciler_CreatesRemediationJob(t *testing.T) {
 	if found == nil {
 		t.Fatal("expected RemediationJob to be created")
 	}
-	if found.Spec.SourceType != v1alpha1.SourceTypeK8sGPT {
-		t.Errorf("sourceType = %q, want %q", found.Spec.SourceType, v1alpha1.SourceTypeK8sGPT)
+	if found.Spec.SourceType != "native" {
+		t.Errorf("sourceType = %q, want %q", found.Spec.SourceType, "native")
 	}
-	t.Cleanup(func() {
-		_ = k8sClient.Delete(ctx, found)
-	})
+	t.Cleanup(func() { _ = k8sClient.Delete(ctx, found) })
 }
 
-// TestSourceProviderReconciler_DuplicateFingerprint_Skips verifies: Same fingerprint →
-// no second RemediationJob created.
-func TestSourceProviderReconciler_DuplicateFingerprint_Skips(t *testing.T) {
+// TestIntegration_DuplicateFingerprint_Skips verifies: same fingerprint on second
+// reconcile → no second RemediationJob created.
+func TestIntegration_DuplicateFingerprint_Skips(t *testing.T) {
 	if !suiteReady {
 		t.Skip("envtest not available: KUBEBUILDER_ASSETS not set")
 	}
 	ctx := context.Background()
-	result := newTestResult("result-dedup", integrationNamespace, []v1alpha1.Failure{
-		{Text: "ImagePullBackOff"},
-	})
-	if err := k8sClient.Create(ctx, result); err != nil {
-		t.Fatalf("create Result: %v", err)
-	}
-	t.Cleanup(func() {
-		_ = k8sClient.Delete(ctx, result)
-	})
 
-	rec := newSourceReconciler()
-	req := ctrl.Request{NamespacedName: types.NamespacedName{Name: result.Name, Namespace: result.Namespace}}
+	pod := newTestPod("pod-dedup", integrationNamespace)
+	if err := k8sClient.Create(ctx, pod); err != nil {
+		t.Fatalf("create Pod: %v", err)
+	}
+	t.Cleanup(func() { _ = k8sClient.Delete(ctx, pod) })
+
+	finding := &domain.Finding{
+		Kind:         "Pod",
+		Name:         pod.Name,
+		Namespace:    integrationNamespace,
+		ParentObject: "my-deployment",
+		Errors:       `[{"text":"ImagePullBackOff"}]`,
+		Details:      "test finding details",
+	}
+	p := &integrationFakeProvider{name: "native", finding: finding}
+	rec := newIntegrationSourceReconciler(p)
+	req := integrationReq(pod.Name, integrationNamespace)
 
 	if _, err := rec.Reconcile(ctx, req); err != nil {
 		t.Fatalf("first Reconcile: %v", err)
 	}
 
 	var rjobList v1alpha1.RemediationJobList
-	eventually(t, func() bool {
+	integrationEventually(t, func() bool {
 		_ = k8sClient.List(ctx, &rjobList, client.InNamespace(integrationNamespace))
 		for i := range rjobList.Items {
-			if rjobList.Items[i].Spec.SourceResultRef.Name == result.Name {
+			if rjobList.Items[i].Spec.SourceResultRef.Name == pod.Name {
 				return true
 			}
 		}
@@ -159,7 +203,7 @@ func TestSourceProviderReconciler_DuplicateFingerprint_Skips(t *testing.T) {
 
 	t.Cleanup(func() {
 		for i := range rjobList.Items {
-			if rjobList.Items[i].Spec.SourceResultRef.Name == result.Name {
+			if rjobList.Items[i].Spec.SourceResultRef.Name == pod.Name {
 				_ = k8sClient.Delete(ctx, &rjobList.Items[i])
 			}
 		}
@@ -175,7 +219,7 @@ func TestSourceProviderReconciler_DuplicateFingerprint_Skips(t *testing.T) {
 	}
 	count := 0
 	for i := range rjobList2.Items {
-		if rjobList2.Items[i].Spec.SourceResultRef.Name == result.Name {
+		if rjobList2.Items[i].Spec.SourceResultRef.Name == pod.Name {
 			count++
 		}
 	}
@@ -184,35 +228,41 @@ func TestSourceProviderReconciler_DuplicateFingerprint_Skips(t *testing.T) {
 	}
 }
 
-// TestSourceProviderReconciler_FailedPhase_ReDispatches verifies: Existing Failed
-// RemediationJob → new one created.
-func TestSourceProviderReconciler_FailedPhase_ReDispatches(t *testing.T) {
+// TestIntegration_FailedPhase_ReDispatches verifies: existing Failed RemediationJob
+// → deleted and new one created.
+func TestIntegration_FailedPhase_ReDispatches(t *testing.T) {
 	if !suiteReady {
 		t.Skip("envtest not available: KUBEBUILDER_ASSETS not set")
 	}
 	ctx := context.Background()
-	result := newTestResult("result-failed-redispatch", integrationNamespace, []v1alpha1.Failure{
-		{Text: "OOMKilled"},
-	})
-	if err := k8sClient.Create(ctx, result); err != nil {
-		t.Fatalf("create Result: %v", err)
-	}
-	t.Cleanup(func() {
-		_ = k8sClient.Delete(ctx, result)
-	})
 
-	rec := newSourceReconciler()
-	req := ctrl.Request{NamespacedName: types.NamespacedName{Name: result.Name, Namespace: result.Namespace}}
+	pod := newTestPod("pod-failed-redispatch", integrationNamespace)
+	if err := k8sClient.Create(ctx, pod); err != nil {
+		t.Fatalf("create Pod: %v", err)
+	}
+	t.Cleanup(func() { _ = k8sClient.Delete(ctx, pod) })
+
+	finding := &domain.Finding{
+		Kind:         "Pod",
+		Name:         pod.Name,
+		Namespace:    integrationNamespace,
+		ParentObject: "my-deployment",
+		Errors:       `[{"text":"OOMKilled"}]`,
+		Details:      "test finding details",
+	}
+	p := &integrationFakeProvider{name: "native", finding: finding}
+	rec := newIntegrationSourceReconciler(p)
+	req := integrationReq(pod.Name, integrationNamespace)
 
 	if _, err := rec.Reconcile(ctx, req); err != nil {
 		t.Fatalf("first Reconcile: %v", err)
 	}
 
 	var rjobList v1alpha1.RemediationJobList
-	eventually(t, func() bool {
+	integrationEventually(t, func() bool {
 		_ = k8sClient.List(ctx, &rjobList, client.InNamespace(integrationNamespace))
 		for i := range rjobList.Items {
-			if rjobList.Items[i].Spec.SourceResultRef.Name == result.Name {
+			if rjobList.Items[i].Spec.SourceResultRef.Name == pod.Name {
 				return true
 			}
 		}
@@ -221,7 +271,7 @@ func TestSourceProviderReconciler_FailedPhase_ReDispatches(t *testing.T) {
 
 	var firstRJob *v1alpha1.RemediationJob
 	for i := range rjobList.Items {
-		if rjobList.Items[i].Spec.SourceResultRef.Name == result.Name {
+		if rjobList.Items[i].Spec.SourceResultRef.Name == pod.Name {
 			firstRJob = &rjobList.Items[i]
 			break
 		}
@@ -235,21 +285,19 @@ func TestSourceProviderReconciler_FailedPhase_ReDispatches(t *testing.T) {
 	if err := k8sClient.Status().Patch(ctx, firstRJob, client.MergeFrom(rjobCopy)); err != nil {
 		t.Fatalf("patch status to Failed: %v", err)
 	}
-	t.Cleanup(func() {
-		_ = k8sClient.Delete(ctx, firstRJob)
-	})
+	t.Cleanup(func() { _ = k8sClient.Delete(ctx, firstRJob) })
 
 	if _, err := rec.Reconcile(ctx, req); err != nil {
 		t.Fatalf("second Reconcile (after Failed): %v", err)
 	}
 
 	var rjobList2 v1alpha1.RemediationJobList
-	eventually(t, func() bool {
+	integrationEventually(t, func() bool {
 		if err := k8sClient.List(ctx, &rjobList2, client.InNamespace(integrationNamespace)); err != nil {
 			return false
 		}
 		for i := range rjobList2.Items {
-			if rjobList2.Items[i].Spec.SourceResultRef.Name == result.Name &&
+			if rjobList2.Items[i].Spec.SourceResultRef.Name == pod.Name &&
 				rjobList2.Items[i].Status.Phase != v1alpha1.PhaseFailed {
 				return true
 			}
@@ -259,12 +307,10 @@ func TestSourceProviderReconciler_FailedPhase_ReDispatches(t *testing.T) {
 
 	var newRJob *v1alpha1.RemediationJob
 	for i := range rjobList2.Items {
-		if rjobList2.Items[i].Spec.SourceResultRef.Name == result.Name &&
+		if rjobList2.Items[i].Spec.SourceResultRef.Name == pod.Name &&
 			rjobList2.Items[i].Status.Phase != v1alpha1.PhaseFailed {
 			newRJob = &rjobList2.Items[i]
-			t.Cleanup(func() {
-				_ = k8sClient.Delete(ctx, newRJob)
-			})
+			t.Cleanup(func() { _ = k8sClient.Delete(ctx, newRJob) })
 			break
 		}
 	}
@@ -273,23 +319,24 @@ func TestSourceProviderReconciler_FailedPhase_ReDispatches(t *testing.T) {
 	}
 }
 
-// TestSourceProviderReconciler_NoErrors_Skipped verifies: Result with no errors →
-// ExtractFinding returns nil, nil → no RemediationJob created.
-func TestSourceProviderReconciler_NoErrors_Skipped(t *testing.T) {
+// TestIntegration_NoErrors_Skipped verifies: nil finding → no RemediationJob created.
+func TestIntegration_NoErrors_Skipped(t *testing.T) {
 	if !suiteReady {
 		t.Skip("envtest not available: KUBEBUILDER_ASSETS not set")
 	}
 	ctx := context.Background()
-	result := newTestResult("result-no-errors", integrationNamespace, nil)
-	if err := k8sClient.Create(ctx, result); err != nil {
-		t.Fatalf("create Result: %v", err)
-	}
-	t.Cleanup(func() {
-		_ = k8sClient.Delete(ctx, result)
-	})
 
-	rec := newSourceReconciler()
-	req := ctrl.Request{NamespacedName: types.NamespacedName{Name: result.Name, Namespace: result.Namespace}}
+	pod := newTestPod("pod-no-errors", integrationNamespace)
+	if err := k8sClient.Create(ctx, pod); err != nil {
+		t.Fatalf("create Pod: %v", err)
+	}
+	t.Cleanup(func() { _ = k8sClient.Delete(ctx, pod) })
+
+	// Provider returns nil finding (no errors detected).
+	p := &integrationFakeProvider{name: "native", finding: nil}
+	rec := newIntegrationSourceReconciler(p)
+	req := integrationReq(pod.Name, integrationNamespace)
+
 	if _, err := rec.Reconcile(ctx, req); err != nil {
 		t.Fatalf("Reconcile: %v", err)
 	}
@@ -299,15 +346,15 @@ func TestSourceProviderReconciler_NoErrors_Skipped(t *testing.T) {
 		t.Fatalf("list RemediationJobs: %v", err)
 	}
 	for i := range rjobList.Items {
-		if rjobList.Items[i].Spec.SourceResultRef.Name == result.Name {
-			t.Errorf("expected no RemediationJob for no-error Result, found %q", rjobList.Items[i].Name)
+		if rjobList.Items[i].Spec.SourceResultRef.Name == pod.Name {
+			t.Errorf("expected no RemediationJob for nil-finding pod, found %q", rjobList.Items[i].Name)
 		}
 	}
 }
 
-// TestSourceProviderReconciler_ResultDeleted_CancelsPending verifies: Result deleted →
+// TestIntegration_ResultDeleted_CancelsPending verifies: source not found →
 // Pending RemediationJob deleted.
-func TestSourceProviderReconciler_ResultDeleted_CancelsPending(t *testing.T) {
+func TestIntegration_ResultDeleted_CancelsPending(t *testing.T) {
 	if !suiteReady {
 		t.Skip("envtest not available: KUBEBUILDER_ASSETS not set")
 	}
@@ -326,11 +373,11 @@ func TestSourceProviderReconciler_ResultDeleted_CancelsPending(t *testing.T) {
 			},
 		},
 		Spec: v1alpha1.RemediationJobSpec{
-			SourceType:  v1alpha1.SourceTypeK8sGPT,
+			SourceType:  v1alpha1.SourceTypeNative,
 			SinkType:    "github",
 			Fingerprint: fp,
 			SourceResultRef: v1alpha1.ResultRef{
-				Name:      "result-deleted-pending",
+				Name:      "pod-deleted-pending",
 				Namespace: integrationNamespace,
 			},
 			Finding: v1alpha1.FindingSpec{
@@ -348,29 +395,27 @@ func TestSourceProviderReconciler_ResultDeleted_CancelsPending(t *testing.T) {
 	if err := k8sClient.Create(ctx, rjob); err != nil {
 		t.Fatalf("create RemediationJob: %v", err)
 	}
-	t.Cleanup(func() {
-		_ = k8sClient.Delete(ctx, rjob)
-	})
+	t.Cleanup(func() { _ = k8sClient.Delete(ctx, rjob) })
 
-	rec := newSourceReconciler()
-	req := ctrl.Request{NamespacedName: types.NamespacedName{
-		Name:      "result-deleted-pending",
-		Namespace: integrationNamespace,
-	}}
+	// No Pod exists — source is deleted.
+	p := &integrationFakeProvider{name: "native", finding: nil}
+	rec := newIntegrationSourceReconciler(p)
+	req := integrationReq("pod-deleted-pending", integrationNamespace)
+
 	if _, err := rec.Reconcile(ctx, req); err != nil {
 		t.Fatalf("Reconcile (NotFound): %v", err)
 	}
 
-	eventually(t, func() bool {
+	integrationEventually(t, func() bool {
 		var fetched v1alpha1.RemediationJob
 		err := k8sClient.Get(ctx, types.NamespacedName{Name: rjob.Name, Namespace: integrationNamespace}, &fetched)
 		return err != nil
 	}, 5*time.Second, 100*time.Millisecond)
 }
 
-// TestSourceProviderReconciler_ResultDeleted_CancelsDispatched verifies: Result deleted →
+// TestIntegration_ResultDeleted_CancelsDispatched verifies: source not found →
 // Dispatched RemediationJob deleted.
-func TestSourceProviderReconciler_ResultDeleted_CancelsDispatched(t *testing.T) {
+func TestIntegration_ResultDeleted_CancelsDispatched(t *testing.T) {
 	if !suiteReady {
 		t.Skip("envtest not available: KUBEBUILDER_ASSETS not set")
 	}
@@ -389,11 +434,11 @@ func TestSourceProviderReconciler_ResultDeleted_CancelsDispatched(t *testing.T) 
 			},
 		},
 		Spec: v1alpha1.RemediationJobSpec{
-			SourceType:  v1alpha1.SourceTypeK8sGPT,
+			SourceType:  v1alpha1.SourceTypeNative,
 			SinkType:    "github",
 			Fingerprint: fp,
 			SourceResultRef: v1alpha1.ResultRef{
-				Name:      "result-deleted-dispatched",
+				Name:      "pod-deleted-dispatched",
 				Namespace: integrationNamespace,
 			},
 			Finding: v1alpha1.FindingSpec{
@@ -411,26 +456,25 @@ func TestSourceProviderReconciler_ResultDeleted_CancelsDispatched(t *testing.T) 
 	if err := k8sClient.Create(ctx, rjob); err != nil {
 		t.Fatalf("create RemediationJob: %v", err)
 	}
-	t.Cleanup(func() {
-		_ = k8sClient.Delete(ctx, rjob)
-	})
+	t.Cleanup(func() { _ = k8sClient.Delete(ctx, rjob) })
 
+	// Patch the RemediationJob to Dispatched phase.
 	rjobCopy := rjob.DeepCopyObject().(*v1alpha1.RemediationJob)
 	rjob.Status.Phase = v1alpha1.PhaseDispatched
 	if err := k8sClient.Status().Patch(ctx, rjob, client.MergeFrom(rjobCopy)); err != nil {
 		t.Fatalf("patch status to Dispatched: %v", err)
 	}
 
-	rec := newSourceReconciler()
-	req := ctrl.Request{NamespacedName: types.NamespacedName{
-		Name:      "result-deleted-dispatched",
-		Namespace: integrationNamespace,
-	}}
+	// No Pod exists — source is deleted.
+	p := &integrationFakeProvider{name: "native", finding: nil}
+	rec := newIntegrationSourceReconciler(p)
+	req := integrationReq("pod-deleted-dispatched", integrationNamespace)
+
 	if _, err := rec.Reconcile(ctx, req); err != nil {
 		t.Fatalf("Reconcile (NotFound): %v", err)
 	}
 
-	eventually(t, func() bool {
+	integrationEventually(t, func() bool {
 		var fetched v1alpha1.RemediationJob
 		err := k8sClient.Get(ctx, types.NamespacedName{Name: rjob.Name, Namespace: integrationNamespace}, &fetched)
 		return err != nil

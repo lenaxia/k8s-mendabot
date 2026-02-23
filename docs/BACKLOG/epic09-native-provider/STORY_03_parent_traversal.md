@@ -2,7 +2,7 @@
 
 **Epic:** [epic09-native-provider](README.md)
 **Priority:** Critical
-**Status:** Not Started
+**Status:** Complete
 **Estimated Effort:** 1.5 hours
 
 ---
@@ -89,11 +89,11 @@ The traversal must handle multi-level chains:
 
 ## Tasks
 
-- [ ] Write all 9 tests in `internal/provider/native/parent_test.go` (TDD — must fail before
+- [x] Write all 9 tests in `internal/provider/native/parent_test.go` (TDD — must fail before
   implementation)
-- [ ] Implement `getParent` in `internal/provider/native/parent.go` with signature
+- [x] Implement `getParent` in `internal/provider/native/parent.go` with signature
   `getParent(ctx context.Context, c client.Client, meta metav1.ObjectMeta, kind string) string`
-- [ ] Run tests — all must pass
+- [x] Run tests — all must pass
 
 ---
 
@@ -126,6 +126,6 @@ The `ctx` passed to `getParent` must be the `context.Context` received by `Extra
 
 ## Definition of Done
 
-- [ ] All 9 tests pass with `-race`
-- [ ] `go vet ./...` clean
-- [ ] `go build ./...` clean
+- [x] All 9 tests pass with `-race`
+- [x] `go vet ./...` clean
+- [x] `go build ./...` clean

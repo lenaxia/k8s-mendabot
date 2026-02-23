@@ -16,6 +16,6 @@ resources:
 - role-agent.yaml
 - rolebinding-agent.yaml
 - configmap-prompt.yaml
-- secret-github-app.yaml
-- secret-llm.yaml
+- secret-github-app-placeholder.yaml
+- secret-llm-placeholder.yaml
 - deployment-watcher.yaml

@@ -2,7 +2,6 @@ FROM debian:bookworm-slim
 
 # Tool versions — bump these to upgrade
 ARG KUBECTL_VERSION=1.32.3
-ARG K8SGPT_VERSION=0.4.27
 ARG HELM_VERSION=3.17.2
 ARG FLUX_VERSION=2.5.1
 ARG TALOSCTL_VERSION=1.9.4
@@ -48,16 +47,6 @@ RUN curl -fsSL "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${TARGET
     && echo "$(cat /tmp/kubectl.sha256)  /usr/local/bin/kubectl" | sha256sum --check \
     && rm /tmp/kubectl.sha256 \
     && chmod +x /usr/local/bin/kubectl
-
-# k8sgpt — with SHA256 verification (CHECKSUMS from GitHub releases) (add retries)
-RUN ARCH=$([ "$TARGETARCH" = "amd64" ] && echo "x86_64" || echo "arm64") \
-    && curl -fsSL --retry 3 --retry-delay 5 "https://github.com/k8sgpt-ai/k8sgpt/releases/download/v${K8SGPT_VERSION}/k8sgpt_Linux_${ARCH}.tar.gz" \
-      -o /tmp/k8sgpt.tar.gz \
-    && curl -fsSL --retry 3 --retry-delay 5 "https://github.com/k8sgpt-ai/k8sgpt/releases/download/v${K8SGPT_VERSION}/checksums.txt" \
-      | grep "k8sgpt_Linux_${ARCH}.tar.gz$" \
-      | awk '{print $1 "  /tmp/k8sgpt.tar.gz"}' | sha256sum --check \
-    && tar -xz -C /usr/local/bin -f /tmp/k8sgpt.tar.gz k8sgpt \
-    && rm /tmp/k8sgpt.tar.gz
 
 # helm — tarball; verify checksum from get.helm.sh
 RUN curl -fsSL "https://get.helm.sh/helm-v${HELM_VERSION}-linux-${TARGETARCH}.tar.gz" \

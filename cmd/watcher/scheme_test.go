@@ -20,33 +20,10 @@ func buildScheme(t *testing.T) *runtime.Scheme {
 	if err := batchv1.AddToScheme(s); err != nil {
 		t.Fatalf("batchv1.AddToScheme: %v", err)
 	}
-	if err := v1alpha1.AddResultToScheme(s); err != nil {
-		t.Fatalf("AddResultToScheme: %v", err)
-	}
 	if err := v1alpha1.AddRemediationToScheme(s); err != nil {
 		t.Fatalf("AddRemediationToScheme: %v", err)
 	}
 	return s
-}
-
-func TestScheme_ContainsResultKinds(t *testing.T) {
-	s := buildScheme(t)
-	gvk := schema.GroupVersionKind{
-		Group:   "core.k8sgpt.ai",
-		Version: "v1alpha1",
-		Kind:    "Result",
-	}
-	if !s.Recognizes(gvk) {
-		t.Errorf("scheme does not recognise %v", gvk)
-	}
-	gvkList := schema.GroupVersionKind{
-		Group:   "core.k8sgpt.ai",
-		Version: "v1alpha1",
-		Kind:    "ResultList",
-	}
-	if !s.Recognizes(gvkList) {
-		t.Errorf("scheme does not recognise %v", gvkList)
-	}
 }
 
 func TestScheme_ContainsRemediationJobKinds(t *testing.T) {

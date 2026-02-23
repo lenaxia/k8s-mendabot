@@ -24,9 +24,9 @@
 
 ## Project Overview
 
-**k8s-mendabot** watches `Result` CRDs written by the
-[k8sgpt-operator](https://github.com/k8sgpt-ai/k8sgpt-operator), deduplicates findings by
-parent resource, and spawns a per-finding Kubernetes Job that runs an
+**k8s-mendabot** watches core Kubernetes resources (Pods, Deployments, StatefulSets,
+PersistentVolumeClaims, Nodes, Jobs) directly, deduplicates findings by parent resource,
+and spawns a per-finding Kubernetes Job that runs an
 [OpenCode](https://opencode.ai) agent in-cluster. The agent investigates the live cluster
 and the GitOps repository, then opens a pull request with a proposed fix.
 
@@ -39,10 +39,10 @@ and the GitOps repository, then opens a pull request with a proposed fix.
 
 **Two deliverables:**
 1. `mendabot-watcher` — Go controller binary (controller-runtime)
-2. `mendabot-agent` — Docker image (opencode + kubectl + k8sgpt + helm + flux + gh)
+2. `mendabot-agent` — Docker image (opencode + kubectl + helm + flux + gh)
 
-**Upstream target:** Once stable, contribute to
-[k8sgpt-ai/k8sgpt-operator](https://github.com/k8sgpt-ai/k8sgpt-operator).
+**Upstream target:** Once stable, contribute upstream as a standalone operator or as an
+integration with the broader Kubernetes observability ecosystem.
 
 **Primary source documents:**
 - [`docs/DESIGN/HLD.md`](docs/DESIGN/HLD.md) — Authoritative specification
@@ -337,12 +337,11 @@ container for git clone and `gh` operations.
 
 | Component | Technology | Reason |
 |---|---|---|
-| Controller language | Go 1.23 | Type-safe, matches k8sgpt ecosystem |
+| Controller language | Go 1.23 | Type-safe, idiomatic for Kubernetes ecosystem |
 | Controller framework | controller-runtime v0.19.3 | Standard Kubernetes controller pattern |
-| Logging | go.uber.org/zap | Structured logging, matches k8sgpt |
+| Logging | go.uber.org/zap | Structured logging |
 | Agent base image | debian:bookworm-slim | Stable, rich apt ecosystem |
 | kubectl | Official release binary | Standard cluster interaction |
-| k8sgpt | Official release binary | Direct analysis capability |
 | helm | Official release binary | GitOps repo uses Helm releases |
 | flux | Official release binary | GitOps repo uses Flux |
 | gh | GitHub CLI | PR creation, search, and commenting |
@@ -869,6 +868,7 @@ kubectl apply -k deploy/kustomize/
 | Branch | Purpose | Status | Created |
 |--------|---------|--------|---------|
 | `main` | Stable code | Active | 2026-02-19 |
+| `feature/epic09-native-provider` | Native cluster provider (replaces k8sgpt) | Active | 2026-02-22 |
 
 **Merged branches:**
 

@@ -23,7 +23,7 @@ import (
 	"github.com/lenaxia/k8s-mendabot/internal/jobbuilder"
 	"github.com/lenaxia/k8s-mendabot/internal/logging"
 	"github.com/lenaxia/k8s-mendabot/internal/provider"
-	k8sgpt "github.com/lenaxia/k8s-mendabot/internal/provider/k8sgpt"
+	"github.com/lenaxia/k8s-mendabot/internal/provider/native"
 )
 
 // Version is embedded at build time via ldflags:
@@ -61,9 +61,6 @@ func main() {
 	if err := batchv1.AddToScheme(scheme); err != nil {
 		logger.Fatal("failed to add batchv1 scheme", zap.Error(err))
 	}
-	if err := v1alpha1.AddResultToScheme(scheme); err != nil {
-		logger.Fatal("failed to add v1alpha1 result scheme", zap.Error(err))
-	}
 	if err := v1alpha1.AddRemediationToScheme(scheme); err != nil {
 		logger.Fatal("failed to add v1alpha1 remediation scheme", zap.Error(err))
 	}
@@ -96,8 +93,14 @@ func main() {
 		logger.Fatal("RemediationJobReconciler setup failed", zap.Error(err))
 	}
 
+	nativeClient := mgr.GetClient()
 	enabledProviders := []domain.SourceProvider{
-		&k8sgpt.K8sGPTProvider{},
+		native.NewPodProvider(nativeClient),
+		native.NewDeploymentProvider(nativeClient),
+		native.NewPVCProvider(nativeClient),
+		native.NewNodeProvider(nativeClient),
+		native.NewStatefulSetProvider(nativeClient),
+		native.NewJobProvider(nativeClient),
 	}
 	for _, p := range enabledProviders {
 		if err := (&provider.SourceProviderReconciler{

@@ -2,7 +2,7 @@
 
 **Epic:** [epic09-native-provider](README.md)
 **Priority:** High
-**Status:** Not Started
+**Status:** Complete
 **Estimated Effort:** 1 hour
 
 ---
@@ -17,24 +17,24 @@ requiring k8sgpt-operator.
 
 ## Acceptance Criteria
 
-- [ ] `nodeProvider` struct defined in `internal/provider/native/node.go`
+- [x] `nodeProvider` struct defined in `internal/provider/native/node.go`
   (unexported; exported constructor `NewNodeProvider(c client.Client) *nodeProvider`
   in same file; panics if `c == nil`)
-- [ ] Compile-time assertion `var _ domain.SourceProvider = (*nodeProvider)(nil)` present
-- [ ] `ProviderName()` returns `"native"`
-- [ ] `ObjectType()` returns `&v1.Node{}`
-- [ ] `ExtractFinding` returns `(nil, nil)` for healthy nodes
-- [ ] `ExtractFinding` returns a populated `*Finding` for all failure conditions in the
+- [x] Compile-time assertion `var _ domain.SourceProvider = (*nodeProvider)(nil)` present
+- [x] `ProviderName()` returns `"native"`
+- [x] `ObjectType()` returns `&v1.Node{}`
+- [x] `ExtractFinding` returns `(nil, nil)` for healthy nodes
+- [x] `ExtractFinding` returns a populated `*Finding` for all failure conditions in the
   table below
-- [ ] `Finding.ParentObject` is `"Node/<name>"` — nodes have no workload parent.
+- [x] `Finding.ParentObject` is `"Node/<name>"` — nodes have no workload parent.
   Call: `getParent(ctx, nil, node.ObjectMeta, "Node")` — note that NodeProvider does not
   need a `client.Client` for `getParent` (nodes have no ownerReferences, so the client
   is never used). Pass `nil` or a valid client — both are safe since `getParent` only
   calls the client when ownerReferences exist. For consistency with other providers,
   `nodeProvider` still holds a `client.Client` field and passes it.
-- [ ] `Finding.Kind` is `"Node"`, `Finding.Name` is the node name, `Finding.Namespace` is `""`
+- [x] `Finding.Kind` is `"Node"`, `Finding.Name` is the node name, `Finding.Namespace` is `""`
   (nodes are cluster-scoped)
-- [ ] `Finding.Errors` contains one entry per failing condition
+- [x] `Finding.Errors` contains one entry per failing condition
 
 ---
 
@@ -85,9 +85,9 @@ Error text format per condition: `"node <name> has condition <Type> (<Reason>): 
 
 ## Tasks
 
-- [ ] Write all 10 tests in `internal/provider/native/node_test.go` (TDD — must fail first)
-- [ ] Implement `NodeProvider` in `internal/provider/native/node.go`
-- [ ] Run tests — all must pass
+- [x] Write all 10 tests in `internal/provider/native/node_test.go` (TDD — must fail first)
+- [x] Implement `NodeProvider` in `internal/provider/native/node.go`
+- [x] Run tests — all must pass
 
 ---
 
@@ -101,6 +101,6 @@ cluster-scoped resources with no ownerReferences)
 
 ## Definition of Done
 
-- [ ] All 10 tests pass with `-race`
-- [ ] `go vet ./...` clean
-- [ ] `go build ./...` clean
+- [x] All 10 tests pass with `-race`
+- [x] `go vet ./...` clean
+- [x] `go build ./...` clean

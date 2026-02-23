@@ -41,3 +41,15 @@ else.
 | [0019](0019_2026-02-22_epic09-design.md) | 2026-02-22 | Epic 09: native provider design, backlog stories 01–09 created | Complete |
 | [0020](0020_2026-02-22_epic09-backlog-review.md) | 2026-02-22 | Epic 09: stories 10–12 added; 9 integration gaps found and fixed | Complete |
 | [0021](0021_2026-02-22_epic09-finding-fixes.md) | 2026-02-22 | Epic 09: all 24 skeptical reviewer findings applied across 12 story files | Complete |
+| [0022](0022_2026-02-22_epic09-story02-slim-interface.md) | 2026-02-22 | Epic 09 STORY_02: slim SourceProvider interface, reconciler calls domain.FindingFingerprint | Complete |
+| [0023](0023_2026-02-22_epic09-story03-parent-traversal.md) | 2026-02-22 | Epic 09 STORY_03: getParent owner-reference traversal, 9 tests, fake client | Complete |
+| [0024](0024_2026-02-22_epic09-story04-pod-provider.md) | 2026-02-22 | Epic 09 STORY_04: PodProvider with failure detection, 16 tests | Complete |
+| [0025](0025_2026-02-22_epic09-story05-deployment-provider.md) | 2026-02-22 | Epic 09 STORY_05: DeploymentProvider with replicas/available detection, 13 tests | Complete |
+| [0026](0026_2026-02-22_epic09-story06-pvc-provider.md) | 2026-02-22 | Epic 09 STORY_06: PVCProvider with ProvisioningFailed event detection, 11 tests | Complete |
+| [0027](0027_2026-02-22_epic09-story07-node-provider.md) | 2026-02-22 | Epic 09 STORY_07: NodeProvider with condition-based detection, 16 tests | Complete |
+| [0028](0028_2026-02-22_epic09-story10-statefulset-provider.md) | 2026-02-22 | Epic 09 STORY_10: StatefulSetProvider with generation-based scaling detection, 13 tests | Complete |
+| [0029](0029_2026-02-22_epic09-story11-job-provider.md) | 2026-02-22 | Epic 09 STORY_11: JobProvider with backoff-exhaustion detection, 17 tests | Complete |
+| [0030](0030_2026-02-22_epic09-story12-stabilisation-window.md) | 2026-02-22 | Epic 09 STORY_12: stabilisation window in config and SourceProviderReconciler | Complete |
+| [0031](0031_2026-02-22_epic09-story08-main-wiring.md) | 2026-02-22 | Epic 09 STORY_08: wire all six native providers into main.go | Complete |
+| [0032](0032_2026-02-22_epic09-story09-remove-k8sgpt.md) | 2026-02-22 | Epic 09 STORY_09: remove k8sgpt provider, result_types, migrate 6 integration tests | Complete |
+| [0033](0033_2026-02-22_epic09-native-provider-complete.md) | 2026-02-22 | Epic 09 complete: all 12 stories, 6 native providers, k8sgpt removed, code review 0 gaps | Complete |

@@ -3,7 +3,7 @@
 //	go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
 //	setup-envtest use --bin-dir /usr/local/kubebuilder/bin
 //	export KUBEBUILDER_ASSETS=$(setup-envtest use -p path)
-package k8sgpt_test
+package provider_test
 
 import (
 	"context"
@@ -14,16 +14,17 @@ import (
 	"testing"
 
 	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 )
 
 var (
-	cfg        *rest.Config
-	k8sClient  client.Client
-	testEnv    *envtest.Environment
-	suiteReady bool
+	integrationCfgREST *rest.Config
+	k8sClient          client.Client
+	testEnv            *envtest.Environment
+	suiteReady         bool
 )
 
 func TestMain(m *testing.M) {
@@ -38,19 +39,24 @@ func TestMain(m *testing.M) {
 
 	if assets != "" {
 		testEnv = &envtest.Environment{
-			CRDDirectoryPaths: []string{"../../../testdata/crds"},
+			CRDDirectoryPaths: []string{"../../testdata/crds"},
 		}
 		var err error
-		cfg, err = testEnv.Start()
+		integrationCfgREST, err = testEnv.Start()
 		if err == nil {
 			scheme := v1alpha1.NewScheme()
-			k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
-			if err == nil {
-				suiteReady = true
+			// Register core Kubernetes types so native providers can watch Pods, etc.
+			if err := clientgoscheme.AddToScheme(scheme); err != nil {
+				fmt.Fprintf(os.Stderr, "failed to add clientgoscheme: %v\n", err)
 			} else {
-				fmt.Fprintf(os.Stderr, "failed to create k8s client: %v\n", err)
-				_ = testEnv.Stop()
-				testEnv = nil
+				k8sClient, err = client.New(integrationCfgREST, client.Options{Scheme: scheme})
+				if err == nil {
+					suiteReady = true
+				} else {
+					fmt.Fprintf(os.Stderr, "failed to create k8s client: %v\n", err)
+					_ = testEnv.Stop()
+					testEnv = nil
+				}
 			}
 		} else {
 			fmt.Fprintf(os.Stderr, "failed to start envtest: %v\n", err)

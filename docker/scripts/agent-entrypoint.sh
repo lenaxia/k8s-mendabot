@@ -15,7 +15,7 @@ set -euo pipefail
 : "${OPENAI_BASE_URL:?OPENAI_BASE_URL must be set}"
 : "${OPENAI_MODEL:?OPENAI_MODEL must be set}"
 : "${KUBE_API_SERVER:?KUBE_API_SERVER must be set}"
-# FINDING_PARENT is optional - not all k8sgpt findings have a parent object
+# FINDING_PARENT is optional — not all native provider findings have a parent object
 FINDING_PARENT="${FINDING_PARENT:-<none>}"
 
 # Build the opencode config from injected LLM credentials and export it so

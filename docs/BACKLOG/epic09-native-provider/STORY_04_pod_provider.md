@@ -2,7 +2,7 @@
 
 **Epic:** [epic09-native-provider](README.md)
 **Priority:** Critical
-**Status:** Not Started
+**Status:** Complete
 **Estimated Effort:** 2 hours
 
 ---
@@ -17,18 +17,18 @@ trigger a remediation Job without requiring k8sgpt-operator.
 
 ## Acceptance Criteria
 
-- [ ] `podProvider` struct defined in `internal/provider/native/pod.go` (unexported; the
+- [x] `podProvider` struct defined in `internal/provider/native/pod.go` (unexported; the
   exported constructor `NewPodProvider(c client.Client) *podProvider` is in the same file
   and panics if `c == nil`)
-- [ ] Compile-time assertion `var _ domain.SourceProvider = (*podProvider)(nil)` present
-- [ ] `ProviderName()` returns `"native"`
-- [ ] `ObjectType()` returns `&v1.Pod{}`
-- [ ] `ExtractFinding` returns `(nil, nil)` for healthy pods (no failure conditions)
-- [ ] `ExtractFinding` returns a populated `*Finding` for all failure conditions in the
+- [x] Compile-time assertion `var _ domain.SourceProvider = (*podProvider)(nil)` present
+- [x] `ProviderName()` returns `"native"`
+- [x] `ObjectType()` returns `&v1.Pod{}`
+- [x] `ExtractFinding` returns `(nil, nil)` for healthy pods (no failure conditions)
+- [x] `ExtractFinding` returns a populated `*Finding` for all failure conditions in the
   table below
-- [ ] `Finding.ParentObject` is set from `getParent(ctx, p.client, pod.ObjectMeta, "Pod")`
+- [x] `Finding.ParentObject` is set from `getParent(ctx, p.client, pod.ObjectMeta, "Pod")`
   (four-argument form — see STORY_03 for signature details)
-- [ ] `Finding` is constructed as follows (illustrative — error text varies by condition):
+- [x] `Finding` is constructed as follows (illustrative — error text varies by condition):
   ```go
   errorsJSON, _ := json.Marshal([]struct{ Text string `json:"text"` }{
       {Text: "container my-app is in CrashLoopBackOff (last exit: OOMKilled)"},
@@ -49,18 +49,18 @@ trigger a remediation Job without requiring k8sgpt-operator.
   ```
   Note: `domain.FindingFingerprint` is called by `SourceProviderReconciler`, not by the
   provider itself. The provider only constructs and returns the `*domain.Finding`.
-- [ ] `Finding.Errors` is a JSON array of `[{"text":"..."}]` entries, one per failing
+- [x] `Finding.Errors` is a JSON array of `[{"text":"..."}]` entries, one per failing
   container
-- [ ] Error text for waiting-state failures includes `containerStatus.State.Waiting.Message`
+- [x] Error text for waiting-state failures includes `containerStatus.State.Waiting.Message`
   when it is non-empty
-- [ ] Error text for CrashLoopBackOff includes the last termination reason (e.g. `OOMKilled`)
+- [x] Error text for CrashLoopBackOff includes the last termination reason (e.g. `OOMKilled`)
   and container name
-- [ ] `Finding.Kind` is `"Pod"`
-- [ ] `Finding.Name` is the pod name (no namespace prefix)
-- [ ] `Finding.Namespace` is the pod namespace
-- [ ] `Finding.SourceRef` identifies the pod (`APIVersion: "v1"`, `Kind: "Pod"`)
-- [ ] `podProvider` holds a `client.Client` field for the `getParent` call
-- [ ] `PodProvider` does **not** fetch events — all detection is from pod status fields
+- [x] `Finding.Kind` is `"Pod"`
+- [x] `Finding.Name` is the pod name (no namespace prefix)
+- [x] `Finding.Namespace` is the pod namespace
+- [x] `Finding.SourceRef` identifies the pod (`APIVersion: "v1"`, `Kind: "Pod"`)
+- [x] `podProvider` holds a `client.Client` field for the `getParent` call
+- [x] `PodProvider` does **not** fetch events — all detection is from pod status fields
   only
 
 ---
@@ -107,9 +107,9 @@ Error reason set (waiting reasons that produce a finding):
 
 ## Tasks
 
-- [ ] Write all 12 tests in `internal/provider/native/pod_test.go` (TDD — must fail first)
-- [ ] Implement `PodProvider` in `internal/provider/native/pod.go`
-- [ ] Run tests — all must pass
+- [x] Write all 12 tests in `internal/provider/native/pod_test.go` (TDD — must fail first)
+- [x] Implement `PodProvider` in `internal/provider/native/pod.go`
+- [x] Run tests — all must pass
 
 ---
 
@@ -122,6 +122,6 @@ Error reason set (waiting reasons that produce a finding):
 
 ## Definition of Done
 
-- [ ] All 12 tests pass with `-race`
-- [ ] `go vet ./...` clean
-- [ ] `go build ./...` clean
+- [x] All 12 tests pass with `-race`
+- [x] `go vet ./...` clean
+- [x] `go build ./...` clean

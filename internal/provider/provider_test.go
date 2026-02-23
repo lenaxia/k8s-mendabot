@@ -2,12 +2,14 @@ package provider_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
+	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -24,8 +26,6 @@ type fakeSourceProvider struct {
 	objectType client.Object
 	finding    *domain.Finding
 	findErr    error
-	fp         string
-	fpErr      error
 }
 
 func (f *fakeSourceProvider) ProviderName() string      { return f.name }
@@ -33,7 +33,6 @@ func (f *fakeSourceProvider) ObjectType() client.Object { return f.objectType }
 func (f *fakeSourceProvider) ExtractFinding(_ client.Object) (*domain.Finding, error) {
 	return f.finding, f.findErr
 }
-func (f *fakeSourceProvider) Fingerprint(_ *domain.Finding) (string, error) { return f.fp, f.fpErr }
 
 var _ domain.SourceProvider = (*fakeSourceProvider)(nil)
 
@@ -41,6 +40,8 @@ const agentNamespace = "mendabot"
 
 func newTestScheme() *runtime.Scheme {
 	s := v1alpha1.NewScheme()
+	// Add client-go scheme so that core types (ConfigMap used as watched object) are registered.
+	_ = clientgoscheme.AddToScheme(s)
 	return s
 }
 
@@ -62,16 +63,13 @@ func newTestReconciler(p *fakeSourceProvider, c client.Client) *provider.SourceP
 	}
 }
 
-func makeWatchedObject(name, namespace string) *v1alpha1.Result {
-	return &v1alpha1.Result{
+// makeWatchedObject creates a ConfigMap as a generic watched object for unit tests.
+// The reconciler logic does not depend on the type — only ExtractFinding does.
+func makeWatchedObject(name, namespace string) *corev1.ConfigMap {
+	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
-		},
-		Spec: v1alpha1.ResultSpec{
-			Kind:         "Pod",
-			ParentObject: "my-deploy",
-			Error:        []v1alpha1.Failure{{Text: "CrashLoopBackOff"}},
 		},
 	}
 }
@@ -85,16 +83,14 @@ func TestSourceProviderReconciler_CallsExtractFinding(t *testing.T) {
 	called := false
 	p := &fakeSourceProvider{
 		name:       "fake",
-		objectType: &v1alpha1.Result{},
+		objectType: &corev1.ConfigMap{},
 		findErr:    nil,
 	}
-	// Override to track calls
 	p.finding = nil // nil finding → skip, but still calls ExtractFinding
 
 	obj := makeWatchedObject("r1", "default")
 	c := newTestClient(obj)
 
-	// Use a custom provider that records calls
 	trackingProvider := &trackingFakeProvider{inner: p}
 	r := &provider.SourceProviderReconciler{
 		Client:   c,
@@ -124,16 +120,15 @@ func (t *trackingFakeProvider) ExtractFinding(obj client.Object) (*domain.Findin
 	t.extractCalled = true
 	return t.inner.ExtractFinding(obj)
 }
-func (t *trackingFakeProvider) Fingerprint(f *domain.Finding) (string, error) {
-	return t.inner.fp, nil
-}
+
+var _ domain.SourceProvider = (*trackingFakeProvider)(nil)
 
 // TestSourceProviderReconciler_SkipsOnNilFinding verifies no RemediationJob is created when
 // ExtractFinding returns nil, nil.
 func TestSourceProviderReconciler_SkipsOnNilFinding(t *testing.T) {
 	p := &fakeSourceProvider{
 		name:       "fake",
-		objectType: &v1alpha1.Result{},
+		objectType: &corev1.ConfigMap{},
 		finding:    nil,
 		findErr:    nil,
 	}
@@ -156,28 +151,32 @@ func TestSourceProviderReconciler_SkipsOnNilFinding(t *testing.T) {
 }
 
 // TestSourceProviderReconciler_CreatesRemediationJob verifies a RemediationJob is created
-// with correct fields for a valid finding.
+// with correct fields for a valid finding. The fingerprint is computed by domain.FindingFingerprint.
 func TestSourceProviderReconciler_CreatesRemediationJob(t *testing.T) {
-	const fp = "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899"
+	finding := &domain.Finding{
+		Kind:         "Pod",
+		Name:         "pod-abc",
+		Namespace:    "default",
+		ParentObject: "my-deploy",
+		Errors:       `[{"text":"CrashLoopBackOff"}]`,
+		Details:      "Pod is crash looping",
+	}
+	expectedFP, err := domain.FindingFingerprint(finding)
+	if err != nil {
+		t.Fatalf("computing expected fingerprint: %v", err)
+	}
+
 	p := &fakeSourceProvider{
-		name:       "k8sgpt",
-		objectType: &v1alpha1.Result{},
-		finding: &domain.Finding{
-			Kind:         "Pod",
-			Name:         "pod-abc",
-			Namespace:    "default",
-			ParentObject: "my-deploy",
-			Errors:       `[{"text":"CrashLoopBackOff"}]`,
-			Details:      "Pod is crash looping",
-		},
-		fp: fp,
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
 	}
 
 	obj := makeWatchedObject("r1", "default")
 	c := newTestClient(obj)
 	r := newTestReconciler(p, c)
 
-	_, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	_, err = r.Reconcile(context.Background(), reqFor("r1", "default"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -191,15 +190,15 @@ func TestSourceProviderReconciler_CreatesRemediationJob(t *testing.T) {
 	}
 
 	rjob := list.Items[0]
-	expectedName := "mendabot-" + fp[:12]
+	expectedName := "mendabot-" + expectedFP[:12]
 	if rjob.Name != expectedName {
 		t.Errorf("name = %q, want %q", rjob.Name, expectedName)
 	}
-	if rjob.Spec.Fingerprint != fp {
-		t.Errorf("fingerprint = %q, want %q", rjob.Spec.Fingerprint, fp)
+	if rjob.Spec.Fingerprint != expectedFP {
+		t.Errorf("fingerprint = %q, want %q", rjob.Spec.Fingerprint, expectedFP)
 	}
-	if rjob.Spec.SourceType != "k8sgpt" {
-		t.Errorf("sourceType = %q, want %q", rjob.Spec.SourceType, "k8sgpt")
+	if rjob.Spec.SourceType != "native" {
+		t.Errorf("sourceType = %q, want %q", rjob.Spec.SourceType, "native")
 	}
 	if rjob.Spec.SourceResultRef.Name != "r1" {
 		t.Errorf("sourceResultRef.Name = %q, want %q", rjob.Spec.SourceResultRef.Name, "r1")
@@ -207,11 +206,11 @@ func TestSourceProviderReconciler_CreatesRemediationJob(t *testing.T) {
 	if rjob.Spec.SourceResultRef.Namespace != "default" {
 		t.Errorf("sourceResultRef.Namespace = %q, want %q", rjob.Spec.SourceResultRef.Namespace, "default")
 	}
-	if rjob.Labels["remediation.mendabot.io/fingerprint"] != fp[:12] {
-		t.Errorf("fingerprint label = %q, want %q", rjob.Labels["remediation.mendabot.io/fingerprint"], fp[:12])
+	if rjob.Labels["remediation.mendabot.io/fingerprint"] != expectedFP[:12] {
+		t.Errorf("fingerprint label = %q, want %q", rjob.Labels["remediation.mendabot.io/fingerprint"], expectedFP[:12])
 	}
-	if rjob.Annotations["remediation.mendabot.io/fingerprint-full"] != fp {
-		t.Errorf("fingerprint-full annotation = %q, want %q", rjob.Annotations["remediation.mendabot.io/fingerprint-full"], fp)
+	if rjob.Annotations["remediation.mendabot.io/fingerprint-full"] != expectedFP {
+		t.Errorf("fingerprint-full annotation = %q, want %q", rjob.Annotations["remediation.mendabot.io/fingerprint-full"], expectedFP)
 	}
 	if rjob.Spec.Finding.Kind != "Pod" {
 		t.Errorf("finding.kind = %q, want %q", rjob.Spec.Finding.Kind, "Pod")
@@ -221,15 +220,19 @@ func TestSourceProviderReconciler_CreatesRemediationJob(t *testing.T) {
 // TestSourceProviderReconciler_SkipsDuplicateFingerprint verifies no second RemediationJob is
 // created when a non-Failed one with the same fingerprint already exists.
 func TestSourceProviderReconciler_SkipsDuplicateFingerprint(t *testing.T) {
-	const fp = "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899"
+	finding := &domain.Finding{
+		Kind: "Pod", Namespace: "default", ParentObject: "my-deploy",
+		Errors: `[{"text":"error"}]`,
+	}
+	fp, err := domain.FindingFingerprint(finding)
+	if err != nil {
+		t.Fatalf("computing fingerprint: %v", err)
+	}
+
 	p := &fakeSourceProvider{
-		name:       "k8sgpt",
-		objectType: &v1alpha1.Result{},
-		finding: &domain.Finding{
-			Kind: "Pod", Namespace: "default", ParentObject: "my-deploy",
-			Errors: `[{"text":"error"}]`,
-		},
-		fp: fp,
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
 	}
 
 	existing := &v1alpha1.RemediationJob{
@@ -240,7 +243,7 @@ func TestSourceProviderReconciler_SkipsDuplicateFingerprint(t *testing.T) {
 		},
 		Spec: v1alpha1.RemediationJobSpec{
 			Fingerprint: fp,
-			SourceType:  "k8sgpt",
+			SourceType:  "native",
 		},
 	}
 
@@ -248,7 +251,7 @@ func TestSourceProviderReconciler_SkipsDuplicateFingerprint(t *testing.T) {
 	c := newTestClient(obj, existing)
 	r := newTestReconciler(p, c)
 
-	_, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	_, err = r.Reconcile(context.Background(), reqFor("r1", "default"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -266,15 +269,19 @@ func TestSourceProviderReconciler_SkipsDuplicateFingerprint(t *testing.T) {
 // is created when the existing one has phase Failed. The Failed one is deleted first, then a
 // new one with the standard name is created.
 func TestSourceProviderReconciler_ReDispatchesFailedRemediationJob(t *testing.T) {
-	const fp = "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899"
+	finding := &domain.Finding{
+		Kind: "Pod", Namespace: "default", ParentObject: "my-deploy",
+		Errors: `[{"text":"error"}]`,
+	}
+	fp, err := domain.FindingFingerprint(finding)
+	if err != nil {
+		t.Fatalf("computing fingerprint: %v", err)
+	}
+
 	p := &fakeSourceProvider{
-		name:       "k8sgpt",
-		objectType: &v1alpha1.Result{},
-		finding: &domain.Finding{
-			Kind: "Pod", Namespace: "default", ParentObject: "my-deploy",
-			Errors: `[{"text":"error"}]`,
-		},
-		fp: fp,
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
 	}
 
 	// Existing Failed RemediationJob with same fingerprint and standard name.
@@ -287,7 +294,7 @@ func TestSourceProviderReconciler_ReDispatchesFailedRemediationJob(t *testing.T)
 		},
 		Spec: v1alpha1.RemediationJobSpec{
 			Fingerprint:        fp,
-			SourceType:         "k8sgpt",
+			SourceType:         "native",
 			SinkType:           "github",
 			GitOpsRepo:         "org/repo",
 			GitOpsManifestRoot: "deploy",
@@ -310,7 +317,7 @@ func TestSourceProviderReconciler_ReDispatchesFailedRemediationJob(t *testing.T)
 	c := newTestClient(obj, failedRJob)
 	r := newTestReconciler(p, c)
 
-	_, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	_, err = r.Reconcile(context.Background(), reqFor("r1", "default"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -332,8 +339,8 @@ func TestSourceProviderReconciler_ReDispatchesFailedRemediationJob(t *testing.T)
 // object is not found, any Pending/Dispatched RemediationJobs for that source ref are deleted.
 func TestSourceProviderReconciler_NotFound_DeletesPendingRJobs(t *testing.T) {
 	p := &fakeSourceProvider{
-		name:       "k8sgpt",
-		objectType: &v1alpha1.Result{},
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
 	}
 
 	pendingRJob := &v1alpha1.RemediationJob{
@@ -347,7 +354,7 @@ func TestSourceProviderReconciler_NotFound_DeletesPendingRJobs(t *testing.T) {
 		Status: v1alpha1.RemediationJobStatus{Phase: v1alpha1.PhasePending},
 	}
 
-	// No Result object — it's been deleted
+	// No watched object — it's been deleted
 	c := newTestClient(pendingRJob)
 	r := newTestReconciler(p, c)
 
@@ -366,11 +373,11 @@ func TestSourceProviderReconciler_NotFound_DeletesPendingRJobs(t *testing.T) {
 }
 
 // TestSourceProviderReconciler_NotFound_DeletesDispatchedRJobs verifies Dispatched jobs are
-// also cancelled when the source Result is deleted.
+// also cancelled when the source object is deleted.
 func TestSourceProviderReconciler_NotFound_DeletesDispatchedRJobs(t *testing.T) {
 	p := &fakeSourceProvider{
-		name:       "k8sgpt",
-		objectType: &v1alpha1.Result{},
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
 	}
 
 	dispatchedRJob := &v1alpha1.RemediationJob{
@@ -402,11 +409,11 @@ func TestSourceProviderReconciler_NotFound_DeletesDispatchedRJobs(t *testing.T) 
 }
 
 // TestSourceProviderReconciler_NotFound_DeletesRunningRJobs verifies Running jobs are
-// also cancelled when the source Result is deleted.
+// also cancelled when the source object is deleted.
 func TestSourceProviderReconciler_NotFound_DeletesRunningRJobs(t *testing.T) {
 	p := &fakeSourceProvider{
-		name:       "k8sgpt",
-		objectType: &v1alpha1.Result{},
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
 	}
 
 	runningRJob := &v1alpha1.RemediationJob{
@@ -437,18 +444,17 @@ func TestSourceProviderReconciler_NotFound_DeletesRunningRJobs(t *testing.T) {
 	}
 }
 
-// TestSourceProviderReconciler_FingerprintError_ReturnsError verifies that a Fingerprint
-// error is propagated as a reconciler error.
+// TestSourceProviderReconciler_FingerprintError_ReturnsError verifies that a malformed
+// Errors JSON in the finding causes domain.FindingFingerprint to return an error which
+// is propagated as a reconciler error.
 func TestSourceProviderReconciler_FingerprintError_ReturnsError(t *testing.T) {
-	fpErr := fmt.Errorf("hash write failed")
 	p := &fakeSourceProvider{
-		name:       "k8sgpt",
-		objectType: &v1alpha1.Result{},
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
 		finding: &domain.Finding{
 			Kind: "Pod", Namespace: "default", ParentObject: "my-deploy",
-			Errors: `[{"text":"error"}]`,
+			Errors: "not-json",
 		},
-		fpErr: fpErr,
 	}
 
 	obj := makeWatchedObject("r1", "default")
@@ -457,6 +463,262 @@ func TestSourceProviderReconciler_FingerprintError_ReturnsError(t *testing.T) {
 
 	_, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
 	if err == nil {
-		t.Error("expected error from Fingerprint failure, got nil")
+		t.Error("expected error from malformed Errors JSON, got nil")
+	}
+}
+
+// --- Stabilisation window tests ---
+
+func newTestReconcilerWithWindow(p *fakeSourceProvider, c client.Client, window time.Duration) *provider.SourceProviderReconciler {
+	return &provider.SourceProviderReconciler{
+		Client: c,
+		Scheme: newTestScheme(),
+		Cfg: config.Config{
+			AgentNamespace:      agentNamespace,
+			StabilisationWindow: window,
+		},
+		Provider: p,
+	}
+}
+
+func makeFinding() *domain.Finding {
+	return &domain.Finding{
+		Kind:         "Pod",
+		Name:         "pod-abc",
+		Namespace:    "default",
+		ParentObject: "my-deploy",
+		Errors:       `[{"text":"CrashLoopBackOff"}]`,
+	}
+}
+
+// TestStabilisationWindow_WindowZeroImmediate verifies that StabilisationWindow==0 bypasses
+// the firstSeen map entirely and creates a RemediationJob immediately.
+func TestStabilisationWindow_WindowZeroImmediate(t *testing.T) {
+	finding := makeFinding()
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
+	}
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj)
+	r := newTestReconcilerWithWindow(p, c, 0)
+
+	result, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.RequeueAfter != 0 {
+		t.Errorf("expected no RequeueAfter for window=0, got %v", result.RequeueAfter)
+	}
+
+	var list v1alpha1.RemediationJobList
+	if err := c.List(context.Background(), &list, client.InNamespace(agentNamespace)); err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+	if len(list.Items) != 1 {
+		t.Errorf("expected 1 RemediationJob created immediately, got %d", len(list.Items))
+	}
+}
+
+// TestStabilisationWindow_WindowNotElapsed verifies that on first sight of a finding with
+// a non-zero window, the reconciler returns RequeueAfter > 0 and does not create a RemediationJob.
+func TestStabilisationWindow_WindowNotElapsed(t *testing.T) {
+	finding := makeFinding()
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
+	}
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj)
+	window := 2 * time.Minute
+	r := newTestReconcilerWithWindow(p, c, window)
+
+	result, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.RequeueAfter <= 0 {
+		t.Errorf("expected RequeueAfter > 0 on first sight, got %v", result.RequeueAfter)
+	}
+
+	var list v1alpha1.RemediationJobList
+	if err := c.List(context.Background(), &list, client.InNamespace(agentNamespace)); err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+	if len(list.Items) != 0 {
+		t.Errorf("expected 0 RemediationJobs before window elapses, got %d", len(list.Items))
+	}
+}
+
+// TestStabilisationWindow_WindowElapsed verifies that when the window has already elapsed
+// (firstSeen entry is old enough), the reconciler proceeds to create a RemediationJob.
+func TestStabilisationWindow_WindowElapsed(t *testing.T) {
+	finding := makeFinding()
+	fp, err := domain.FindingFingerprint(finding)
+	if err != nil {
+		t.Fatalf("computing fingerprint: %v", err)
+	}
+
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
+	}
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj)
+	window := 2 * time.Minute
+	r := newTestReconcilerWithWindow(p, c, window)
+
+	// Pre-populate firstSeen with a timestamp 3 minutes in the past so the window is elapsed.
+	r.FirstSeen()[fp] = time.Now().Add(-3 * time.Minute)
+
+	result, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.RequeueAfter != 0 {
+		t.Errorf("expected no RequeueAfter after window elapsed, got %v", result.RequeueAfter)
+	}
+
+	var list v1alpha1.RemediationJobList
+	if err := c.List(context.Background(), &list, client.InNamespace(agentNamespace)); err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+	if len(list.Items) != 1 {
+		t.Errorf("expected 1 RemediationJob after window elapsed, got %d", len(list.Items))
+	}
+}
+
+// TestStabilisationWindow_SecondSightWithinWindow verifies that when the window has not elapsed
+// yet (entry in firstSeen is recent), the reconciler returns a RequeueAfter equal to the
+// remaining time, and no RemediationJob is created.
+func TestStabilisationWindow_SecondSightWithinWindow(t *testing.T) {
+	finding := makeFinding()
+	fp, err := domain.FindingFingerprint(finding)
+	if err != nil {
+		t.Fatalf("computing fingerprint: %v", err)
+	}
+
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
+	}
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj)
+	window := 2 * time.Minute
+	r := newTestReconcilerWithWindow(p, c, window)
+
+	// Pre-populate firstSeen with a timestamp 30 seconds ago (within the 2-minute window).
+	elapsed := 30 * time.Second
+	r.FirstSeen()[fp] = time.Now().Add(-elapsed)
+
+	result, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Remaining time should be approximately window - elapsed = 90s.
+	// Allow for a few seconds of test execution time.
+	minExpected := window - elapsed - 2*time.Second
+	if result.RequeueAfter < minExpected {
+		t.Errorf("RequeueAfter = %v, want >= %v (remaining window time)", result.RequeueAfter, minExpected)
+	}
+	if result.RequeueAfter >= window {
+		t.Errorf("RequeueAfter = %v, want < %v (full window)", result.RequeueAfter, window)
+	}
+
+	var list v1alpha1.RemediationJobList
+	if err := c.List(context.Background(), &list, client.InNamespace(agentNamespace)); err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+	if len(list.Items) != 0 {
+		t.Errorf("expected 0 RemediationJobs while window not elapsed, got %d", len(list.Items))
+	}
+}
+
+// TestStabilisationWindow_FindingClearsResetsWindow verifies that when ExtractFinding returns
+// nil (finding cleared), the firstSeen entry is evicted. A subsequent finding restarts the window.
+func TestStabilisationWindow_FindingClearsResetsWindow(t *testing.T) {
+	finding := makeFinding()
+	fp, err := domain.FindingFingerprint(finding)
+	if err != nil {
+		t.Fatalf("computing fingerprint: %v", err)
+	}
+
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
+	}
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj)
+	window := 2 * time.Minute
+	r := newTestReconcilerWithWindow(p, c, window)
+
+	// Pre-populate firstSeen as if we already recorded a first sight.
+	r.FirstSeen()[fp] = time.Now().Add(-30 * time.Second)
+
+	// Now simulate the finding clearing: set provider to return nil.
+	p.finding = nil
+	_, err = r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error on nil-finding reconcile: %v", err)
+	}
+
+	// The firstSeen entry should have been evicted.
+	if _, exists := r.FirstSeen()[fp]; exists {
+		t.Error("expected firstSeen entry to be evicted after finding cleared")
+	}
+
+	// Restore the finding — subsequent reconcile should restart the window (not proceed to create).
+	p.finding = finding
+	result, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error on re-finding reconcile: %v", err)
+	}
+	if result.RequeueAfter <= 0 {
+		t.Errorf("expected window to restart after finding cleared, got RequeueAfter=%v", result.RequeueAfter)
+	}
+
+	var list v1alpha1.RemediationJobList
+	if err := c.List(context.Background(), &list, client.InNamespace(agentNamespace)); err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+	if len(list.Items) != 0 {
+		t.Errorf("expected 0 RemediationJobs after window reset, got %d", len(list.Items))
+	}
+}
+
+// TestStabilisationWindow_NotFoundClearsMap verifies that when the watched object is
+// deleted (not-found path), the firstSeen map is cleared entirely.
+func TestStabilisationWindow_NotFoundClearsMap(t *testing.T) {
+	finding := makeFinding()
+	fp, err := domain.FindingFingerprint(finding)
+	if err != nil {
+		t.Fatalf("computing fingerprint: %v", err)
+	}
+
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+	}
+	// No watched object in the client — it has been deleted.
+	c := newTestClient()
+	window := 2 * time.Minute
+	r := newTestReconcilerWithWindow(p, c, window)
+
+	// Pre-populate firstSeen with an entry.
+	r.FirstSeen()[fp] = time.Now()
+	r.FirstSeen()["other-fp"] = time.Now()
+
+	_, err = r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(r.FirstSeen()) != 0 {
+		t.Errorf("expected firstSeen to be cleared on not-found, got %d entries", len(r.FirstSeen()))
 	}
 }

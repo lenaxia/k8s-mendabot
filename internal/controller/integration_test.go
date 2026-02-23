@@ -80,7 +80,7 @@ func newIntegrationRJob(name, fp string) *v1alpha1.RemediationJob {
 			Namespace: integrationCtrlNamespace,
 		},
 		Spec: v1alpha1.RemediationJobSpec{
-			SourceType:  v1alpha1.SourceTypeK8sGPT,
+			SourceType:  v1alpha1.SourceTypeNative,
 			SinkType:    "github",
 			Fingerprint: fp,
 			SourceResultRef: v1alpha1.ResultRef{

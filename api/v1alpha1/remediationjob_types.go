@@ -14,7 +14,7 @@ var (
 		Version: "v1alpha1",
 	}
 	// AddRemediationToScheme registers RemediationJob and RemediationJobList under
-	// remediation.mendabot.io/v1alpha1. Call this in main.go alongside AddResultToScheme.
+	// remediation.mendabot.io/v1alpha1.
 	AddRemediationToScheme = addRemediationTypes
 )
 
@@ -27,12 +27,9 @@ func addRemediationTypes(s *runtime.Scheme) error {
 	return nil
 }
 
-// NewScheme creates a fresh scheme with all v1alpha1 types registered (both group versions).
+// NewScheme creates a fresh scheme with all v1alpha1 types registered.
 func NewScheme() *runtime.Scheme {
 	s := runtime.NewScheme()
-	if err := AddResultToScheme(s); err != nil {
-		panic(fmt.Sprintf("failed to register scheme: %v", err))
-	}
 	if err := AddRemediationToScheme(s); err != nil {
 		panic(fmt.Sprintf("failed to register scheme: %v", err))
 	}
@@ -41,9 +38,9 @@ func NewScheme() *runtime.Scheme {
 
 // Source and sink type constants.
 const (
-	// SourceTypeK8sGPT is the SourceType value set by K8sGPTProvider.
+	// SourceTypeNative is the SourceType value set by native Kubernetes providers.
 	// Defined here so all packages share one authoritative constant.
-	SourceTypeK8sGPT = "k8sgpt"
+	SourceTypeNative = "native"
 )
 
 // RemediationJobPhase represents the lifecycle stage of a RemediationJob.
@@ -85,7 +82,7 @@ const (
 
 // RemediationJobSpec defines the desired state of a RemediationJob.
 type RemediationJobSpec struct {
-	// SourceResultRef identifies the k8sgpt Result that triggered this remediation.
+	// SourceResultRef identifies the source object that triggered this remediation.
 	// +kubebuilder:validation:Required
 	SourceResultRef ResultRef `json:"sourceResultRef"`
 
@@ -95,7 +92,7 @@ type RemediationJobSpec struct {
 	Fingerprint string `json:"fingerprint"`
 
 	// SourceType identifies which SourceProvider created this RemediationJob.
-	// Set to the value of SourceProvider.ProviderName() (e.g. "k8sgpt", "prometheus").
+	// Set to the value of SourceProvider.ProviderName() (e.g. "native", "prometheus").
 	// Immutable after creation.
 	SourceType string `json:"sourceType"`
 
@@ -120,18 +117,18 @@ type RemediationJobSpec struct {
 	AgentSA string `json:"agentSA"`
 }
 
-// ResultRef is a back-reference to the k8sgpt Result that triggered a RemediationJob.
+// ResultRef is a back-reference to the source object that triggered a RemediationJob.
 type ResultRef struct {
-	// Name is the name of the k8sgpt Result object.
+	// Name is the name of the source object.
 	Name string `json:"name"`
 
-	// Namespace is the namespace of the k8sgpt Result object.
+	// Namespace is the namespace of the source object.
 	Namespace string `json:"namespace"`
 }
 
 // FindingSpec holds the extracted finding context injected as env vars into the agent Job.
 type FindingSpec struct {
-	// Kind is the Kubernetes resource kind identified by k8sgpt (e.g. "Pod", "Deployment").
+	// Kind is the Kubernetes resource kind (e.g. "Pod", "Deployment").
 	Kind string `json:"kind"`
 
 	// Name is the plain resource name (no namespace prefix).
@@ -147,7 +144,7 @@ type FindingSpec struct {
 	// Stored as a JSON string.
 	Errors string `json:"errors"`
 
-	// Details is the k8sgpt LLM explanation of the finding.
+	// Details is a human-readable explanation of the finding.
 	Details string `json:"details"`
 }
 
@@ -182,7 +179,7 @@ type RemediationJobStatus struct {
 }
 
 // RemediationJob represents one investigation and remediation attempt for a
-// k8sgpt finding.
+// finding.
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Namespaced,shortName=rjob

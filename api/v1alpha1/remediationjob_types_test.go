@@ -33,8 +33,8 @@ func TestPhaseConstants(t *testing.T) {
 }
 
 func TestSourceTypeConstant(t *testing.T) {
-	if v1alpha1.SourceTypeK8sGPT != "k8sgpt" {
-		t.Errorf("SourceTypeK8sGPT: got %q, want %q", v1alpha1.SourceTypeK8sGPT, "k8sgpt")
+	if v1alpha1.SourceTypeNative != "native" {
+		t.Errorf("SourceTypeNative: got %q, want %q", v1alpha1.SourceTypeNative, "native")
 	}
 }
 
@@ -68,7 +68,7 @@ func newTestRemediationJob() *v1alpha1.RemediationJob {
 		},
 		Spec: v1alpha1.RemediationJobSpec{
 			Fingerprint: "abc123def456abc123def456abc123def456abc123def456abc123def456abc1",
-			SourceType:  v1alpha1.SourceTypeK8sGPT,
+			SourceType:  v1alpha1.SourceTypeNative,
 			SinkType:    "github",
 			SourceResultRef: v1alpha1.ResultRef{
 				Name:      "result-1",
@@ -261,24 +261,10 @@ func TestAddToScheme_RegistersRemediationJobTypes(t *testing.T) {
 	}
 }
 
-// GAP 11: TestNewScheme_RegistersBothGroupVersions verifies group+version for both types.
-func TestNewScheme_RegistersBothGroupVersions(t *testing.T) {
+// TestNewScheme_RegistersRemediationGroupVersion verifies that NewScheme registers
+// RemediationJob under remediation.mendabot.io/v1alpha1.
+func TestNewScheme_RegistersRemediationGroupVersion(t *testing.T) {
 	scheme := v1alpha1.NewScheme()
-
-	// Verify Result is registered under core.k8sgpt.ai/v1alpha1.
-	resultGVKs, _, err := scheme.ObjectKinds(&v1alpha1.Result{})
-	if err != nil {
-		t.Fatalf("Result not registered in full scheme: %v", err)
-	}
-	resultFound := false
-	for _, gvk := range resultGVKs {
-		if gvk.Group == "core.k8sgpt.ai" && gvk.Version == "v1alpha1" {
-			resultFound = true
-		}
-	}
-	if !resultFound {
-		t.Errorf("Result not registered under core.k8sgpt.ai/v1alpha1, got %v", resultGVKs)
-	}
 
 	// Verify RemediationJob is registered under remediation.mendabot.io/v1alpha1.
 	rjobGVKs, _, err := scheme.ObjectKinds(&v1alpha1.RemediationJob{})

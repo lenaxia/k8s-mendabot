@@ -2,7 +2,7 @@
 
 **Epic:** [epic09-native-provider](README.md)
 **Priority:** High
-**Status:** Not Started
+**Status:** Complete
 **Estimated Effort:** 1 hour
 
 ---
@@ -17,23 +17,23 @@ k8sgpt-operator.
 
 ## Acceptance Criteria
 
-- [ ] `pvcProvider` struct defined in `internal/provider/native/pvc.go`
+- [x] `pvcProvider` struct defined in `internal/provider/native/pvc.go`
   (unexported; exported constructor `NewPVCProvider(c client.Client) *pvcProvider`
   in same file; panics if `c == nil`)
-- [ ] Compile-time assertion `var _ domain.SourceProvider = (*pvcProvider)(nil)` present
-- [ ] `ProviderName()` returns `"native"`
-- [ ] `ObjectType()` returns `&v1.PersistentVolumeClaim{}`
-- [ ] `ExtractFinding` returns `(nil, nil)` for Bound or Lost PVCs
-- [ ] `ExtractFinding` returns `(nil, nil)` for Pending PVCs with no `ProvisioningFailed` event
-- [ ] `ExtractFinding` returns a populated `*Finding` for Pending PVCs that have a
+- [x] Compile-time assertion `var _ domain.SourceProvider = (*pvcProvider)(nil)` present
+- [x] `ProviderName()` returns `"native"`
+- [x] `ObjectType()` returns `&v1.PersistentVolumeClaim{}`
+- [x] `ExtractFinding` returns `(nil, nil)` for Bound or Lost PVCs
+- [x] `ExtractFinding` returns `(nil, nil)` for Pending PVCs with no `ProvisioningFailed` event
+- [x] `ExtractFinding` returns a populated `*Finding` for Pending PVCs that have a
   `ProvisioningFailed` event with a non-empty message
-- [ ] `Finding.ParentObject` is `"PersistentVolumeClaim/<name>"` (PVCs have no meaningful
+- [x] `Finding.ParentObject` is `"PersistentVolumeClaim/<name>"` (PVCs have no meaningful
   workload parent in the owner chain for deduplication purposes).
   Call: `getParent(ctx, p.client, pvc.ObjectMeta, "PersistentVolumeClaim")` (returns
   `"PersistentVolumeClaim/<name>"` since PVCs have no ownerReferences)
-- [ ] `Finding.Kind` is `"PersistentVolumeClaim"`, `Finding.Name` is the PVC name
-- [ ] `Finding.Errors` contains the `ProvisioningFailed` event message
-- [ ] `pvcProvider` holds a `client.Client` for event fetching
+- [x] `Finding.Kind` is `"PersistentVolumeClaim"`, `Finding.Name` is the PVC name
+- [x] `Finding.Errors` contains the `ProvisioningFailed` event message
+- [x] `pvcProvider` holds a `client.Client` for event fetching
 
 ---
 
@@ -102,9 +102,9 @@ persist for hours), a now-Bound PVC will never produce a finding. The ordering i
 
 ## Tasks
 
-- [ ] Write all 5 tests in `internal/provider/native/pvc_test.go` (TDD — must fail first)
-- [ ] Implement `PVCProvider` in `internal/provider/native/pvc.go`
-- [ ] Run tests — all must pass
+- [x] Write all 5 tests in `internal/provider/native/pvc_test.go` (TDD — must fail first)
+- [x] Implement `PVCProvider` in `internal/provider/native/pvc.go`
+- [x] Run tests — all must pass
 
 ---
 
@@ -118,6 +118,6 @@ since PVCs have no workload owner reference)
 
 ## Definition of Done
 
-- [ ] All 5 tests pass with `-race`
-- [ ] `go vet ./...` clean
-- [ ] `go build ./...` clean
+- [x] All 5 tests pass with `-race`
+- [x] `go vet ./...` clean
+- [x] `go build ./...` clean

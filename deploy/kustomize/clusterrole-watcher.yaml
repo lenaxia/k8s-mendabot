@@ -3,12 +3,12 @@ kind: ClusterRole
 metadata:
   name: mendabot-watcher
 rules:
-- apiGroups: ["core.k8sgpt.ai"]
-  resources: ["results"]
-  verbs: ["get", "list", "watch"]
 - apiGroups: [""]
-  resources: ["namespaces"]
-  verbs: ["get", "list"]
+  resources: ["pods", "persistentvolumeclaims", "nodes", "namespaces", "events"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "statefulsets", "replicasets", "daemonsets"]
+  verbs: ["get", "list", "watch"]
 - apiGroups: ["batch"]
   resources: ["jobs"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
