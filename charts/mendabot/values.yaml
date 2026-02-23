@@ -9,16 +9,6 @@ image:
   tag: ""
   pullPolicy: IfNotPresent
 
-# CRD upgrade hook job image.
-# The pre-install/pre-upgrade hook applies the RemediationJob CRD via kubectl.
-# Override repository/tag if registry.k8s.io is not reachable in your environment
-# (e.g. point at an internal mirror or a custom kubectl image).
-crdUpgrader:
-  image:
-    repository: registry.k8s.io/kubectl
-    tag: v1.28.15
-    pullPolicy: IfNotPresent
-
 # Agent image configuration.
 # Tag defaults to Chart.appVersion when empty.
 # Watcher and agent images are always released together — do not pin them to
