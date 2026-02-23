@@ -938,3 +938,95 @@ func TestFromEnv_ValidationSkipOption(t *testing.T) {
 		t.Fatal("expected error for extremely large values, got nil")
 	}
 }
+
+// TestFromEnv_AgentRBACScope_Default tests that unset AGENT_RBAC_SCOPE defaults to "cluster"
+// and AgentWatchNamespaces is nil.
+func TestFromEnv_AgentRBACScope_Default(t *testing.T) {
+	setRequiredEnv(t)
+	os.Unsetenv("AGENT_RBAC_SCOPE")
+	os.Unsetenv("AGENT_WATCH_NAMESPACES")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.AgentRBACScope != "cluster" {
+		t.Errorf("AgentRBACScope default: got %q, want %q", cfg.AgentRBACScope, "cluster")
+	}
+	if cfg.AgentWatchNamespaces != nil {
+		t.Errorf("AgentWatchNamespaces default: got %v, want nil", cfg.AgentWatchNamespaces)
+	}
+}
+
+// TestFromEnv_AgentRBACScope_Cluster tests explicit AGENT_RBAC_SCOPE=cluster.
+func TestFromEnv_AgentRBACScope_Cluster(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("AGENT_RBAC_SCOPE", "cluster")
+	os.Unsetenv("AGENT_WATCH_NAMESPACES")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.AgentRBACScope != "cluster" {
+		t.Errorf("AgentRBACScope cluster: got %q, want %q", cfg.AgentRBACScope, "cluster")
+	}
+}
+
+// TestFromEnv_AgentRBACScope_Namespace tests AGENT_RBAC_SCOPE=namespace with valid namespaces.
+func TestFromEnv_AgentRBACScope_Namespace(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("AGENT_RBAC_SCOPE", "namespace")
+	t.Setenv("AGENT_WATCH_NAMESPACES", "default,production")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.AgentRBACScope != "namespace" {
+		t.Errorf("AgentRBACScope namespace: got %q, want %q", cfg.AgentRBACScope, "namespace")
+	}
+	want := []string{"default", "production"}
+	if len(cfg.AgentWatchNamespaces) != len(want) {
+		t.Fatalf("AgentWatchNamespaces length: got %d, want %d", len(cfg.AgentWatchNamespaces), len(want))
+	}
+	for i, ns := range want {
+		if cfg.AgentWatchNamespaces[i] != ns {
+			t.Errorf("AgentWatchNamespaces[%d]: got %q, want %q", i, cfg.AgentWatchNamespaces[i], ns)
+		}
+	}
+}
+
+// TestFromEnv_AgentRBACScope_NamespaceEmptyList tests AGENT_RBAC_SCOPE=namespace with empty
+// AGENT_WATCH_NAMESPACES returns an error.
+func TestFromEnv_AgentRBACScope_NamespaceEmptyList(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("AGENT_RBAC_SCOPE", "namespace")
+	t.Setenv("AGENT_WATCH_NAMESPACES", "")
+
+	_, err := config.FromEnv()
+	if err == nil {
+		t.Fatal("expected error for AGENT_RBAC_SCOPE=namespace with empty AGENT_WATCH_NAMESPACES, got nil")
+	}
+}
+
+// TestFromEnv_AgentRBACScope_Invalid tests that an invalid AGENT_RBAC_SCOPE returns an error.
+func TestFromEnv_AgentRBACScope_Invalid(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("AGENT_RBAC_SCOPE", "badvalue")
+
+	_, err := config.FromEnv()
+	if err == nil {
+		t.Fatal("expected error for AGENT_RBAC_SCOPE=badvalue, got nil")
+	}
+}
+
+func TestFromEnv_AgentWatchNamespacesWhitespaceOnly(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("AGENT_RBAC_SCOPE", "namespace")
+	t.Setenv("AGENT_WATCH_NAMESPACES", "  ,  ")
+	_, err := config.FromEnv()
+	if err == nil {
+		t.Error("expected error for whitespace-only AGENT_WATCH_NAMESPACES, got nil")
+	}
+}

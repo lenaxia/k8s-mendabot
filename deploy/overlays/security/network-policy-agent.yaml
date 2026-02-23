@@ -1,0 +1,32 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mendabot-agent-egress
+  namespace: mendabot
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/managed-by: mendabot-watcher
+  policyTypes:
+  - Egress
+  egress:
+  # DNS resolution (required for all other egress)
+  - ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+
+  # Kubernetes API server (in-cluster)
+  # Port 6443 is the standard kube-apiserver port; some distros use 443.
+  # Operators on non-standard ports must update this rule.
+  - ports:
+    - port: 6443
+      protocol: TCP
+
+  # GitHub and LLM API (HTTPS)
+  # We cannot restrict by IP without external IP management; restrict to port only.
+  # Operators who know their LLM endpoint's CIDR can add an explicit ipBlock rule.
+  - ports:
+    - port: 443
+      protocol: TCP

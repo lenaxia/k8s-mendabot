@@ -90,6 +90,14 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			}
 			if delErr := r.Delete(ctx, rjob); delErr != nil && !apierrors.IsNotFound(delErr) {
 				cancelErrs = append(cancelErrs, delErr)
+			} else if r.Log != nil {
+				r.Log.Info("RemediationJob cancelled",
+					zap.Bool("audit", true),
+					zap.String("event", "remediationjob.cancelled"),
+					zap.String("remediationJob", rjob.Name),
+					zap.String("reason", "source_deleted"),
+					zap.String("sourceRef", req.Name),
+				)
 			}
 		}
 		if len(cancelErrs) > 0 {
@@ -131,7 +139,9 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 		checker, err := cascade.NewChecker(cascadeCfg)
 		if err != nil {
-			r.Log.Error("failed to create cascade checker", zap.Error(err))
+			if r.Log != nil {
+				r.Log.Error("failed to create cascade checker", zap.Error(err))
+			}
 			return
 		}
 		r.cascadeChecker = checker
@@ -144,10 +154,13 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			}
 		} else if suppress {
 			if r.Log != nil {
-				r.Log.Info("suppressing finding due to cascade",
-					zap.String("reason", reason),
+				r.Log.Info("finding suppressed",
+					zap.Bool("audit", true),
+					zap.String("event", "finding.suppressed.cascade"),
+					zap.String("provider", r.Provider.ProviderName()),
 					zap.String("kind", finding.Kind),
 					zap.String("namespace", finding.Namespace),
+					zap.String("reason", reason),
 				)
 			}
 			metrics.RecordCascadeSuppression(r.Provider.ProviderName(), finding.Namespace, "infrastructure_cascade")
@@ -175,15 +188,20 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 		allowed, remaining, err := r.circuitBreaker.ShouldAllow(ctx)
 		if err != nil {
-			r.Log.Error("circuit breaker error", zap.Error(err))
+			if r.Log != nil {
+				r.Log.Error("circuit breaker error", zap.Error(err))
+			}
 			return ctrl.Result{}, fmt.Errorf("circuit breaker error: %w", err)
 		}
 
 		if !allowed {
 			if r.Log != nil {
-				r.Log.Info("circuit breaker: skipping self-remediation due to cooldown",
-					zap.String("fingerprint", fp[:12]),
-					zap.Duration("remaining", remaining),
+				r.Log.Info("finding suppressed",
+					zap.Bool("audit", true),
+					zap.String("event", "finding.suppressed.circuit_breaker"),
+					zap.String("provider", r.Provider.ProviderName()),
+					zap.String("namespace", finding.Namespace),
+					zap.Duration("cooldownRemaining", remaining),
 					zap.Int("chainDepth", finding.ChainDepth),
 				)
 			}
@@ -218,6 +236,17 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 				metrics.RecordCascadeSuppression(r.Provider.ProviderName(), finding.Namespace, "max_depth")
 				metrics.RecordCascadeSuppressionReason(r.Provider.ProviderName(), finding.Namespace, "chain_too_deep",
 					fmt.Sprintf("Chain depth %d exceeds maximum recommended depth", finding.ChainDepth))
+				if r.Log != nil {
+					r.Log.Info("finding suppressed",
+						zap.Bool("audit", true),
+						zap.String("event", "finding.suppressed.max_depth"),
+						zap.String("provider", r.Provider.ProviderName()),
+						zap.String("namespace", finding.Namespace),
+						zap.Int("chainDepth", finding.ChainDepth),
+						zap.Int("maxDepth", r.Cfg.SelfRemediationMaxDepth),
+					)
+				}
+				return ctrl.Result{}, nil
 			}
 		}
 	}
@@ -226,6 +255,16 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	} else {
 		if first, seen := r.firstSeen.Get(fp); !seen {
 			r.firstSeen.Set(fp)
+			if r.Log != nil {
+				r.Log.Info("finding suppressed",
+					zap.Bool("audit", true),
+					zap.String("event", "finding.suppressed.stabilisation_window"),
+					zap.String("provider", r.Provider.ProviderName()),
+					zap.String("fingerprint", fp[:12]),
+					zap.String("reason", "first_seen"),
+					zap.Duration("window", r.Cfg.StabilisationWindow),
+				)
+			}
 			if finding.IsSelfRemediation {
 				metrics.RecordCascadeSuppression(r.Provider.ProviderName(), finding.Namespace, "stabilisation_window")
 				metrics.RecordCascadeSuppressionReason(r.Provider.ProviderName(), finding.Namespace, "stabilisation_start",
@@ -271,6 +310,11 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 	}
 
+	agentSA := r.Cfg.AgentSA
+	if r.Cfg.AgentRBACScope == "namespace" {
+		agentSA = "mendabot-agent-ns"
+	}
+
 	rjob := &v1alpha1.RemediationJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "mendabot-" + fp[:12],
@@ -302,7 +346,7 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			GitOpsRepo:         r.Cfg.GitOpsRepo,
 			GitOpsManifestRoot: r.Cfg.GitOpsManifestRoot,
 			AgentImage:         r.Cfg.AgentImage,
-			AgentSA:            r.Cfg.AgentSA,
+			AgentSA:            agentSA,
 			IsSelfRemediation:  finding.IsSelfRemediation,
 			ChainDepth:         finding.ChainDepth,
 		},
@@ -316,11 +360,16 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	if r.Log != nil {
-		r.Log.Info("created RemediationJob",
+		r.Log.Info("RemediationJob created",
+			zap.Bool("audit", true),
+			zap.String("event", "remediationjob.created"),
+			zap.String("provider", r.Provider.ProviderName()),
 			zap.String("fingerprint", fp[:12]),
 			zap.String("kind", finding.Kind),
+			zap.String("namespace", finding.Namespace),
 			zap.String("parentObject", finding.ParentObject),
 			zap.String("remediationJob", rjob.Name),
+			zap.Bool("isSelfRemediation", finding.IsSelfRemediation),
 		)
 	}
 

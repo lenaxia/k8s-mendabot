@@ -1,0 +1,12 @@
+# This Role is scoped to namespace 'production' as an example.
+# Operators using AGENT_RBAC_SCOPE=namespace must duplicate this file for each
+# namespace listed in AGENT_WATCH_NAMESPACES.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mendabot-agent-ns
+  namespace: production
+rules:
+- apiGroups: ["*"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
