@@ -231,6 +231,30 @@ func TestPVCBoundWithStaleEvents_ReturnsNil(t *testing.T) {
 	}
 }
 
+// TestPVCEventMessageRedacted: ProvisioningFailed event message containing password=secret123
+// → error text must NOT contain "secret123" and must contain "[REDACTED]".
+func TestPVCEventMessageRedacted(t *testing.T) {
+	s := newTestScheme()
+	pvc := makePVC("my-pvc", "default", corev1.ClaimPending)
+	event := makeEvent("my-pvc", "default", "ProvisioningFailed", "provision failed: password=secret123 rejected")
+
+	c := fake.NewClientBuilder().WithScheme(s).WithObjects(pvc, event).Build()
+	p := NewPVCProvider(c)
+
+	finding, err := p.ExtractFinding(pvc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding == nil {
+		t.Fatal("expected finding, got nil")
+	}
+	assertErrorsJSON(t, finding.Errors)
+	if contains(finding.Errors, "secret123") {
+		t.Errorf("error text should not contain raw secret value 'secret123': %s", finding.Errors)
+	}
+	assertErrorTextContains(t, finding.Errors, "[REDACTED]")
+}
+
 // TestPVCEventForDifferentKind_ReturnsNil: Pending PVC, but event's involvedObject.kind
 // is "Pod" (not PVC) with matching name → must not produce a false finding.
 func TestPVCEventForDifferentKind_ReturnsNil(t *testing.T) {

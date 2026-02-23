@@ -115,5 +115,5 @@ func (n *nodeProvider) ExtractFinding(obj client.Object) (*domain.Finding, error
 // Format: "node <name> has condition <Type> (<Reason>): <Message>"
 func buildNodeConditionText(nodeName string, cond corev1.NodeCondition) string {
 	return fmt.Sprintf("node %s has condition %s (%s): %s",
-		nodeName, cond.Type, cond.Reason, cond.Message)
+		nodeName, cond.Type, cond.Reason, domain.RedactSecrets(cond.Message))
 }

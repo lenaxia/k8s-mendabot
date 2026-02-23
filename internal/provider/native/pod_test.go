@@ -2,6 +2,7 @@ package native
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -699,6 +700,177 @@ func TestInitContainerCrashLoop(t *testing.T) {
 	assertErrorsJSON(t, finding.Errors)
 	assertErrorTextContains(t, finding.Errors, "init-setup")
 	assertErrorTextContains(t, finding.Errors, "CrashLoopBackOff")
+}
+
+// TestWaitingMessageRedacted: container waiting with a message containing password=secret123
+// → error text must NOT contain "secret123" and must contain "[REDACTED]".
+func TestWaitingMessageRedacted(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewPodProvider(c)
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "redact-pod",
+			Namespace: "default",
+			UID:       "redact-pod-uid",
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name: "my-app",
+					State: corev1.ContainerState{
+						Waiting: &corev1.ContainerStateWaiting{
+							Reason:  "CreateContainerConfigError",
+							Message: "failed to start: password=secret123 not accepted",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	finding, err := p.ExtractFinding(pod)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding == nil {
+		t.Fatal("expected finding, got nil")
+	}
+	assertErrorsJSON(t, finding.Errors)
+	if contains(finding.Errors, "secret123") {
+		t.Errorf("error text should not contain raw secret value 'secret123': %s", finding.Errors)
+	}
+	assertErrorTextContains(t, finding.Errors, "[REDACTED]")
+}
+
+// TestWaitingMessageTruncated: container waiting with a Waiting.Message of 600 chars
+// → error text must be truncated and contain "...[truncated]".
+func TestWaitingMessageTruncated(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewPodProvider(c)
+
+	longMsg := strings.Repeat("x", 600)
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "trunc-pod",
+			Namespace: "default",
+			UID:       "trunc-pod-uid",
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name: "my-app",
+					State: corev1.ContainerState{
+						Waiting: &corev1.ContainerStateWaiting{
+							Reason:  "CreateContainerConfigError",
+							Message: longMsg,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	finding, err := p.ExtractFinding(pod)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding == nil {
+		t.Fatal("expected finding, got nil")
+	}
+	assertErrorsJSON(t, finding.Errors)
+	if contains(finding.Errors, longMsg) {
+		t.Errorf("error text should not contain the full 600-char message (expected truncation): %s", finding.Errors)
+	}
+	assertErrorTextContains(t, finding.Errors, "...[truncated]")
+}
+
+// TestTerminatedMessageRedacted: container terminated non-zero with a message containing password=secret123
+// → error text must NOT contain "secret123" and must contain "[REDACTED]".
+func TestTerminatedMessageRedacted(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewPodProvider(c)
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "term-redact-pod",
+			Namespace: "default",
+			UID:       "term-redact-pod-uid",
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name: "my-app",
+					State: corev1.ContainerState{
+						Terminated: &corev1.ContainerStateTerminated{
+							ExitCode: 1,
+							Message:  "connection failed: password=secret123",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	finding, err := p.ExtractFinding(pod)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding == nil {
+		t.Fatal("expected finding, got nil")
+	}
+	assertErrorsJSON(t, finding.Errors)
+	if contains(finding.Errors, "secret123") {
+		t.Errorf("error text should not contain raw secret value 'secret123': %s", finding.Errors)
+	}
+	assertErrorTextContains(t, finding.Errors, "[REDACTED]")
+}
+
+// TestUnschedulableMessageRedacted: unschedulable condition message containing token=abc123
+// → error text must NOT contain "abc123" and must contain "[REDACTED]".
+func TestUnschedulableMessageRedacted(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewPodProvider(c)
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "sched-redact-pod",
+			Namespace: "default",
+			UID:       "sched-redact-pod-uid",
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodPending,
+			Conditions: []corev1.PodCondition{
+				{
+					Type:    corev1.PodScheduled,
+					Status:  corev1.ConditionFalse,
+					Reason:  "Unschedulable",
+					Message: "0/3 nodes available: token=supersecrettoken123",
+				},
+			},
+		},
+	}
+
+	finding, err := p.ExtractFinding(pod)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding == nil {
+		t.Fatal("expected finding, got nil")
+	}
+	assertErrorsJSON(t, finding.Errors)
+	if contains(finding.Errors, "supersecrettoken123") {
+		t.Errorf("error text should not contain raw secret value 'supersecrettoken123': %s", finding.Errors)
+	}
+	assertErrorTextContains(t, finding.Errors, "[REDACTED]")
 }
 
 // assertErrorsJSON verifies that the errors string is valid JSON with at least one entry.

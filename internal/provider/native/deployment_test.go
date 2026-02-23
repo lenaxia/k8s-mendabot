@@ -252,6 +252,49 @@ func TestErrorTextIncludesReason(t *testing.T) {
 	assertErrorTextContains(t, finding.Errors, "Deployment does not have minimum availability.")
 }
 
+// TestDeploymentAvailableFalseMessageRedacted: Available=False condition message containing
+// password=secret123 → error text must NOT contain "secret123" and must contain "[REDACTED]".
+func TestDeploymentAvailableFalseMessageRedacted(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewDeploymentProvider(c)
+
+	deploy := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "redact-deploy",
+			Namespace: "default",
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: int32Ptr(3),
+		},
+		Status: appsv1.DeploymentStatus{
+			Replicas:      3,
+			ReadyReplicas: 3,
+			Conditions: []appsv1.DeploymentCondition{
+				{
+					Type:    appsv1.DeploymentAvailable,
+					Status:  corev1.ConditionFalse,
+					Reason:  "MinimumReplicasUnavailable",
+					Message: "failed auth: password=secret123 rejected",
+				},
+			},
+		},
+	}
+
+	finding, err := p.ExtractFinding(deploy)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding == nil {
+		t.Fatal("expected finding, got nil")
+	}
+	assertErrorsJSON(t, finding.Errors)
+	if contains(finding.Errors, "secret123") {
+		t.Errorf("error text should not contain raw secret value 'secret123': %s", finding.Errors)
+	}
+	assertErrorTextContains(t, finding.Errors, "[REDACTED]")
+}
+
 // TestDeploymentWrongType: passing a Pod → (nil, error).
 func TestDeploymentWrongType(t *testing.T) {
 	s := newTestScheme()
