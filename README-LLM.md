@@ -869,6 +869,7 @@ kubectl apply -k deploy/kustomize/
 | Branch | Purpose | Status | Created |
 |--------|---------|--------|---------|
 | `main` | Stable code | Active | 2026-02-19 |
+| `feature/epic11-13-deferred` | Epic 11 (cascade prevention) + Epic 13 (multi-signal correlation) — deferred | Deferred | 2026-02-23 |
 
 **Merged branches:**
 
@@ -945,6 +946,58 @@ go test -timeout 30s ./...
 # Bad — can hang forever
 go test ./...
 ```
+
+### envtest integration tests
+
+Integration tests in `internal/controller/` share a single envtest process. Two rules
+apply to all tests in this package:
+
+**Rule 1 — CRD testdata maintenance.** `testdata/crds/remediationjob_crd.yaml` is a
+manually maintained copy of the CRD schema loaded by envtest. The Kubernetes API server
+enforces this schema and silently strips unknown fields during status and object patches.
+The fake client used in unit tests does NOT enforce schema, which means a missing field
+will pass unit tests but fail integration tests.
+
+When adding a field to `RemediationJobStatus` or `RemediationJobSpec` in
+`api/v1alpha1/remediationjob_types.go`, you MUST also add the corresponding entry to
+`testdata/crds/remediationjob_crd.yaml`:
+
+- New `status` fields go under `spec.versions[0].schema.openAPIV3Schema.properties.status.properties`
+- New `spec` fields go under `spec.versions[0].schema.openAPIV3Schema.properties.spec.properties`
+
+Use the correct OpenAPI type: `{type: string}`, `{type: boolean}`, `{type: integer}`,
+`{type: string, format: date-time}`.
+
+Example: when `isSelfRemediation bool` was added to `RemediationJobSpec`, the
+corresponding entry added to the CRD was:
+
+```yaml
+              isSelfRemediation: {type: boolean}
+```
+
+**Rule 2 — Pre-test cleanup for deterministic object names.** When a test creates a
+Kubernetes object with a name derived from a fixed constant (e.g. a `batch/v1` Job
+named `mendabot-agent-<fingerprint[:12]>`), add a pre-test delete at the start of the
+test body, before creating any objects:
+
+```go
+// Pre-test cleanup: delete any stale object from a previous run.
+_ = c.Delete(ctx, &batchv1.Job{ObjectMeta: metav1.ObjectMeta{
+    Name:      "mendabot-agent-" + fp[:12],
+    Namespace: integrationCtrlNamespace,
+}})
+```
+
+Ignore the error (`_ =`): a not-found result is the normal case and must not fail the
+test. Do not rely solely on `t.Cleanup` for this — `t.Cleanup` runs *after* the test
+and cannot protect the next run if cleanup failed or the process was interrupted.
+
+**Rule 3 — Job namespace must follow the RemediationJob.** Helper functions that build
+`batch/v1` Job objects for tests (e.g. `newIntegrationJob`) must set
+`Namespace: rjob.Namespace`, not a hardcoded string like `"default"`. Hardcoding the
+namespace causes jobs to land in the wrong namespace when tests run rjobs in a dedicated
+namespace, which pollutes label-based list queries (e.g. max-concurrent counts) used by
+other tests sharing the same envtest process.
 
 ---
 

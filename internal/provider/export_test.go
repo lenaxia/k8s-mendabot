@@ -1,38 +1,15 @@
-// export_test.go exposes internal fields of SourceProviderReconciler for white-box testing.
-// This file is compiled only during test runs (package provider, not provider_test).
 package provider
 
-import (
-	"time"
+import "time"
 
-	"github.com/lenaxia/k8s-mendabot/internal/cascade"
-	"github.com/lenaxia/k8s-mendabot/internal/circuitbreaker"
-)
+// SetFirstSeenForTest sets a firstSeen entry with a specific timestamp for testing.
+func (r *SourceProviderReconciler) SetFirstSeenForTest(fp string, t time.Time) {
+	r.initFirstSeen()
+	r.firstSeen.SetForTest(fp, t)
+}
 
-// FirstSeen returns a snapshot copy of the firstSeen map for test inspection.
+// FirstSeen returns a snapshot of the firstSeen map for assertions in tests.
 func (r *SourceProviderReconciler) FirstSeen() map[string]time.Time {
 	r.initFirstSeen()
 	return r.firstSeen.Copy()
-}
-
-// SetFirstSeenForTest sets a firstSeen entry for a test-controlled timestamp.
-func (r *SourceProviderReconciler) SetFirstSeenForTest(key string, timestamp time.Time) {
-	r.initFirstSeen()
-	r.firstSeen.SetForTest(key, timestamp)
-}
-
-// SetCascadeCheckerForTest injects a cascade.Checker for testing.
-// Must be called before the first Reconcile invocation.
-func (r *SourceProviderReconciler) SetCascadeCheckerForTest(c cascade.Checker) {
-	r.initCascadeOnce.Do(func() {
-		r.cascadeChecker = c
-	})
-}
-
-// SetCircuitBreakerForTest injects a CircuitBreaker for testing.
-// Must be called before the first Reconcile invocation.
-func (r *SourceProviderReconciler) SetCircuitBreakerForTest(cb *circuitbreaker.CircuitBreaker) {
-	r.initCBOnce.Do(func() {
-		r.circuitBreaker = cb
-	})
 }

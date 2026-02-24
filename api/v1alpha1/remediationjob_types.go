@@ -115,14 +115,6 @@ type RemediationJobSpec struct {
 
 	// AgentSA is the ServiceAccount name for the agent Job.
 	AgentSA string `json:"agentSA"`
-
-	// IsSelfRemediation indicates this remediation is for a mendabot job failure.
-	// When true, the agent should consider whether the failure indicates a bug in mendabot itself.
-	IsSelfRemediation bool `json:"isSelfRemediation,omitempty"`
-
-	// ChainDepth tracks how many levels deep this self-remediation chain is.
-	// 0 = not a self-remediation, 1 = mendabot job failed, 2 = analysis of why mendabot job failed, etc.
-	ChainDepth int `json:"chainDepth,omitempty"`
 }
 
 // ResultRef is a back-reference to the source object that triggered a RemediationJob.

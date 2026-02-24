@@ -4,7 +4,7 @@
 
 Implement a comprehensive system to prevent infinite cascades where mendabot analyzes its own failures. This includes detection, chain depth tracking, circuit breaking, and upstream contribution routing for mendabot bugs.
 
-## Status: In Progress
+## Status: Deferred — moved to `feature/epic11-13-deferred`
 
 ## Dependencies
 

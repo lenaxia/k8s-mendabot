@@ -13,7 +13,8 @@ import (
 )
 
 type fakeJobBuilderCall struct {
-	RemediationJob *v1alpha1.RemediationJob
+	RemediationJob     *v1alpha1.RemediationJob
+	CorrelatedFindings []v1alpha1.FindingSpec
 }
 
 type fakeJobBuilder struct {
@@ -22,8 +23,8 @@ type fakeJobBuilder struct {
 	returnErr error
 }
 
-func (f *fakeJobBuilder) Build(rjob *v1alpha1.RemediationJob) (*batchv1.Job, error) {
-	f.calls = append(f.calls, fakeJobBuilderCall{rjob})
+func (f *fakeJobBuilder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1alpha1.FindingSpec) (*batchv1.Job, error) {
+	f.calls = append(f.calls, fakeJobBuilderCall{rjob, correlatedFindings})
 	return f.returnJob, f.returnErr
 }
 
@@ -74,8 +75,8 @@ func TestFakeJobBuilder_RecordsCalls(t *testing.T) {
 	rjob2 := newTestRJob("rjob-2", "kube-system", "0123456789abcdef", "uid-2")
 
 	f := &fakeJobBuilder{}
-	_, _ = f.Build(rjob1)
-	_, _ = f.Build(rjob2)
+	_, _ = f.Build(rjob1, nil)
+	_, _ = f.Build(rjob2, nil)
 
 	if len(f.calls) != 2 {
 		t.Fatalf("expected 2 calls, got %d", len(f.calls))
@@ -93,7 +94,7 @@ func TestFakeJobBuilder_PropagatesError(t *testing.T) {
 	f := &fakeJobBuilder{returnErr: want}
 	rjob := newTestRJob("rjob-1", "default", "abcdefghijklmnop", "uid-1")
 
-	job, err := f.Build(rjob)
+	job, err := f.Build(rjob, nil)
 
 	if err != want {
 		t.Errorf("got err %v, want %v", err, want)
@@ -108,7 +109,7 @@ func TestFakeJobBuilder_ReturnsJob(t *testing.T) {
 	want := defaultFakeJob(rjob)
 	f := &fakeJobBuilder{returnJob: want}
 
-	job, err := f.Build(rjob)
+	job, err := f.Build(rjob, nil)
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)

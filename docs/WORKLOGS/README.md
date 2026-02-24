@@ -61,3 +61,12 @@ else.
 | [0039](0039_2026-02-23_epic11-bug-fixes.md) | 2026-02-23 | Epic 11 bug fixes: 7 bugs fixed, 3 tests added, race detector clean, story DoD updated | Complete |
 | [0040](0040_2026-02-23_epic11-story06-complete.md) | 2026-02-23 | Epic 11 STORY_06: EventRecorder (3 events, 4 tests), 10-gap review cycle, Grafana dashboard, alert rules | Complete |
 | [0041](0041_2026-02-23_helm-crd-upgrader-image-fix.md) | 2026-02-23 | Helm CRD upgrader image fix: nonexistent tag v1.28.16 corrected to v1.28.15, image made configurable | Complete |
+| [0042](0042_2026-02-23_epic13-story03-jobbuilder-multi-finding.md) | 2026-02-23 | Epic 13 STORY_03: Build() two-arg signature, correlated findings env var injection, all call sites fixed | Complete |
+| [0043](0043_2026-02-24_epic13-story02-correlation-window.md) | 2026-02-24 | Epic 13 STORY_02: Correlator struct, correlation window hold, config fields, controller wiring | Complete |
+| [0044](0044_2026-02-23_epic13-story05-integration-tests.md) | 2026-02-23 | Epic 13 STORY_05: 6 envtest integration tests for correlation rules and escape hatch | Complete |
+| [0045](0045_2026-02-23_epic13-complete.md) | 2026-02-23 | Epic 13 complete: all 6 stories committed, story/epic status markers updated | Complete |
+| [0046](0046_2026-02-23_epic13-test-fix.md) | 2026-02-23 | Epic 13 test fix: 7 failing controller tests fixed via deep code review | Complete |
+| [0047](0047_2026-02-23_epic14-story01-test-isolation.md) | 2026-02-23 | Epic 14 S01: test isolation — newIntegrationJob namespace fix, pre-test stale guards, cleanupJobsInNS | Complete |
+| [0048](0048_2026-02-23_epic14-count3-finalizer-fix.md) | 2026-02-23 | Epic 14 -count=3: deleteJob helper strips finalizers, corrNS unique namespace counters | Complete |
+| [0049](0049_2026-02-23_epic13-14-review-gaps.md) | 2026-02-23 | Epic 13+14 skeptical review: 9 gaps found and fixed (DC-5, XC-2 major; 7 minor) | Complete |
+| [0050](0050_2026-02-23_epic13-design-review-fixes.md) | 2026-02-23 | Epic 13 design review: off-by-one bug, nondeterminism, prefix over-match, scope docs | Complete |

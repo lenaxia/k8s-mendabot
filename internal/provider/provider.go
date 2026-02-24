@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"go.uber.org/zap"
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -17,11 +16,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
-	"github.com/lenaxia/k8s-mendabot/internal/cascade"
-	"github.com/lenaxia/k8s-mendabot/internal/circuitbreaker"
 	"github.com/lenaxia/k8s-mendabot/internal/config"
 	"github.com/lenaxia/k8s-mendabot/internal/domain"
-	"github.com/lenaxia/k8s-mendabot/internal/metrics"
+	"github.com/lenaxia/k8s-mendabot/internal/readiness"
 )
 
 // SourceProviderReconciler is a controller-runtime Reconciler that wraps a SourceProvider.
@@ -29,18 +26,23 @@ import (
 // RemediationJob creation. Source-specific logic is entirely in the SourceProvider.
 type SourceProviderReconciler struct {
 	client.Client
-	Scheme          *runtime.Scheme
-	Log             *zap.Logger
-	Cfg             config.Config
-	Provider        domain.SourceProvider
-	EventRecorder   record.EventRecorder
-	firstSeen       *BoundedMap
-	circuitBreaker  *circuitbreaker.CircuitBreaker
-	cascadeChecker  cascade.Checker
-	initOnce        sync.Once
-	initCascadeOnce sync.Once
-	initCBOnce      sync.Once
+	Scheme        *runtime.Scheme
+	Log           *zap.Logger
+	Cfg           config.Config
+	Provider      domain.SourceProvider
+	EventRecorder record.EventRecorder
+	// ReadinessChecker gates RemediationJob creation. If non-nil, Check must
+	// return nil before any RemediationJob is created. Use readiness.All to
+	// combine multiple checkers (sink + LLM). A nil value disables the gate.
+	ReadinessChecker readiness.Checker
+	firstSeen        *BoundedMap
+	initOnce         sync.Once
 }
+
+// ReadinessCacheTTL is the recommended TTL for CachedChecker wrappers around
+// readiness probes. The requeue interval on a failed gate is set to this same
+// duration so that the cache is always expired before the next reconcile fires.
+const ReadinessCacheTTL = 60 * time.Second
 
 // initFirstSeen initializes the firstSeen map with thread-safe lazy initialization.
 func (r *SourceProviderReconciler) initFirstSeen() {
@@ -77,6 +79,13 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 				continue
 			}
 			phase := rjob.Status.Phase
+			// Cancel Pending, Dispatched, and Running jobs. Also cancel Phase==""
+			// (blank) because there is a real race window between client.Create()
+			// and the RemediationJobReconciler's first reconcile that transitions
+			// "" → Pending. A source deletion arriving in that window must still
+			// cancel the job. Do NOT remove the phase != "" check even though the
+			// controller now initialises phase immediately — the race window exists
+			// and removing this will silently reintroduce the bug.
 			if phase != v1alpha1.PhasePending && phase != v1alpha1.PhaseDispatched &&
 				phase != v1alpha1.PhaseRunning && phase != "" {
 				continue
@@ -107,43 +116,6 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, nil
 	}
 
-	r.initCascadeOnce.Do(func() {
-		cascadeCfg := cascade.Config{
-			Enabled:                 !r.Cfg.DisableCascadeCheck,
-			NamespaceFailurePercent: r.Cfg.CascadeNamespaceThreshold,
-			NodeCacheTTL:            r.Cfg.CascadeNodeCacheTTL,
-		}
-		checker, err := cascade.NewChecker(cascadeCfg)
-		if err != nil {
-			r.Log.Error("failed to create cascade checker", zap.Error(err))
-			return
-		}
-		r.cascadeChecker = checker
-	})
-	if r.cascadeChecker != nil {
-		suppress, reason, err := r.cascadeChecker.ShouldSuppress(ctx, finding, r.Client)
-		if err != nil {
-			if r.Log != nil {
-				r.Log.Error("cascade check error", zap.Error(err))
-			}
-		} else if suppress {
-			if r.Log != nil {
-				r.Log.Info("suppressing finding due to cascade",
-					zap.String("reason", reason),
-					zap.String("kind", finding.Kind),
-					zap.String("namespace", finding.Namespace),
-				)
-			}
-			metrics.RecordCascadeSuppression(r.Provider.ProviderName(), finding.Namespace, "infrastructure_cascade")
-			metrics.RecordCascadeSuppressionReason(r.Provider.ProviderName(), finding.Namespace, "infrastructure_issue", reason)
-			if r.EventRecorder != nil {
-				r.EventRecorder.Event(obj, corev1.EventTypeWarning, "InfrastructureCascadeSuppressed",
-					fmt.Sprintf("finding suppressed: %s (kind: %s, namespace: %s)", reason, finding.Kind, finding.Namespace))
-			}
-			return ctrl.Result{}, nil
-		}
-	}
-
 	fp, err := domain.FindingFingerprint(finding)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("computing fingerprint: %w", err)
@@ -152,79 +124,14 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, fmt.Errorf("fingerprint too short: got %d chars, need at least 12", len(fp))
 	}
 
-	if finding.IsSelfRemediation {
-		r.initCBOnce.Do(func() {
-			r.circuitBreaker = circuitbreaker.New(r.Client, r.Cfg.AgentNamespace, r.Cfg.SelfRemediationCooldown)
-		})
-
-		allowed, remaining, err := r.circuitBreaker.ShouldAllow(ctx)
-		if err != nil {
-			r.Log.Error("circuit breaker error", zap.Error(err))
-			return ctrl.Result{}, fmt.Errorf("circuit breaker error: %w", err)
-		}
-
-		if !allowed {
-			if r.Log != nil {
-				r.Log.Info("circuit breaker: skipping self-remediation due to cooldown",
-					zap.String("fingerprint", fp[:12]),
-					zap.Duration("remaining", remaining),
-					zap.Int("chainDepth", finding.ChainDepth),
-				)
-			}
-			metrics.RecordCircuitBreakerActivation(r.Provider.ProviderName(), finding.Namespace)
-			metrics.SetCircuitBreakerCooldown(r.Provider.ProviderName(), finding.Namespace, remaining.Seconds())
-			metrics.RecordCascadeSuppression(r.Provider.ProviderName(), finding.Namespace, "circuit_breaker")
-			metrics.RecordCascadeSuppressionReason(r.Provider.ProviderName(), finding.Namespace, "cooldown_active",
-				fmt.Sprintf("Circuit breaker cooldown active: %v remaining", remaining))
-			if r.EventRecorder != nil {
-				r.EventRecorder.Event(obj, corev1.EventTypeWarning, "CircuitBreakerOpened",
-					fmt.Sprintf("self-remediation suppressed: circuit breaker active, %v remaining (fingerprint: %s)", remaining, fp[:12]))
-			}
-			return ctrl.Result{RequeueAfter: remaining}, nil
-		}
-
-		if finding.ChainDepth > 1 {
-			if r.Log != nil {
-				r.Log.Warn("deep cascade detected in self-remediation",
-					zap.String("fingerprint", fp[:12]),
-					zap.Int("chainDepth", finding.ChainDepth),
-					zap.String("findingName", finding.Name),
-				)
-			}
-			metrics.RecordChainDepth(r.Provider.ProviderName(), finding.Namespace, finding.ChainDepth)
-			if r.EventRecorder != nil {
-				r.EventRecorder.Event(obj, corev1.EventTypeWarning, "DeepCascadeDetected",
-					fmt.Sprintf("deep cascade at chain depth %d (fingerprint: %s)", finding.ChainDepth, fp[:12]))
-			}
-
-			if finding.ChainDepth >= r.Cfg.SelfRemediationMaxDepth {
-				metrics.RecordMaxDepthExceeded(r.Provider.ProviderName(), finding.Namespace, finding.ChainDepth)
-				metrics.RecordCascadeSuppression(r.Provider.ProviderName(), finding.Namespace, "max_depth")
-				metrics.RecordCascadeSuppressionReason(r.Provider.ProviderName(), finding.Namespace, "chain_too_deep",
-					fmt.Sprintf("Chain depth %d exceeds maximum recommended depth", finding.ChainDepth))
-			}
-		}
-	}
-
-	if r.Cfg.StabilisationWindow == 0 {
-	} else {
+	if r.Cfg.StabilisationWindow != 0 {
 		if first, seen := r.firstSeen.Get(fp); !seen {
 			r.firstSeen.Set(fp)
-			if finding.IsSelfRemediation {
-				metrics.RecordCascadeSuppression(r.Provider.ProviderName(), finding.Namespace, "stabilisation_window")
-				metrics.RecordCascadeSuppressionReason(r.Provider.ProviderName(), finding.Namespace, "stabilisation_start",
-					"Starting stabilisation window for self-remediation")
-			}
 			return ctrl.Result{RequeueAfter: r.Cfg.StabilisationWindow}, nil
 		} else {
 			elapsed := time.Since(first)
 			if elapsed < r.Cfg.StabilisationWindow {
 				remaining := r.Cfg.StabilisationWindow - elapsed
-				if finding.IsSelfRemediation {
-					metrics.RecordCascadeSuppression(r.Provider.ProviderName(), finding.Namespace, "stabilisation_window")
-					metrics.RecordCascadeSuppressionReason(r.Provider.ProviderName(), finding.Namespace, "window_active",
-						fmt.Sprintf("Stabilisation window active: %v remaining", remaining))
-				}
 				return ctrl.Result{RequeueAfter: remaining}, nil
 			}
 			// Window has elapsed — fall through to dedup + Job creation.
@@ -252,6 +159,25 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		// investigation can be dispatched.
 		if delErr := r.Delete(ctx, rjob); delErr != nil && !apierrors.IsNotFound(delErr) {
 			return ctrl.Result{}, delErr
+		}
+	}
+
+	// Readiness gate: do not create RemediationJobs until the sink and LLM
+	// dependencies are confirmed available. Log at error level and requeue so
+	// the finding is re-evaluated once the dependency comes back up.
+	if r.ReadinessChecker != nil {
+		if err := r.ReadinessChecker.Check(ctx); err != nil {
+			if r.Log != nil {
+				r.Log.Error("readiness check failed, suppressing RemediationJob creation",
+					zap.Error(err),
+					zap.String("checker", r.ReadinessChecker.Name()),
+					zap.String("fingerprint", fp[:12]),
+					zap.String("kind", finding.Kind),
+					zap.String("name", finding.Name),
+					zap.String("namespace", finding.Namespace),
+				)
+			}
+			return ctrl.Result{RequeueAfter: ReadinessCacheTTL}, nil
 		}
 	}
 
@@ -287,8 +213,6 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			GitOpsManifestRoot: r.Cfg.GitOpsManifestRoot,
 			AgentImage:         r.Cfg.AgentImage,
 			AgentSA:            r.Cfg.AgentSA,
-			IsSelfRemediation:  finding.IsSelfRemediation,
-			ChainDepth:         finding.ChainDepth,
 		},
 	}
 
@@ -306,14 +230,6 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			zap.String("parentObject", finding.ParentObject),
 			zap.String("remediationJob", rjob.Name),
 		)
-	}
-
-	if finding.IsSelfRemediation {
-		metrics.ClearCircuitBreakerCooldown(r.Provider.ProviderName(), finding.Namespace)
-	} else {
-		if finding.ChainDepth > 0 {
-			metrics.RecordChainDepth(r.Provider.ProviderName(), finding.Namespace, finding.ChainDepth)
-		}
 	}
 
 	return ctrl.Result{}, nil

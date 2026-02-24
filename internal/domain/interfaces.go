@@ -8,6 +8,8 @@ import (
 
 // JobBuilder constructs a batch/v1 Job from a RemediationJob.
 // The concrete implementation lives in internal/jobbuilder.
+// correlatedFindings is the slice of all findings in the correlation group;
+// nil or empty means this is a single-finding dispatch.
 type JobBuilder interface {
-	Build(rjob *v1alpha1.RemediationJob) (*batchv1.Job, error)
+	Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1alpha1.FindingSpec) (*batchv1.Job, error)
 }

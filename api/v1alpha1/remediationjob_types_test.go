@@ -50,6 +50,11 @@ func TestConditionTypeConstants(t *testing.T) {
 	}
 }
 
+// TestRemediationJobStatus_ZeroValue_HasEmptyPhase documents the Go language zero
+// value of RemediationJobPhase. In production, RemediationJobReconciler immediately
+// transitions Phase from "" to PhasePending on the first reconcile, so "" is never
+// a stable observed state — it exists only in the brief window between object creation
+// and the first reconcile loop.
 func TestRemediationJobStatus_ZeroValue_HasEmptyPhase(t *testing.T) {
 	var status v1alpha1.RemediationJobStatus
 	if status.Phase != "" {

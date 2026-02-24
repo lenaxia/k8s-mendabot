@@ -167,8 +167,10 @@ const (
     // authoritative constant instead of duplicating the magic string "k8sgpt".
     SourceTypeK8sGPT = "k8sgpt"
 
-    // PhasePending means the RemediationJob has been created but no batch/v1 Job
-    // exists yet (e.g. MAX_CONCURRENT_JOBS limit is currently reached).
+    // PhasePending means the RemediationJob has been created and the controller
+    // has acknowledged it. The controller sets Phase=Pending immediately on the
+    // first reconcile (transitioning from the Go zero value ""). A job may also
+    // remain Pending while the MAX_CONCURRENT_JOBS limit is reached.
     PhasePending RemediationJobPhase = "Pending"
 
     // PhaseDispatched means the batch/v1 Job has been created and is starting.
@@ -259,8 +261,9 @@ Reconcile(Result):
        List RemediationJobs in AgentNamespace.
        For each where rjob.Spec.SourceResultRef.Name == req.Name
        AND rjob.Spec.SourceResultRef.Namespace == req.Namespace
-       AND rjob.Status.Phase is Pending or Dispatched:
-         delete the RemediationJob.
+        AND rjob.Status.Phase is Pending, Dispatched, or "" (created but not yet
+        acknowledged by RemediationJobReconciler):
+          Patch Phase=Cancelled, then delete the RemediationJob.
        (A deleted Result means the problem is resolved — only cancel pending work;
        Running/Succeeded/Failed RemediationJobs are left intact.)
        Return nil.
@@ -290,8 +293,14 @@ state. It also does not enforce `MAX_CONCURRENT_JOBS` — that is enforced by th
 
 ```
 Reconcile(RemediationJob):
-  1. Fetch RemediationJob. If NotFound → return nil.
-   2. If Phase is Succeeded:
+  0. Fetch RemediationJob. If NotFound → return nil.
+  0a. If Phase is "" (freshly created, Go zero value):
+       Patch Status.Phase = Pending via the status subresource.
+       Return Requeue:true (immediate re-enqueue via rate limiter).
+       Rationale: the Kubernetes API server strips Status on Create, so every
+       new object arrives with Phase="". This step ensures Phase is never blank
+       in kubectl output and that all downstream logic can rely on named constants.
+   1. If Phase is Succeeded:
         Apply TTL deletion logic (see §9 and CONTROLLER_LLD §6.2 step 2).
         If TTL has expired: delete and return nil.
         If TTL is not yet due: return RequeueAfter(deadline - now).

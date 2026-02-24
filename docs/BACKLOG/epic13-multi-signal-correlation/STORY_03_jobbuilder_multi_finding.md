@@ -2,7 +2,7 @@
 
 **Epic:** [epic13-multi-signal-correlation](README.md)
 **Priority:** High
-**Status:** Not Started
+**Status:** Complete
 **Estimated Effort:** 2 hours
 
 ---
@@ -28,19 +28,19 @@ env var is absent or empty and existing agent behaviour is unchanged.
 
 ## Acceptance Criteria
 
-- [ ] `JobBuilder.Build()` signature changes to accept an additional
+- [x] `JobBuilder.Build()` signature changes to accept an additional
       `correlatedFindings []v1alpha1.FindingSpec` parameter (nil or empty = single-finding mode)
-- [ ] When `len(correlatedFindings) > 1`, a `FINDING_CORRELATED_FINDINGS` env var is
+- [x] When `len(correlatedFindings) > 1`, a `FINDING_CORRELATED_FINDINGS` env var is
       injected into the main container as a JSON-encoded array of `FindingSpec` objects
-- [ ] When `len(correlatedFindings) <= 1`, `FINDING_CORRELATED_FINDINGS` is not set
+- [x] When `len(correlatedFindings) <= 1`, `FINDING_CORRELATED_FINDINGS` is not set
       (no empty env var pollution)
-- [ ] `FINDING_CORRELATION_GROUP_ID` env var is injected when the primary
+- [x] `FINDING_CORRELATION_GROUP_ID` env var is injected when the primary
       `RemediationJob` carries a `mendabot.io/correlation-group-id` label
-- [ ] `internal/jobbuilder/job_test.go` covers:
+- [x] `internal/jobbuilder/job_test.go` covers:
   - Single finding (no correlated env var set)
   - Two correlated findings (env var set, valid JSON)
   - JSON encodes all `FindingSpec` fields correctly
-- [ ] `go test -timeout 30s -race ./internal/jobbuilder/...` passes
+- [x] `go test -timeout 30s -race ./internal/jobbuilder/...` passes
 
 ---
 
@@ -112,20 +112,20 @@ if groupID, ok := rjob.Labels[domain.CorrelationGroupIDLabel]; ok && groupID != 
 
 ## Tasks
 
-- [ ] Write new `job_test.go` cases for multi-finding injection (TDD — must fail first)
-- [ ] Update `internal/domain/interfaces.go:12` — change `JobBuilder.Build()` to the
+- [x] Write new `job_test.go` cases for multi-finding injection (TDD — must fail first)
+- [x] Update `internal/domain/interfaces.go:12` — change `JobBuilder.Build()` to the
       two-argument signature (this is a compiler-breaking change; do it first so the
       compile-time assertion fails clearly and guides the remaining changes)
-- [ ] Update `Builder.Build()` signature in `internal/jobbuilder/job.go` and inject
+- [x] Update `Builder.Build()` signature in `internal/jobbuilder/job.go` and inject
       `FINDING_CORRELATED_FINDINGS` and `FINDING_CORRELATION_GROUP_ID` env vars
-- [ ] Update `fakeJobBuilder.Build()` in `internal/controller/fakes_test.go:25` to the
+- [x] Update `fakeJobBuilder.Build()` in `internal/controller/fakes_test.go:25` to the
       new signature; update `fakeJobBuilderCall` struct to record `CorrelatedFindings`
-- [ ] Update all existing `b.Build(rjob)` calls in `internal/jobbuilder/job_test.go`
+- [x] Update all existing `b.Build(rjob)` calls in `internal/jobbuilder/job_test.go`
       to `b.Build(rjob, nil)`
-- [ ] Update the call site in `internal/controller/remediationjob_controller.go:158`
+- [x] Update the call site in `internal/controller/remediationjob_controller.go:158`
       from `r.JobBuilder.Build(&rjob)` to `r.JobBuilder.Build(&rjob, nil)` as a
       placeholder — STORY_02 will update this to pass the actual correlated findings
-- [ ] Run `go test -timeout 30s -race ./...` — must pass
+- [x] Run `go test -timeout 30s -race ./...` — must pass
 
 ---
 
@@ -138,6 +138,6 @@ if groupID, ok := rjob.Labels[domain.CorrelationGroupIDLabel]; ok && groupID != 
 
 ## Definition of Done
 
-- [ ] `Build()` signature updated; all call sites compile
-- [ ] Env vars injected correctly for both single and multi-finding cases
-- [ ] All tests pass
+- [x] `Build()` signature updated; all call sites compile
+- [x] Env vars injected correctly for both single and multi-finding cases
+- [x] All tests pass

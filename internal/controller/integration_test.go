@@ -73,6 +73,42 @@ func waitFor(t *testing.T, condition func() bool, timeout, interval time.Duratio
 	t.Fatal("condition not met within timeout")
 }
 
+// waitForGone polls until c.Get returns an error for obj, indicating the object has
+// been removed (or is no longer accessible) in the API server. Use this after a Delete
+// call when a subsequent Create of an object with the same name must not race with the
+// deletion — batch/v1 Jobs have finalizers and remain in a terminating state after Delete
+// is called until Kubernetes finishes cleanup.
+func waitForGone(t *testing.T, ctx context.Context, c client.Client, obj client.Object, timeout time.Duration) {
+	t.Helper()
+	key := client.ObjectKeyFromObject(obj)
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		tmp := obj.DeepCopyObject().(client.Object)
+		if err := c.Get(ctx, key, tmp); err != nil {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Logf("waitForGone: %s/%s still present after %v; proceeding anyway", obj.GetNamespace(), obj.GetName(), timeout)
+}
+
+// deleteJob strips finalizers from a batch/v1 Job then deletes it. envtest does not
+// run the batch controller, so Jobs with the batch.kubernetes.io/job-tracking finalizer
+// would otherwise remain in a terminating state forever, causing the next test run to
+// fail with "object is being deleted" when it tries to create a job with the same name.
+// Callers must use this instead of c.Delete directly for all batch/v1 Job deletions.
+func deleteJob(ctx context.Context, c client.Client, job *batchv1.Job) {
+	existing := &batchv1.Job{}
+	if err := c.Get(ctx, client.ObjectKeyFromObject(job), existing); err != nil {
+		return // already gone
+	}
+	if len(existing.Finalizers) > 0 {
+		existing.Finalizers = nil
+		_ = c.Update(ctx, existing)
+	}
+	_ = c.Delete(ctx, existing)
+}
+
 func newIntegrationRJob(name, fp string) *v1alpha1.RemediationJob {
 	return &v1alpha1.RemediationJob{
 		ObjectMeta: metav1.ObjectMeta{
@@ -121,10 +157,14 @@ func minimalPodTemplateSpec() corev1.PodTemplateSpec {
 }
 
 func newIntegrationJob(rjob *v1alpha1.RemediationJob) *batchv1.Job {
+	ns := rjob.Namespace
+	if ns == "" {
+		ns = integrationCtrlNamespace
+	}
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "mendabot-agent-" + rjob.Spec.Fingerprint[:12],
-			Namespace: integrationCtrlNamespace,
+			Namespace: ns,
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion: "remediation.mendabot.io/v1alpha1",
@@ -154,6 +194,13 @@ func TestRemediationJobReconciler_CreatesJob(t *testing.T) {
 	ctx := context.Background()
 	c := newIntegrationClient(t)
 
+	// Pre-test: batch/v1 Jobs have finalizers and remain terminating after Delete. Wait
+	// until the deterministic job name from any prior run is fully gone so the reconciler
+	// does not find a stale terminating job and skip dispatch.
+	staleJob := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "mendabot-agent-aaaa0000bbbb", Namespace: integrationCtrlNamespace}}
+	deleteJob(ctx, c, staleJob)
+	waitForGone(t, ctx, c, staleJob, 10*time.Second)
+
 	const fp = "aaaa0000bbbb1111cccc2222dddd3333aaaa0000bbbb1111cccc2222dddd3333"
 	rjob := newIntegrationRJob("rjob-creates-job", fp)
 	if err := c.Create(ctx, rjob); err != nil {
@@ -169,8 +216,22 @@ func TestRemediationJobReconciler_CreatesJob(t *testing.T) {
 	jb := &fakeJobBuilder{returnJob: job}
 	rec := newCtrlReconciler(c, jb)
 
+	// First call: "" → Pending (initialisation step).
 	if _, err := rec.Reconcile(ctx, ctrlReq("rjob-creates-job")); err != nil {
-		t.Fatalf("Reconcile: %v", err)
+		t.Fatalf("first Reconcile (init): %v", err)
+	}
+	// Verify Phase was set to Pending before proceeding — this pins the intermediate
+	// state so a regression that removes the init guard cannot go undetected.
+	var afterInit v1alpha1.RemediationJob
+	if err := c.Get(ctx, types.NamespacedName{Name: rjob.Name, Namespace: integrationCtrlNamespace}, &afterInit); err != nil {
+		t.Fatalf("get rjob after init: %v", err)
+	}
+	if afterInit.Status.Phase != v1alpha1.PhasePending {
+		t.Errorf("phase after init = %q, want %q", afterInit.Status.Phase, v1alpha1.PhasePending)
+	}
+	// Second call: Pending → Dispatched + Job created.
+	if _, err := rec.Reconcile(ctx, ctrlReq("rjob-creates-job")); err != nil {
+		t.Fatalf("second Reconcile (dispatch): %v", err)
 	}
 
 	var jobList batchv1.JobList
@@ -184,7 +245,7 @@ func TestRemediationJobReconciler_CreatesJob(t *testing.T) {
 
 	t.Cleanup(func() {
 		for i := range jobList.Items {
-			_ = c.Delete(ctx, &jobList.Items[i])
+			deleteJob(ctx, c, &jobList.Items[i])
 		}
 	})
 
@@ -211,6 +272,11 @@ func TestRemediationJobReconciler_SyncsStatus_Running(t *testing.T) {
 	ctx := context.Background()
 	c := newIntegrationClient(t)
 
+	// Pre-test: wait for any stale job from a prior run to be fully gone.
+	staleJob := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "mendabot-agent-bbbb1111cccc", Namespace: integrationCtrlNamespace}}
+	deleteJob(ctx, c, staleJob)
+	waitForGone(t, ctx, c, staleJob, 10*time.Second)
+
 	const fp = "bbbb1111cccc2222dddd3333eeee4444bbbb1111cccc2222dddd3333eeee4444"
 	rjob := newIntegrationRJob("rjob-syncs-running", fp)
 	if err := c.Create(ctx, rjob); err != nil {
@@ -232,7 +298,7 @@ func TestRemediationJobReconciler_SyncsStatus_Running(t *testing.T) {
 	if err := c.Create(ctx, existingJob); err != nil {
 		t.Fatalf("create Job: %v", err)
 	}
-	t.Cleanup(func() { _ = c.Delete(ctx, existingJob) })
+	t.Cleanup(func() { deleteJob(ctx, c, existingJob) })
 
 	existingJob.Status.Active = 1
 	if err := c.Status().Update(ctx, existingJob); err != nil {
@@ -242,8 +308,13 @@ func TestRemediationJobReconciler_SyncsStatus_Running(t *testing.T) {
 	jb := &fakeJobBuilder{}
 	rec := newCtrlReconciler(c, jb)
 
+	// First call: "" → Pending (initialisation step).
 	if _, err := rec.Reconcile(ctx, ctrlReq("rjob-syncs-running")); err != nil {
-		t.Fatalf("Reconcile: %v", err)
+		t.Fatalf("first Reconcile (init): %v", err)
+	}
+	// Second call: Pending, Job already exists → syncs status.
+	if _, err := rec.Reconcile(ctx, ctrlReq("rjob-syncs-running")); err != nil {
+		t.Fatalf("second Reconcile (sync): %v", err)
 	}
 
 	var updated v1alpha1.RemediationJob
@@ -262,6 +333,11 @@ func TestRemediationJobReconciler_SyncsStatus_Succeeded(t *testing.T) {
 	}
 	ctx := context.Background()
 	c := newIntegrationClient(t)
+
+	// Pre-test: wait for any stale job from a prior run to be fully gone.
+	staleJob := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "mendabot-agent-cccc2222dddd", Namespace: integrationCtrlNamespace}}
+	deleteJob(ctx, c, staleJob)
+	waitForGone(t, ctx, c, staleJob, 10*time.Second)
 
 	const fp = "cccc2222dddd3333eeee4444ffff5555cccc2222dddd3333eeee4444ffff5555"
 	rjob := newIntegrationRJob("rjob-syncs-succeeded", fp)
@@ -284,7 +360,7 @@ func TestRemediationJobReconciler_SyncsStatus_Succeeded(t *testing.T) {
 	if err := c.Create(ctx, existingJob); err != nil {
 		t.Fatalf("create Job: %v", err)
 	}
-	t.Cleanup(func() { _ = c.Delete(ctx, existingJob) })
+	t.Cleanup(func() { deleteJob(ctx, c, existingJob) })
 
 	existingJob.Status.Succeeded = 1
 	if err := c.Status().Update(ctx, existingJob); err != nil {
@@ -294,8 +370,13 @@ func TestRemediationJobReconciler_SyncsStatus_Succeeded(t *testing.T) {
 	jb := &fakeJobBuilder{}
 	rec := newCtrlReconciler(c, jb)
 
+	// First call: "" → Pending (initialisation step).
 	if _, err := rec.Reconcile(ctx, ctrlReq("rjob-syncs-succeeded")); err != nil {
-		t.Fatalf("Reconcile: %v", err)
+		t.Fatalf("first Reconcile (init): %v", err)
+	}
+	// Second call: Pending, Job already exists → syncs status.
+	if _, err := rec.Reconcile(ctx, ctrlReq("rjob-syncs-succeeded")); err != nil {
+		t.Fatalf("second Reconcile (sync): %v", err)
 	}
 
 	var updated v1alpha1.RemediationJob
@@ -314,6 +395,11 @@ func TestRemediationJobReconciler_SyncsStatus_Failed(t *testing.T) {
 	}
 	ctx := context.Background()
 	c := newIntegrationClient(t)
+
+	// Pre-test: wait for any stale job from a prior run to be fully gone.
+	staleJob := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "mendabot-agent-dddd3333eeee", Namespace: integrationCtrlNamespace}}
+	deleteJob(ctx, c, staleJob)
+	waitForGone(t, ctx, c, staleJob, 10*time.Second)
 
 	const fp = "dddd3333eeee4444ffff5555aaaa6666dddd3333eeee4444ffff5555aaaa6666"
 	backoffLimit := int32(1)
@@ -337,7 +423,7 @@ func TestRemediationJobReconciler_SyncsStatus_Failed(t *testing.T) {
 	if err := c.Create(ctx, existingJob); err != nil {
 		t.Fatalf("create Job: %v", err)
 	}
-	t.Cleanup(func() { _ = c.Delete(ctx, existingJob) })
+	t.Cleanup(func() { deleteJob(ctx, c, existingJob) })
 
 	existingJob.Status.Failed = backoffLimit + 1
 	if err := c.Status().Update(ctx, existingJob); err != nil {
@@ -347,8 +433,13 @@ func TestRemediationJobReconciler_SyncsStatus_Failed(t *testing.T) {
 	jb := &fakeJobBuilder{}
 	rec := newCtrlReconciler(c, jb)
 
+	// First call: "" → Pending (initialisation step).
 	if _, err := rec.Reconcile(ctx, ctrlReq("rjob-syncs-failed")); err != nil {
-		t.Fatalf("Reconcile: %v", err)
+		t.Fatalf("first Reconcile (init): %v", err)
+	}
+	// Second call: Pending, Job already exists → syncs status.
+	if _, err := rec.Reconcile(ctx, ctrlReq("rjob-syncs-failed")); err != nil {
+		t.Fatalf("second Reconcile (sync): %v", err)
 	}
 
 	var updated v1alpha1.RemediationJob
@@ -368,6 +459,11 @@ func TestRemediationJobReconciler_MaxConcurrentJobs_Requeues(t *testing.T) {
 	}
 	ctx := context.Background()
 	c := newIntegrationClient(t)
+
+	// Pre-test: wait for any stale blocker job from a prior run to be fully gone.
+	staleJob := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "active-job-concurrent", Namespace: integrationCtrlNamespace}}
+	deleteJob(ctx, c, staleJob)
+	waitForGone(t, ctx, c, staleJob, 10*time.Second)
 
 	const fp = "eeee4444ffff5555aaaa6666bbbb7777eeee4444ffff5555aaaa6666bbbb7777"
 	rjob := newIntegrationRJob("rjob-max-concurrent", fp)
@@ -389,11 +485,22 @@ func TestRemediationJobReconciler_MaxConcurrentJobs_Requeues(t *testing.T) {
 	if err := c.Create(ctx, activeJob); err != nil {
 		t.Fatalf("create active Job: %v", err)
 	}
-	t.Cleanup(func() { _ = c.Delete(ctx, activeJob) })
+	t.Cleanup(func() { deleteJob(ctx, c, activeJob) })
 
 	activeJob.Status.Active = 1
 	if err := c.Status().Update(ctx, activeJob); err != nil {
 		t.Fatalf("update active job status: %v", err)
+	}
+	// Re-fetch to confirm Status.Active persisted. The active-count logic in the
+	// controller has two branches: Active>0 OR (Succeeded==0 && CompletionTime==nil).
+	// We explicitly verify the Active>0 branch is exercised so a regression in that
+	// branch is not masked by the second branch.
+	var fetchedActiveJob batchv1.Job
+	if err := c.Get(ctx, client.ObjectKeyFromObject(activeJob), &fetchedActiveJob); err != nil {
+		t.Fatalf("re-fetch active job: %v", err)
+	}
+	if fetchedActiveJob.Status.Active != 1 {
+		t.Fatalf("expected activeJob.Status.Active=1 after update, got %d — test precondition not met", fetchedActiveJob.Status.Active)
 	}
 
 	limitCfg := integrationControllerCfg()
@@ -409,7 +516,17 @@ func TestRemediationJobReconciler_MaxConcurrentJobs_Requeues(t *testing.T) {
 
 	result, err := rec.Reconcile(ctx, ctrlReq("rjob-max-concurrent"))
 	if err != nil {
-		t.Fatalf("Reconcile: %v", err)
+		t.Fatalf("first Reconcile (init): %v", err)
+	}
+	// First call: "" → Pending; Requeue=true, RequeueAfter=0.
+	if !result.Requeue {
+		t.Errorf("expected Requeue=true on blank-phase init, got %+v", result)
+	}
+
+	// Second call: Pending, at limit → RequeueAfter=30s.
+	result, err = rec.Reconcile(ctx, ctrlReq("rjob-max-concurrent"))
+	if err != nil {
+		t.Fatalf("second Reconcile (at limit): %v", err)
 	}
 	if result.RequeueAfter != 30*time.Second {
 		t.Errorf("RequeueAfter = %v, want 30s", result.RequeueAfter)
@@ -424,7 +541,7 @@ func TestRemediationJobReconciler_MaxConcurrentJobs_Requeues(t *testing.T) {
 		t.Errorf("expected 0 new jobs, got %d", len(jobList.Items))
 	}
 
-	// Phase must be set to Pending — a blank phase is confusing in kubectl.
+	// Phase must be Pending — set by the blank-phase init on the first reconcile.
 	var updated v1alpha1.RemediationJob
 	if err := c.Get(ctx, client.ObjectKey{Name: rjob.Name, Namespace: rjob.Namespace}, &updated); err != nil {
 		t.Fatalf("get rjob: %v", err)
@@ -443,6 +560,12 @@ func TestRemediationJobReconciler_OwnerReference(t *testing.T) {
 	ctx := context.Background()
 	c := newIntegrationClient(t)
 
+	// Pre-test: wait for any stale job from a prior run to be fully gone so the
+	// waitFor loop below does not find a job with an old OwnerReference UID.
+	staleJob := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "mendabot-agent-ffff5555aaaa", Namespace: integrationCtrlNamespace}}
+	deleteJob(ctx, c, staleJob)
+	waitForGone(t, ctx, c, staleJob, 10*time.Second)
+
 	const fp = "ffff5555aaaa6666bbbb7777cccc8888ffff5555aaaa6666bbbb7777cccc8888"
 	rjob := newIntegrationRJob("rjob-ownerref", fp)
 	if err := c.Create(ctx, rjob); err != nil {
@@ -458,8 +581,13 @@ func TestRemediationJobReconciler_OwnerReference(t *testing.T) {
 	jb := &fakeJobBuilder{returnJob: job}
 	rec := newCtrlReconciler(c, jb)
 
+	// First call: "" → Pending (initialisation step).
 	if _, err := rec.Reconcile(ctx, ctrlReq("rjob-ownerref")); err != nil {
-		t.Fatalf("Reconcile: %v", err)
+		t.Fatalf("first Reconcile (init): %v", err)
+	}
+	// Second call: Pending → Dispatched + Job created.
+	if _, err := rec.Reconcile(ctx, ctrlReq("rjob-ownerref")); err != nil {
+		t.Fatalf("second Reconcile (dispatch): %v", err)
 	}
 
 	var jobList batchv1.JobList
@@ -473,7 +601,7 @@ func TestRemediationJobReconciler_OwnerReference(t *testing.T) {
 
 	t.Cleanup(func() {
 		for i := range jobList.Items {
-			_ = c.Delete(ctx, &jobList.Items[i])
+			deleteJob(ctx, c, &jobList.Items[i])
 		}
 	})
 

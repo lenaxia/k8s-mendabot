@@ -397,6 +397,15 @@ func TestIntegration_ResultDeleted_CancelsPending(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = k8sClient.Delete(ctx, rjob) })
 
+	// Patch phase to Pending to simulate a job that has already been through its first
+	// reconcile. A job with Phase=="" (created but not yet reconciled) is also cancellable;
+	// that case is covered by TestIntegration_ResultDeleted_CancelsBlankPhase below.
+	rjobCopy := rjob.DeepCopyObject().(*v1alpha1.RemediationJob)
+	rjob.Status.Phase = v1alpha1.PhasePending
+	if err := k8sClient.Status().Patch(ctx, rjob, client.MergeFrom(rjobCopy)); err != nil {
+		t.Fatalf("patch phase to Pending: %v", err)
+	}
+
 	// No Pod exists — source is deleted.
 	p := &integrationFakeProvider{name: "native", finding: nil}
 	rec := newIntegrationSourceReconciler(p)
@@ -478,5 +487,72 @@ func TestIntegration_ResultDeleted_CancelsDispatched(t *testing.T) {
 		var fetched v1alpha1.RemediationJob
 		err := k8sClient.Get(ctx, types.NamespacedName{Name: rjob.Name, Namespace: integrationNamespace}, &fetched)
 		return err != nil
+	}, 5*time.Second, 100*time.Millisecond)
+}
+
+// TestIntegration_ResultDeleted_CancelsBlankPhase verifies that a RemediationJob with
+// Phase=="" (created by SourceProviderReconciler but not yet touched by
+// RemediationJobReconciler) is cancelled and deleted when its source is deleted before
+// the first controller reconcile fires. This is the race window between Create() and
+// the first ""-→Pending reconcile.
+func TestIntegration_ResultDeleted_CancelsBlankPhase(t *testing.T) {
+	if !suiteReady {
+		t.Skip("envtest not available: KUBEBUILDER_ASSETS not set")
+	}
+	ctx := context.Background()
+
+	fp := "deadbeefcafe0011223344556677889900aabbccddeeff0011223344556677"
+	rjob := &v1alpha1.RemediationJob{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mendabot-" + fp[:12],
+			Namespace: integrationNamespace,
+			Labels: map[string]string{
+				"remediation.mendabot.io/fingerprint": fp[:12],
+			},
+			Annotations: map[string]string{
+				"remediation.mendabot.io/fingerprint-full": fp,
+			},
+		},
+		Spec: v1alpha1.RemediationJobSpec{
+			SourceType:  v1alpha1.SourceTypeNative,
+			SinkType:    "github",
+			Fingerprint: fp,
+			SourceResultRef: v1alpha1.ResultRef{
+				Name:      "pod-blank-phase",
+				Namespace: integrationNamespace,
+			},
+			Finding: v1alpha1.FindingSpec{
+				Kind:         "Pod",
+				Name:         "pod-blank",
+				Namespace:    integrationNamespace,
+				ParentObject: "my-deploy",
+			},
+			GitOpsRepo:         "org/repo",
+			GitOpsManifestRoot: "deploy",
+			AgentImage:         "mendabot-agent:test",
+			AgentSA:            "mendabot-agent",
+		},
+		// Status is NOT patched — Phase remains "" (Go zero value), simulating
+		// a job that exists in etcd but has not yet been touched by the controller.
+	}
+	if err := k8sClient.Create(ctx, rjob); err != nil {
+		t.Fatalf("create RemediationJob: %v", err)
+	}
+	t.Cleanup(func() { _ = k8sClient.Delete(ctx, rjob) })
+
+	// Source pod does not exist (was deleted before the controller first reconciled).
+	p := &integrationFakeProvider{name: "native", finding: nil}
+	rec := newIntegrationSourceReconciler(p)
+	req := integrationReq("pod-blank-phase", integrationNamespace)
+
+	if _, err := rec.Reconcile(ctx, req); err != nil {
+		t.Fatalf("Reconcile (NotFound): %v", err)
+	}
+
+	// The RemediationJob must be cancelled (Phase patched to Cancelled) and deleted.
+	integrationEventually(t, func() bool {
+		var fetched v1alpha1.RemediationJob
+		err := k8sClient.Get(ctx, types.NamespacedName{Name: rjob.Name, Namespace: integrationNamespace}, &fetched)
+		return err != nil // deleted
 	}, 5*time.Second, 100*time.Millisecond)
 }

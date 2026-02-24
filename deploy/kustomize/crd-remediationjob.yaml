@@ -90,12 +90,13 @@ spec:
             properties:
               phase:
                 type: string
-                enum: [Pending, Dispatched, Running, Succeeded, Failed, Cancelled]
+                enum: [Pending, Dispatched, Running, Succeeded, Failed, Cancelled, Suppressed]
               jobRef: {type: string}
               prRef: {type: string}
               message: {type: string}
               dispatchedAt: {type: string, format: date-time}
               completedAt: {type: string, format: date-time}
+              correlationGroupID: {type: string}
               conditions:
                 type: array
                 items:

@@ -12,7 +12,7 @@ newly-created `RemediationJob` objects are checked for correlation before dispat
 findings are grouped, labelled with a shared `CorrelationGroupID`, and handed to a single
 agent Job that investigates the full group context.
 
-## Status: Not Started
+## Status: Deferred — moved to `feature/epic11-13-deferred`
 
 ## Dependencies
 
@@ -31,33 +31,33 @@ agent Job that investigates the full group context.
 
 ## Success Criteria
 
-- [ ] `domain.CorrelationRule` interface exists in `internal/domain/correlation.go`
-- [ ] Three built-in rules implemented: `SameNamespaceParentRule`, `PVCPodRule`,
+- [x] `domain.CorrelationRule` interface exists in `internal/domain/correlation.go`
+- [x] Three built-in rules implemented: `SameNamespaceParentRule`, `PVCPodRule`,
       `MultiPodSameNodeRule`
-- [ ] `RemediationJobReconciler` holds `RemediationJob` objects in `Pending` phase for
+- [x] `RemediationJobReconciler` holds `RemediationJob` objects in `Pending` phase for
       `CORRELATION_WINDOW_SECONDS` (default: 30) before dispatching
-- [ ] `Correlator` struct exists in `internal/correlator/correlator.go` with method
+- [x] `Correlator` struct exists in `internal/correlator/correlator.go` with method
       `Evaluate(ctx, candidate, peers, client) (CorrelationGroup, bool, error)`
       (returns the group, a found bool, and an error — idiomatic Go "found" pattern)
-- [ ] After the window, the correlator runs all rules; when a match is found, matching
+- [x] After the window, the correlator runs all rules; when a match is found, matching
       objects receive a `mendabot.io/correlation-group-id` label and all but the primary
       are transitioned to `Suppressed` phase
-- [ ] `JobBuilder.Build()` accepts a `[]v1alpha1.FindingSpec` slice and injects
+- [x] `JobBuilder.Build()` accepts a `[]v1alpha1.FindingSpec` slice and injects
       `FINDING_CORRELATED_FINDINGS` as a JSON-encoded env var when the slice has > 1 entry
-- [ ] `go test -timeout 30s -race ./...` passes with correlation tests
-- [ ] `DISABLE_CORRELATION=true` env var disables the window and all correlation rules,
+- [x] `go test -timeout 30s -race ./...` passes with correlation tests
+- [x] `DISABLE_CORRELATION=true` env var disables the window and all correlation rules,
       reverting to current dispatch-immediately behaviour
 
 ## Stories
 
 | Story | File | Status | Priority | Effort |
 |-------|------|--------|----------|--------|
-| Correlation domain types and rule interface | [STORY_00_domain_types.md](STORY_00_domain_types.md) | Not Started | High | 2h |
-| Built-in correlation rules | [STORY_01_builtin_rules.md](STORY_01_builtin_rules.md) | Not Started | High | 3h |
-| CorrelationWindow in RemediationJobReconciler | [STORY_02_correlation_window.md](STORY_02_correlation_window.md) | Not Started | Critical | 4h |
-| JobBuilder multi-finding support | [STORY_03_jobbuilder_multi_finding.md](STORY_03_jobbuilder_multi_finding.md) | Not Started | High | 2h |
-| Prompt template update for correlated context | [STORY_04_prompt_update.md](STORY_04_prompt_update.md) | Not Started | Medium | 1h |
-| Integration tests and DISABLE_CORRELATION escape hatch | [STORY_05_integration_escape_hatch.md](STORY_05_integration_escape_hatch.md) | Not Started | High | 3h |
+| Correlation domain types and rule interface | [STORY_00_domain_types.md](STORY_00_domain_types.md) | Complete | High | 2h |
+| Built-in correlation rules | [STORY_01_builtin_rules.md](STORY_01_builtin_rules.md) | Complete | High | 3h |
+| CorrelationWindow in RemediationJobReconciler | [STORY_02_correlation_window.md](STORY_02_correlation_window.md) | Complete | Critical | 4h |
+| JobBuilder multi-finding support | [STORY_03_jobbuilder_multi_finding.md](STORY_03_jobbuilder_multi_finding.md) | Complete | High | 2h |
+| Prompt template update for correlated context | [STORY_04_prompt_update.md](STORY_04_prompt_update.md) | Complete | Medium | 1h |
+| Integration tests and DISABLE_CORRELATION escape hatch | [STORY_05_integration_escape_hatch.md](STORY_05_integration_escape_hatch.md) | Complete | High | 3h |
 
 ## Correlation Rules
 
@@ -187,12 +187,12 @@ STORY_00 (domain types) ─┬──> STORY_01 (rules)   ──┐
 
 ## Definition of Done
 
-- [ ] All unit tests pass: `go test -timeout 30s -race ./...`
-- [ ] `go build ./...` succeeds
-- [ ] `go vet ./...` clean
-- [ ] `kubectl apply -k deploy/kustomize/ --dry-run=client` passes
-- [ ] `DISABLE_CORRELATION=true` reverts to pre-epic dispatch behaviour (verified by test)
-- [ ] Worklog entry created in `docs/WORKLOGS/`
+- [x] All unit tests pass: `go test -timeout 30s -race ./...`
+- [x] `go build ./...` succeeds
+- [x] `go vet ./...` clean
+- [x] `kubectl apply -k deploy/kustomize/ --dry-run=client` passes
+- [x] `DISABLE_CORRELATION=true` reverts to pre-epic dispatch behaviour (verified by test)
+- [x] Worklog entry created in `docs/WORKLOGS/`
 
 ## New Configuration Variables
 

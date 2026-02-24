@@ -4,14 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/lenaxia/k8s-mendabot/api/v1alpha1"
 	"github.com/lenaxia/k8s-mendabot/internal/config"
 	"github.com/lenaxia/k8s-mendabot/internal/domain"
 )
@@ -40,7 +37,7 @@ func (p *jobProvider) ObjectType() client.Object { return &batchv1.Job{} }
 
 // ExtractFinding converts a watched Job into a Finding.
 // Returns (nil, nil) if the job is healthy, still running, succeeded, suspended,
-// owned by a CronJob, or exceeds self-remediation depth limit.
+// or owned by a CronJob.
 // Returns (nil, err) if obj is not a *batchv1.Job.
 func (p *jobProvider) ExtractFinding(obj client.Object) (*domain.Finding, error) {
 	job, ok := obj.(*batchv1.Job)
@@ -70,30 +67,6 @@ func (p *jobProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 	// completionTime == nil: the Job did not succeed.
 	if job.Status.Failed == 0 || job.Status.Active != 0 || job.Status.CompletionTime != nil {
 		return nil, nil
-	}
-
-	// Check if this is a mendabot job (self-remediation detection)
-	isMendabotJob := false
-	chainDepth := 0
-	if job.Labels != nil && job.Labels["app.kubernetes.io/managed-by"] == "mendabot-watcher" {
-		isMendabotJob = true
-
-		// Try to get chain depth from owner RemediationJob first (atomic source)
-		parentDepth, err := p.getChainDepthFromOwner(context.Background(), job)
-		if err != nil {
-			// Fall back to annotation for backward compatibility
-			chainDepth = p.getChainDepthFromAnnotation(job)
-		} else {
-			chainDepth = parentDepth
-		}
-
-		// Increment chain depth for self-remediation
-		chainDepth++
-
-		// Check if we've exceeded max depth
-		if chainDepth > p.cfg.SelfRemediationMaxDepth {
-			return nil, nil
-		}
 	}
 
 	type errorEntry struct {
@@ -136,54 +109,7 @@ func (p *jobProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 			Name:       job.Name,
 			Namespace:  job.Namespace,
 		},
-		IsSelfRemediation: isMendabotJob,
-		ChainDepth:        chainDepth,
-	}
-
-	// For self-remediations, add context about mendabot failure
-	if isMendabotJob {
-		finding.Details = fmt.Sprintf("Mendabot agent job failed (chain depth: %d). This may indicate a bug in mendabot itself or a transient issue.", chainDepth)
 	}
 
 	return finding, nil
-}
-
-// getChainDepthFromOwner reads the chain depth from the owner RemediationJob.
-// This provides atomic chain depth tracking since RemediationJob updates are
-// controlled by the controller with Patch operations.
-func (p *jobProvider) getChainDepthFromOwner(ctx context.Context, job *batchv1.Job) (int, error) {
-	// Find RemediationJob owner
-	var ownerRef *metav1.OwnerReference
-	for _, ref := range job.OwnerReferences {
-		if ref.APIVersion == "remediation.mendabot.io/v1alpha1" && ref.Kind == "RemediationJob" {
-			ownerRef = &ref
-			break
-		}
-	}
-
-	if ownerRef == nil {
-		return 0, fmt.Errorf("no RemediationJob owner found")
-	}
-
-	// Read the RemediationJob
-	rjob := &v1alpha1.RemediationJob{}
-	key := client.ObjectKey{Name: ownerRef.Name, Namespace: job.Namespace}
-	if err := p.client.Get(ctx, key, rjob); err != nil {
-		return 0, fmt.Errorf("reading owner RemediationJob %s: %w", ownerRef.Name, err)
-	}
-
-	return rjob.Spec.ChainDepth, nil
-}
-
-// getChainDepthFromAnnotation reads chain depth from Job annotations (legacy).
-// Used for backward compatibility when owner RemediationJob cannot be read.
-func (p *jobProvider) getChainDepthFromAnnotation(job *batchv1.Job) int {
-	if job.Annotations != nil {
-		if depthStr, ok := job.Annotations["remediation.mendabot.io/chain-depth"]; ok {
-			if depth, err := strconv.Atoi(depthStr); err == nil {
-				return depth
-			}
-		}
-	}
-	return 0
 }

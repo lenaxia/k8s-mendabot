@@ -32,6 +32,7 @@ the epic and individual story files for each unit of work.
 | epic11 — Self-Remediation Cascade Prevention | [epic11-self-remediation-cascade/](epic11-self-remediation-cascade/) | Prevent infinite cascades where mendabot analyzes its own failures | epic01, epic02, epic04 | Complete |
 | epic12 — Security Review | [epic12-security-review/](epic12-security-review/) | Secret redaction, network policy, audit log, RBAC scoping, prompt injection hardening | epic01, epic02, epic04, epic05, epic09 | Not Started |
 | epic13 — Multi-Signal Correlation | [epic13-multi-signal-correlation/](epic13-multi-signal-correlation/) | Correlate related findings into a single investigation via a CorrelationWindow | epic01, epic02, epic09, epic11 | Not Started |
+| epic14 — Test Infrastructure Correctness | [epic14-test-infrastructure/](epic14-test-infrastructure/) | Fix CRD schema drift and envtest isolation defects; document rules to prevent recurrence | epic13 | Not Started |
 
 ## Implementation Order
 
@@ -52,6 +53,7 @@ epic10-helm-chart (depends on epic04, epic05)
 epic11-self-remediation-cascade (depends on epic01, epic02, epic04)
 epic12-security-review (depends on epic01, epic02, epic04, epic05, epic09)
 epic13-multi-signal-correlation (depends on epic01, epic02, epic09, epic11)
+epic14-test-infrastructure (depends on epic13)
 ```
 
 ## Feature Tracker

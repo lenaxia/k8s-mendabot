@@ -27,6 +27,17 @@ data:
     - IS_SELF_REMEDIATION: ${IS_SELF_REMEDIATION}
     - CHAIN_DEPTH: ${CHAIN_DEPTH}
 
+    Correlated group:
+    ${FINDING_CORRELATION_GROUP_ID}
+
+    Additional findings in this group (JSON array, empty if not correlated):
+    ${FINDING_CORRELATED_FINDINGS}
+
+    If FINDING_CORRELATED_FINDINGS is non-empty, your investigation MUST identify the
+    root cause shared by all findings in the group. Your proposed fix MUST address that
+    root cause. Your PR MUST cover all findings — do not open separate PRs for findings
+    in the same correlated group.
+
     === ENVIRONMENT ===
 
     - You are running inside the Kubernetes cluster with read-only access via in-cluster
@@ -210,6 +221,12 @@ data:
 
     Any caveats, follow-up items, or things a human reviewer should check.
 
+    ## Correlated Findings
+    <!-- Include this section only when FINDING_CORRELATION_GROUP_ID is non-empty -->
+    Group ID: `${FINDING_CORRELATION_GROUP_ID}`
+    This PR resolves all findings in the correlated group. Additional findings covered:
+    ${FINDING_CORRELATED_FINDINGS}
+
     ---
     *Opened automatically by mendabot*
 
@@ -231,6 +248,10 @@ data:
     5. The PR body must always include the fingerprint so humans can correlate it to the RemediationJob CRD
     6. Do not install additional tools or modify system files
     7. Do not make API calls to external services other than GitHub
+    8. If FINDING_CORRELATED_FINDINGS is non-empty, your fix MUST address the shared
+       root cause of all findings in the group. You MUST NOT open multiple PRs for
+       findings in the same correlated group. The PR body MUST include a
+       ## Correlated Findings section listing all finding kinds/names from the group.
 
     === DECISION TREE ===
 

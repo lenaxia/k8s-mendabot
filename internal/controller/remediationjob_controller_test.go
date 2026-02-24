@@ -100,11 +100,55 @@ func TestRemediationJobReconciler_NotFound_ReturnsNil(t *testing.T) {
 	}
 }
 
+// TestRemediationJobReconciler_BlankPhase_TransitionsToPending verifies that a
+// freshly-created RemediationJob with Phase=="" is immediately transitioned to
+// PhasePending and requeued, without creating any batch/v1 Job.
+func TestRemediationJobReconciler_BlankPhase_TransitionsToPending(t *testing.T) {
+	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
+	rjob := newRJob("test-blank-phase", fp) // Phase is "" (zero value)
+	c := newFakeClient(t, rjob)
+
+	jb := &fakeJobBuilder{}
+	r := newReconciler(t, c, jb, defaultCfg())
+
+	result, err := r.Reconcile(context.Background(), rjobReqFor("test-blank-phase"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.Requeue {
+		t.Error("expected Requeue=true after blank-phase transition")
+	}
+	if result.RequeueAfter != 0 {
+		t.Errorf("expected RequeueAfter=0 after blank-phase transition, got %v", result.RequeueAfter)
+	}
+	if len(jb.calls) != 0 {
+		t.Error("expected no Build() calls during blank-phase transition")
+	}
+
+	var updated v1alpha1.RemediationJob
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-blank-phase", Namespace: testNamespace}, &updated); err != nil {
+		t.Fatalf("get rjob: %v", err)
+	}
+	if updated.Status.Phase != v1alpha1.PhasePending {
+		t.Errorf("phase = %q, want %q", updated.Status.Phase, v1alpha1.PhasePending)
+	}
+
+	// No batch/v1 Job should have been created.
+	var jobList batchv1.JobList
+	if err := c.List(context.Background(), &jobList, client.InNamespace(testNamespace)); err != nil {
+		t.Fatalf("list jobs: %v", err)
+	}
+	if len(jobList.Items) != 0 {
+		t.Errorf("expected 0 jobs after blank-phase transition, got %d", len(jobList.Items))
+	}
+}
+
 // TestRemediationJobReconciler_Pending_CreatesJob verifies Pending phase → job created,
 // status patched to Dispatched.
 func TestRemediationJobReconciler_Pending_CreatesJob(t *testing.T) {
 	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
 	rjob := newRJob("test-rjob", fp)
+	rjob.Status.Phase = v1alpha1.PhasePending
 	c := newFakeClient(t, rjob)
 
 	job := defaultFakeJob(rjob)
@@ -148,6 +192,7 @@ func TestRemediationJobReconciler_Pending_CreatesJob(t *testing.T) {
 func TestRemediationJobReconciler_MaxConcurrent_Requeues(t *testing.T) {
 	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
 	rjob := newRJob("test-rjob", fp)
+	rjob.Status.Phase = v1alpha1.PhasePending // already transitioned from "" on prior reconcile
 
 	// Create 2 active jobs (MaxConcurrentJobs=2)
 	activeJob1 := &batchv1.Job{
@@ -189,7 +234,7 @@ func TestRemediationJobReconciler_MaxConcurrent_Requeues(t *testing.T) {
 		t.Errorf("expected 0 new jobs, got %d", len(jobList.Items))
 	}
 
-	// Phase must be set to Pending so the status is not blank in kubectl.
+	// Phase remains Pending — the reconciler returns early without changing it.
 	var updated v1alpha1.RemediationJob
 	if err := c.Get(context.Background(), client.ObjectKey{Name: "test-rjob", Namespace: testNamespace}, &updated); err != nil {
 		t.Fatalf("get rjob: %v", err)
@@ -203,6 +248,7 @@ func TestRemediationJobReconciler_MaxConcurrent_Requeues(t *testing.T) {
 func TestRemediationJobReconciler_JobExists_SyncsStatus(t *testing.T) {
 	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
 	rjob := newRJob("test-rjob", fp)
+	rjob.Status.Phase = v1alpha1.PhasePending
 
 	existingJob := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -240,6 +286,7 @@ func TestRemediationJobReconciler_BuildError_ReturnsError(t *testing.T) {
 	buildErr := fmt.Errorf("build failed: missing required field")
 	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
 	rjob := newRJob("test-rjob", fp)
+	rjob.Status.Phase = v1alpha1.PhasePending
 	c := newFakeClient(t, rjob)
 
 	jb := &fakeJobBuilder{returnErr: buildErr}
@@ -326,6 +373,7 @@ func TestRemediationJobReconciler_Cancelled_ReturnsNil(t *testing.T) {
 func TestRemediationJobReconciler_OwnerRef(t *testing.T) {
 	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
 	rjob := newRJob("test-rjob", fp)
+	rjob.Status.Phase = v1alpha1.PhasePending
 	c := newFakeClient(t, rjob)
 
 	job := defaultFakeJob(rjob)

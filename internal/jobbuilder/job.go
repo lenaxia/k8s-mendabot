@@ -1,8 +1,8 @@
 package jobbuilder
 
 import (
+	"encoding/json"
 	"fmt"
-	"strconv"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -44,7 +44,7 @@ if ! git clone "https://x-access-token:${TOKEN}@github.com/${GITOPS_REPO}.git" /
   exit 1
 fi`
 
-func (b *Builder) Build(rjob *v1alpha1.RemediationJob) (*batchv1.Job, error) {
+func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1alpha1.FindingSpec) (*batchv1.Job, error) {
 	if rjob == nil {
 		return nil, fmt.Errorf("jobbuilder: RemediationJob must not be nil")
 	}
@@ -161,8 +161,7 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob) (*batchv1.Job, error) {
 					},
 				},
 			},
-			{Name: "IS_SELF_REMEDIATION", Value: strconv.FormatBool(rjob.Spec.IsSelfRemediation)},
-			{Name: "CHAIN_DEPTH", Value: strconv.Itoa(rjob.Spec.ChainDepth)},
+			{Name: "IS_SELF_REMEDIATION", Value: "false"},
 		},
 		VolumeMounts: []corev1.VolumeMount{
 			{
@@ -186,6 +185,14 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob) (*batchv1.Job, error) {
 				Drop: []corev1.Capability{"ALL"},
 			},
 		},
+	}
+
+	if len(correlatedFindings) > 0 {
+		raw, err := json.Marshal(correlatedFindings)
+		if err != nil {
+			return nil, fmt.Errorf("jobbuilder: marshal correlated findings: %w", err)
+		}
+		mainContainer.Env = append(mainContainer.Env, corev1.EnvVar{Name: "FINDING_CORRELATED_FINDINGS", Value: string(raw)})
 	}
 
 	volumes := []corev1.Volume{
@@ -234,7 +241,6 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob) (*batchv1.Job, error) {
 			Annotations: map[string]string{
 				"remediation.mendabot.io/fingerprint-full": rjob.Spec.Fingerprint,
 				"remediation.mendabot.io/finding-parent":   rjob.Spec.Finding.ParentObject,
-				"remediation.mendabot.io/chain-depth":      strconv.Itoa(rjob.Spec.ChainDepth),
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				{

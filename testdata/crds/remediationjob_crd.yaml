@@ -82,7 +82,9 @@ spec:
           status:
             type: object
             properties:
-              phase: {type: string}
+              phase:
+                type: string
+                enum: [Pending, Dispatched, Running, Succeeded, Failed, Cancelled]
               jobRef: {type: string}
               prRef: {type: string}
               message: {type: string}
@@ -92,3 +94,4 @@ spec:
                 type: array
                 items:
                   type: object
+                  x-kubernetes-preserve-unknown-fields: true

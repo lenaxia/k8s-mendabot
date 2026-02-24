@@ -1,6 +1,7 @@
 package jobbuilder
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -41,7 +42,7 @@ func buildJob(t *testing.T) *batchv1.Job {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	job, err := b.Build(testRJob)
+	job, err := b.Build(testRJob, nil)
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -104,7 +105,7 @@ func TestNew_ValidConfig_Succeeds(t *testing.T) {
 	}
 }
 
-var _ func(*v1alpha1.RemediationJob) (*batchv1.Job, error) = (*Builder)(nil).Build
+var _ func(*v1alpha1.RemediationJob, []v1alpha1.FindingSpec) (*batchv1.Job, error) = (*Builder)(nil).Build
 
 func TestBuild_JobName(t *testing.T) {
 	job := buildJob(t)
@@ -119,11 +120,11 @@ func TestBuild_JobNameDeterministic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	job1, err := b.Build(testRJob)
+	job1, err := b.Build(testRJob, nil)
 	if err != nil {
 		t.Fatalf("Build first: %v", err)
 	}
-	job2, err := b.Build(testRJob)
+	job2, err := b.Build(testRJob, nil)
 	if err != nil {
 		t.Fatalf("Build second: %v", err)
 	}
@@ -496,7 +497,7 @@ func TestBuild_EmptyErrors(t *testing.T) {
 	}
 	rjob := *testRJob
 	rjob.Spec.Finding.Errors = ""
-	job, err := b.Build(&rjob)
+	job, err := b.Build(&rjob, nil)
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -518,7 +519,7 @@ func TestBuild_LongDetails(t *testing.T) {
 	longDetails := strings.Repeat("x", 100_000)
 	rjob := *testRJob
 	rjob.Spec.Finding.Details = longDetails
-	job, err := b.Build(&rjob)
+	job, err := b.Build(&rjob, nil)
 	if err != nil {
 		t.Fatalf("Build with long details: %v", err)
 	}
@@ -534,7 +535,7 @@ func TestBuild_LongDetails(t *testing.T) {
 
 func TestBuild_NilRJob(t *testing.T) {
 	b, _ := New(Config{AgentNamespace: "mendabot"})
-	_, err := b.Build(nil)
+	_, err := b.Build(nil, nil)
 	if err == nil {
 		t.Fatal("expected error for nil rjob, got nil")
 	}
@@ -542,7 +543,7 @@ func TestBuild_NilRJob(t *testing.T) {
 
 func TestBuild_EmptyFingerprint(t *testing.T) {
 	b, _ := New(Config{AgentNamespace: "mendabot"})
-	_, err := b.Build(&v1alpha1.RemediationJob{})
+	_, err := b.Build(&v1alpha1.RemediationJob{}, nil)
 	if err == nil {
 		t.Fatal("expected error for empty fingerprint, got nil")
 	}
@@ -552,7 +553,7 @@ func TestBuild_ShortFingerprint(t *testing.T) {
 	b, _ := New(Config{AgentNamespace: "mendabot"})
 	_, err := b.Build(&v1alpha1.RemediationJob{
 		Spec: v1alpha1.RemediationJobSpec{Fingerprint: "abc"},
-	})
+	}, nil)
 	if err == nil {
 		t.Fatal("expected error for short fingerprint, got nil")
 	}
@@ -591,7 +592,7 @@ func TestBuild_InitScript_UsesGitHubAppToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	job, err := b.Build(testRJob)
+	job, err := b.Build(testRJob, nil)
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -618,7 +619,7 @@ func TestBuild_InitScript_HasErrorHandling(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	job, err := b.Build(testRJob)
+	job, err := b.Build(testRJob, nil)
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -656,5 +657,133 @@ func TestBuild_PodSecurityContext(t *testing.T) {
 	}
 	if sc.RunAsUser == nil || *sc.RunAsUser != 1000 {
 		t.Errorf("expected RunAsUser=1000, got %v", sc.RunAsUser)
+	}
+}
+
+func TestBuild_SingleFinding_NoCorrelatedEnvVar(t *testing.T) {
+	b, err := New(Config{AgentNamespace: "mendabot"})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	job, err := b.Build(testRJob, nil)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	main := job.Spec.Template.Spec.Containers[0]
+	if _, ok := getEnv(main, "FINDING_CORRELATED_FINDINGS"); ok {
+		t.Error("FINDING_CORRELATED_FINDINGS must not be set for single-finding dispatch (nil)")
+	}
+	if _, ok := getEnv(main, "FINDING_CORRELATION_GROUP_ID"); ok {
+		t.Error("FINDING_CORRELATION_GROUP_ID must not be set when rjob has no correlation label")
+	}
+}
+
+func TestBuild_SingleElementSlice_SetsCorrelatedEnvVar(t *testing.T) {
+	b, err := New(Config{AgentNamespace: "mendabot"})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	oneFindings := []v1alpha1.FindingSpec{
+		{Kind: "Deployment", Name: "app-a", Namespace: "prod"},
+	}
+	job, err := b.Build(testRJob, oneFindings)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	main := job.Spec.Template.Spec.Containers[0]
+	if _, ok := getEnv(main, "FINDING_CORRELATED_FINDINGS"); !ok {
+		t.Error("FINDING_CORRELATED_FINDINGS must be set when len(correlatedFindings) == 1")
+	}
+}
+
+func TestBuild_TwoCorrelatedFindings_EnvVarSet(t *testing.T) {
+	b, err := New(Config{AgentNamespace: "mendabot"})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	findings := []v1alpha1.FindingSpec{
+		{Kind: "Deployment", Name: "app-a", Namespace: "prod", ParentObject: "app-a", Errors: `[{"text":"OOMKilled"}]`, Details: "detail-a"},
+		{Kind: "Pod", Name: "pod-b", Namespace: "staging", ParentObject: "app-b", Errors: `[{"text":"CrashLoopBackOff"}]`, Details: "detail-b"},
+	}
+	job, err := b.Build(testRJob, findings)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	main := job.Spec.Template.Spec.Containers[0]
+	val, ok := getEnv(main, "FINDING_CORRELATED_FINDINGS")
+	if !ok {
+		t.Fatal("FINDING_CORRELATED_FINDINGS must be set for multi-finding dispatch")
+	}
+	if val == "" {
+		t.Fatal("FINDING_CORRELATED_FINDINGS must not be empty")
+	}
+
+	var decoded []v1alpha1.FindingSpec
+	if err := json.Unmarshal([]byte(val), &decoded); err != nil {
+		t.Fatalf("FINDING_CORRELATED_FINDINGS is not valid JSON: %v", err)
+	}
+	if len(decoded) != 2 {
+		t.Fatalf("decoded %d findings, want 2", len(decoded))
+	}
+	if decoded[0].Kind != "Deployment" || decoded[0].Name != "app-a" {
+		t.Errorf("decoded[0] = %+v, want Kind=Deployment Name=app-a", decoded[0])
+	}
+	if decoded[1].Kind != "Pod" || decoded[1].Name != "pod-b" {
+		t.Errorf("decoded[1] = %+v, want Kind=Pod Name=pod-b", decoded[1])
+	}
+}
+
+func TestBuild_CorrelatedFindings_AllFieldsEncoded(t *testing.T) {
+	b, err := New(Config{AgentNamespace: "mendabot"})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	findings := []v1alpha1.FindingSpec{
+		{Kind: "StatefulSet", Name: "db", Namespace: "database", ParentObject: "db-cluster", Errors: `[{"text":"PVCBound"}]`, Details: "storage issue"},
+		{Kind: "Deployment", Name: "api", Namespace: "backend", ParentObject: "api-deploy", Errors: `[{"text":"ImageError"}]`, Details: "image pull"},
+	}
+	job, err := b.Build(testRJob, findings)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	main := job.Spec.Template.Spec.Containers[0]
+	val, _ := getEnv(main, "FINDING_CORRELATED_FINDINGS")
+
+	var decoded []v1alpha1.FindingSpec
+	if err := json.Unmarshal([]byte(val), &decoded); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	tests := []struct {
+		idx         int
+		wantKind    string
+		wantName    string
+		wantNS      string
+		wantParent  string
+		wantErrors  string
+		wantDetails string
+	}{
+		{0, "StatefulSet", "db", "database", "db-cluster", `[{"text":"PVCBound"}]`, "storage issue"},
+		{1, "Deployment", "api", "backend", "api-deploy", `[{"text":"ImageError"}]`, "image pull"},
+	}
+	for _, tt := range tests {
+		f := decoded[tt.idx]
+		if f.Kind != tt.wantKind {
+			t.Errorf("[%d] Kind = %q, want %q", tt.idx, f.Kind, tt.wantKind)
+		}
+		if f.Name != tt.wantName {
+			t.Errorf("[%d] Name = %q, want %q", tt.idx, f.Name, tt.wantName)
+		}
+		if f.Namespace != tt.wantNS {
+			t.Errorf("[%d] Namespace = %q, want %q", tt.idx, f.Namespace, tt.wantNS)
+		}
+		if f.ParentObject != tt.wantParent {
+			t.Errorf("[%d] ParentObject = %q, want %q", tt.idx, f.ParentObject, tt.wantParent)
+		}
+		if f.Errors != tt.wantErrors {
+			t.Errorf("[%d] Errors = %q, want %q", tt.idx, f.Errors, tt.wantErrors)
+		}
+		if f.Details != tt.wantDetails {
+			t.Errorf("[%d] Details = %q, want %q", tt.idx, f.Details, tt.wantDetails)
+		}
 	}
 }

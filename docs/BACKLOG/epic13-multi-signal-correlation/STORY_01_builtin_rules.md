@@ -2,7 +2,7 @@
 
 **Epic:** [epic13-multi-signal-correlation](README.md)
 **Priority:** High
-**Status:** Not Started
+**Status:** Complete
 **Estimated Effort:** 3 hours
 
 ---
@@ -115,7 +115,9 @@ created — meaning the correlator never sees them together.
 The `SameNamespaceParentRule` is therefore most useful for cross-provider scenarios where
 the same application surfaces findings from two different providers (e.g. a `StatefulSet`
 finding from one provider and a `PVC` finding from another, both with the same
-`ParentObject`). Write tests that reflect this — do not write tests using Pod + Deployment
+`ParentObject`). Note: in single-provider deployments, same-provider findings for the same
+parent are fingerprint-deduplicated before correlation runs — this rule fires primarily in
+multi-provider deployments. Write tests that reflect this — do not write tests using Pod + Deployment
 from the same native provider, as those will be deduplicated before reaching the correlator.
 
 ### `PVCPodRule`
