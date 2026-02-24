@@ -7,6 +7,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	"github.com/lenaxia/k8s-mendabot/internal/domain"
 )
 
 // makePVC builds a PVC with the given name, namespace and phase.
@@ -253,6 +255,50 @@ func TestPVCEventMessageRedacted(t *testing.T) {
 		t.Errorf("error text should not contain raw secret value 'secret123': %s", finding.Errors)
 	}
 	assertErrorTextContains(t, finding.Errors, "[REDACTED]")
+}
+
+// TestPVCAnnotationEnabled_False: Pending PVC with ProvisioningFailed event and mendabot.io/enabled=false → (nil, nil).
+// Uses an unhealthy object to prove the gate fires on an object that would otherwise produce
+// a non-nil finding.
+func TestPVCAnnotationEnabled_False(t *testing.T) {
+	s := newTestScheme()
+	pvc := makePVC("ann-pvc", "default", corev1.ClaimPending)
+	pvc.Annotations = map[string]string{
+		domain.AnnotationEnabled: "false",
+	}
+	event := makeEvent("ann-pvc", "default", "ProvisioningFailed", "no storage class found")
+
+	c := fake.NewClientBuilder().WithScheme(s).WithObjects(pvc, event).Build()
+	p := NewPVCProvider(c)
+
+	finding, err := p.ExtractFinding(pvc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding != nil {
+		t.Errorf("expected nil finding when annotation enabled=false, got %+v", finding)
+	}
+}
+
+// TestPVCAnnotationSkipUntilFuture: Pending PVC with ProvisioningFailed event and mendabot.io/skip-until=2099-12-31 → (nil, nil).
+func TestPVCAnnotationSkipUntilFuture(t *testing.T) {
+	s := newTestScheme()
+	pvc := makePVC("skip-pvc", "default", corev1.ClaimPending)
+	pvc.Annotations = map[string]string{
+		domain.AnnotationSkipUntil: "2099-12-31",
+	}
+	event := makeEvent("skip-pvc", "default", "ProvisioningFailed", "no storage class found")
+
+	c := fake.NewClientBuilder().WithScheme(s).WithObjects(pvc, event).Build()
+	p := NewPVCProvider(c)
+
+	finding, err := p.ExtractFinding(pvc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding != nil {
+		t.Errorf("expected nil finding when skip-until is in the future, got %+v", finding)
+	}
 }
 
 // TestPVCEventForDifferentKind_ReturnsNil: Pending PVC, but event's involvedObject.kind

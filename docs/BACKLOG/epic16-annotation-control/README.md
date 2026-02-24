@@ -14,7 +14,7 @@ Without this, operators have no per-resource escape hatch. A canary pod that cra
 by design, a load-test Job, or a resource under active manual investigation will
 continuously trigger new `RemediationJob` objects that have to be manually deleted.
 
-## Status: Not Started
+## Status: Complete
 
 ## Deep-Dive Findings (2026-02-23)
 
@@ -65,9 +65,9 @@ continuously trigger new `RemediationJob` objects that have to be manually delet
 
 | Story | File | Status |
 |-------|------|--------|
-| Domain — annotation constants and skip logic | [STORY_01_annotation_constants.md](STORY_01_annotation_constants.md) | Not Started |
-| Providers — ExtractFinding annotation gate | [STORY_02_provider_gate.md](STORY_02_provider_gate.md) | Not Started |
-| Reconciler — priority annotation bypasses stabilisation window | [STORY_03_priority_bypass.md](STORY_03_priority_bypass.md) | Not Started |
+| Domain — annotation constants and skip logic | [STORY_01_annotation_constants.md](STORY_01_annotation_constants.md) | Complete |
+| Providers — ExtractFinding annotation gate | [STORY_02_provider_gate.md](STORY_02_provider_gate.md) | Complete |
+| Reconciler — priority annotation bypasses stabilisation window | [STORY_03_priority_bypass.md](STORY_03_priority_bypass.md) | Complete |
 
 ## Implementation Order
 

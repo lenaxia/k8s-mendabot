@@ -10,6 +10,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	"github.com/lenaxia/k8s-mendabot/internal/domain"
 )
 
 // newExhaustedJob returns a Job in the backoff-exhausted state:
@@ -425,6 +427,46 @@ func TestJobProvider_ExtractFinding_ExcludesMendabotManagedJobs(t *testing.T) {
 	}
 	if finding == nil {
 		t.Fatal("unmanaged job: expected non-nil finding, got nil")
+	}
+}
+
+// TestJobAnnotationEnabled_False: exhausted job (BackoffLimitExceeded) with mendabot.io/enabled=false → (nil, nil).
+// Uses an unhealthy object to prove the gate fires on an object that would otherwise produce
+// a non-nil finding.
+func TestJobAnnotationEnabled_False(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewJobProvider(c)
+
+	job := newExhaustedJob("ann-job", "default", 3)
+	job.Annotations = map[string]string{
+		domain.AnnotationEnabled: "false",
+	}
+	finding, err := p.ExtractFinding(job)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding != nil {
+		t.Errorf("expected nil finding when annotation enabled=false, got %+v", finding)
+	}
+}
+
+// TestJobAnnotationSkipUntilFuture: exhausted job with mendabot.io/skip-until=2099-12-31 → (nil, nil).
+func TestJobAnnotationSkipUntilFuture(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewJobProvider(c)
+
+	job := newExhaustedJob("skip-job", "default", 3)
+	job.Annotations = map[string]string{
+		domain.AnnotationSkipUntil: "2099-12-31",
+	}
+	finding, err := p.ExtractFinding(job)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding != nil {
+		t.Errorf("expected nil finding when skip-until is in the future, got %+v", finding)
 	}
 }
 

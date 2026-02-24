@@ -2,7 +2,7 @@
 
 **Epic:** [epic16-annotation-control](README.md)
 **Priority:** High
-**Status:** Not Started
+**Status:** Complete
 **Estimated Effort:** 1 hour
 
 ---
@@ -105,17 +105,17 @@ inclusive end date.
 
 ## Acceptance Criteria
 
-- [ ] `internal/domain/annotations.go` is a new file in the `domain` package
-- [ ] It exports exactly three constants: `AnnotationEnabled`, `AnnotationSkipUntil`,
+- [x] `internal/domain/annotations.go` is a new file in the `domain` package
+- [x] It exports exactly three constants: `AnnotationEnabled`, `AnnotationSkipUntil`,
   `AnnotationPriority`
-- [ ] It exports `ShouldSkip(annotations map[string]string, now time.Time) bool`
-- [ ] `ShouldSkip` returns `true` when `mendabot.io/enabled` is `"false"`
-- [ ] `ShouldSkip` returns `true` when `mendabot.io/skip-until` is a future date
-- [ ] `ShouldSkip` returns `false` when `mendabot.io/skip-until` is today-or-past
+- [x] It exports `ShouldSkip(annotations map[string]string, now time.Time) bool`
+- [x] `ShouldSkip` returns `true` when `mendabot.io/enabled` is `"false"`
+- [x] `ShouldSkip` returns `true` when `mendabot.io/skip-until` is a future date
+- [x] `ShouldSkip` returns `false` when `mendabot.io/skip-until` is today-or-past
   (window expired at midnight UTC)
-- [ ] `ShouldSkip` returns `false` when `mendabot.io/skip-until` is malformed
-- [ ] `ShouldSkip` returns `false` when no relevant annotations are present
-- [ ] `internal/domain/annotations_test.go` covers all five cases above
+- [x] `ShouldSkip` returns `false` when `mendabot.io/skip-until` is malformed
+- [x] `ShouldSkip` returns `false` when no relevant annotations are present
+- [x] `internal/domain/annotations_test.go` covers all five cases above
 
 ---
 
@@ -142,11 +142,11 @@ All tests live in `internal/domain/annotations_test.go`.
 
 ## Tasks
 
-- [ ] Write `internal/domain/annotations_test.go` covering all cases above (TDD — verify
+- [x] Write `internal/domain/annotations_test.go` covering all cases above (TDD — verify
   they fail before creating the implementation)
-- [ ] Create `internal/domain/annotations.go` with the three constants and `ShouldSkip`
-- [ ] Run `go test -race ./internal/domain/...` — all tests must pass
-- [ ] Run `go vet ./internal/domain/...` — must be clean
+- [x] Create `internal/domain/annotations.go` with the three constants and `ShouldSkip`
+- [x] Run `go test -race ./internal/domain/...` — all tests must pass
+- [x] Run `go vet ./internal/domain/...` — must be clean
 
 ---
 
@@ -159,7 +159,7 @@ All tests live in `internal/domain/annotations_test.go`.
 
 ## Definition of Done
 
-- [ ] `internal/domain/annotations.go` compiles cleanly
-- [ ] All annotation tests pass with `-race`
-- [ ] Full test suite `go test -race ./...` passes
-- [ ] `go vet ./...` clean
+- [x] `internal/domain/annotations.go` compiles cleanly
+- [x] All annotation tests pass with `-race`
+- [x] Full test suite `go test -race ./...` passes
+- [x] `go vet ./...` clean

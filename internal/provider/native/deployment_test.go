@@ -8,6 +8,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	"github.com/lenaxia/k8s-mendabot/internal/domain"
 )
 
 // int32Ptr is a test helper that returns a pointer to an int32.
@@ -507,5 +509,70 @@ func TestBothConditions_TwoEntries(t *testing.T) {
 	}
 	if len(entries) != 2 {
 		t.Errorf("expected 2 error entries (replica mismatch + Available=False), got %d: %s", len(entries), finding.Errors)
+	}
+}
+
+// TestDeploymentAnnotationEnabled_False: degraded deployment (ReadyReplicas=0, Replicas=3)
+// with mendabot.io/enabled=false → (nil, nil).
+// Uses an unhealthy object to prove the gate fires on an object that would otherwise produce
+// a non-nil finding.
+func TestDeploymentAnnotationEnabled_False(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewDeploymentProvider(c)
+
+	deploy := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ann-deploy",
+			Namespace: "default",
+			Annotations: map[string]string{
+				domain.AnnotationEnabled: "false",
+			},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: int32Ptr(3),
+		},
+		Status: appsv1.DeploymentStatus{
+			Replicas:      3,
+			ReadyReplicas: 0,
+		},
+	}
+	finding, err := p.ExtractFinding(deploy)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding != nil {
+		t.Errorf("expected nil finding when annotation enabled=false, got %+v", finding)
+	}
+}
+
+// TestDeploymentAnnotationSkipUntilFuture: degraded deployment with mendabot.io/skip-until=2099-12-31 → (nil, nil).
+func TestDeploymentAnnotationSkipUntilFuture(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewDeploymentProvider(c)
+
+	deploy := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "skip-deploy",
+			Namespace: "default",
+			Annotations: map[string]string{
+				domain.AnnotationSkipUntil: "2099-12-31",
+			},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: int32Ptr(3),
+		},
+		Status: appsv1.DeploymentStatus{
+			Replicas:      3,
+			ReadyReplicas: 0,
+		},
+	}
+	finding, err := p.ExtractFinding(deploy)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding != nil {
+		t.Errorf("expected nil finding when skip-until is in the future, got %+v", finding)
 	}
 }

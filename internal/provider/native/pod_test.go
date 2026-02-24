@@ -10,6 +10,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	"github.com/lenaxia/k8s-mendabot/internal/domain"
 )
 
 // runningPod returns a healthy running pod with all containers ready.
@@ -823,6 +825,84 @@ func TestUnschedulableMessageRedacted(t *testing.T) {
 		t.Errorf("error text should not contain raw secret value 'supersecrettoken123': %s", finding.Errors)
 	}
 	assertErrorTextContains(t, finding.Errors, "[REDACTED]")
+}
+
+// TestPodAnnotationEnabled_False: crashing pod with mendabot.io/enabled=false → (nil, nil).
+// Uses an unhealthy CrashLoopBackOff pod to prove the gate fires on an object that would
+// otherwise produce a non-nil finding.
+func TestPodAnnotationEnabled_False(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewPodProvider(c)
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ann-pod",
+			Namespace: "default",
+			UID:       "ann-pod-uid",
+			Annotations: map[string]string{
+				domain.AnnotationEnabled: "false",
+			},
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name: "my-app",
+					State: corev1.ContainerState{
+						Waiting: &corev1.ContainerStateWaiting{
+							Reason: "CrashLoopBackOff",
+						},
+					},
+				},
+			},
+		},
+	}
+	finding, err := p.ExtractFinding(pod)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding != nil {
+		t.Errorf("expected nil finding when annotation enabled=false, got %+v", finding)
+	}
+}
+
+// TestPodAnnotationSkipUntilFuture: crashing pod with mendabot.io/skip-until=2099-12-31 → (nil, nil).
+func TestPodAnnotationSkipUntilFuture(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewPodProvider(c)
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "skip-pod",
+			Namespace: "default",
+			UID:       "skip-pod-uid",
+			Annotations: map[string]string{
+				domain.AnnotationSkipUntil: "2099-12-31",
+			},
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name: "my-app",
+					State: corev1.ContainerState{
+						Waiting: &corev1.ContainerStateWaiting{
+							Reason: "CrashLoopBackOff",
+						},
+					},
+				},
+			},
+		},
+	}
+	finding, err := p.ExtractFinding(pod)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding != nil {
+		t.Errorf("expected nil finding when skip-until is in the future, got %+v", finding)
+	}
 }
 
 // assertErrorsJSON verifies that the errors string is valid JSON with at least one entry.

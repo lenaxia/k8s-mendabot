@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -37,6 +38,9 @@ func (p *deploymentProvider) ObjectType() client.Object { return &appsv1.Deploym
 // Returns (nil, nil) if the deployment is healthy.
 // Returns (nil, err) if obj is not a *appsv1.Deployment.
 func (p *deploymentProvider) ExtractFinding(obj client.Object) (*domain.Finding, error) {
+	if domain.ShouldSkip(obj.GetAnnotations(), time.Now()) {
+		return nil, nil
+	}
 	deploy, ok := obj.(*appsv1.Deployment)
 	if !ok {
 		return nil, fmt.Errorf("deploymentProvider: expected *appsv1.Deployment, got %T", obj)

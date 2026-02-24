@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -38,6 +39,9 @@ func (p *jobProvider) ObjectType() client.Object { return &batchv1.Job{} }
 // or owned by a CronJob.
 // Returns (nil, err) if obj is not a *batchv1.Job.
 func (p *jobProvider) ExtractFinding(obj client.Object) (*domain.Finding, error) {
+	if domain.ShouldSkip(obj.GetAnnotations(), time.Now()) {
+		return nil, nil
+	}
 	job, ok := obj.(*batchv1.Job)
 	if !ok {
 		return nil, fmt.Errorf("jobProvider: expected *batchv1.Job, got %T", obj)

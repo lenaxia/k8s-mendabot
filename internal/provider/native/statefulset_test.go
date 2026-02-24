@@ -8,6 +8,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	"github.com/lenaxia/k8s-mendabot/internal/domain"
 )
 
 // TestStatefulSetProviderName_IsNative verifies ProviderName() returns "native".
@@ -430,6 +432,74 @@ func TestStatefulSetBothConditions_TwoEntries(t *testing.T) {
 	}
 	if len(entries) != 2 {
 		t.Errorf("expected 2 error entries (replica mismatch + Available=False), got %d: %s", len(entries), finding.Errors)
+	}
+}
+
+// TestStatefulSetAnnotationEnabled_False: degraded statefulset (ReadyReplicas=0, Replicas=3)
+// with mendabot.io/enabled=false → (nil, nil).
+// Uses an unhealthy object to prove the gate fires on an object that would otherwise produce
+// a non-nil finding.
+func TestStatefulSetAnnotationEnabled_False(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewStatefulSetProvider(c)
+
+	sts := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "ann-sts",
+			Namespace:  "default",
+			Generation: 1,
+			Annotations: map[string]string{
+				domain.AnnotationEnabled: "false",
+			},
+		},
+		Spec: appsv1.StatefulSetSpec{
+			Replicas: int32Ptr(3),
+		},
+		Status: appsv1.StatefulSetStatus{
+			ObservedGeneration: 1,
+			Replicas:           3,
+			ReadyReplicas:      0,
+		},
+	}
+	finding, err := p.ExtractFinding(sts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding != nil {
+		t.Errorf("expected nil finding when annotation enabled=false, got %+v", finding)
+	}
+}
+
+// TestStatefulSetAnnotationSkipUntilFuture: degraded statefulset with mendabot.io/skip-until=2099-12-31 → (nil, nil).
+func TestStatefulSetAnnotationSkipUntilFuture(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewStatefulSetProvider(c)
+
+	sts := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "skip-sts",
+			Namespace:  "default",
+			Generation: 1,
+			Annotations: map[string]string{
+				domain.AnnotationSkipUntil: "2099-12-31",
+			},
+		},
+		Spec: appsv1.StatefulSetSpec{
+			Replicas: int32Ptr(3),
+		},
+		Status: appsv1.StatefulSetStatus{
+			ObservedGeneration: 1,
+			ReadyReplicas:      0,
+		},
+	}
+	finding, err := p.ExtractFinding(sts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding != nil {
+		t.Errorf("expected nil finding when skip-until is in the future, got %+v", finding)
 	}
 }
 

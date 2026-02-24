@@ -170,7 +170,8 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, fmt.Errorf("fingerprint too short: got %d chars, need at least 12", len(fp))
 	}
 
-	if r.Cfg.StabilisationWindow != 0 {
+	priorityCritical := obj.GetAnnotations()[domain.AnnotationPriority] == "critical"
+	if !priorityCritical && r.Cfg.StabilisationWindow != 0 {
 		if first, seen := r.firstSeen.Get(fp); !seen {
 			r.firstSeen.Set(fp)
 			if r.Log != nil {
@@ -192,9 +193,6 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 				}
 				return ctrl.Result{RequeueAfter: remaining}, nil
 			}
-			// Window has elapsed — fall through to dedup + Job creation.
-			// Leave the firstSeen entry so repeated reconciles after Job creation
-			// do not restart the window.
 		}
 	}
 

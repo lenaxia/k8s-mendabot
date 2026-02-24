@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -47,6 +48,9 @@ func (p *podProvider) ObjectType() client.Object { return &corev1.Pod{} }
 // Returns (nil, nil) if the pod is healthy (no failure conditions detected).
 // Returns (nil, err) if obj is not a *corev1.Pod.
 func (p *podProvider) ExtractFinding(obj client.Object) (*domain.Finding, error) {
+	if domain.ShouldSkip(obj.GetAnnotations(), time.Now()) {
+		return nil, nil
+	}
 	pod, ok := obj.(*corev1.Pod)
 	if !ok {
 		return nil, fmt.Errorf("podProvider: expected *corev1.Pod, got %T", obj)

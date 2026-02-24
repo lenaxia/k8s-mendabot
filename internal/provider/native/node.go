@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -51,6 +52,9 @@ func (n *nodeProvider) ObjectType() client.Object { return &corev1.Node{} }
 //
 // EtcdIsVoter (k3s) is explicitly ignored even when True.
 func (n *nodeProvider) ExtractFinding(obj client.Object) (*domain.Finding, error) {
+	if domain.ShouldSkip(obj.GetAnnotations(), time.Now()) {
+		return nil, nil
+	}
 	node, ok := obj.(*corev1.Node)
 	if !ok {
 		return nil, fmt.Errorf("nodeProvider: expected *corev1.Node, got %T", obj)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -37,6 +38,9 @@ func (p *statefulSetProvider) ObjectType() client.Object { return &appsv1.Statef
 // Returns (nil, nil) if the statefulset is healthy.
 // Returns (nil, err) if obj is not a *appsv1.StatefulSet.
 func (p *statefulSetProvider) ExtractFinding(obj client.Object) (*domain.Finding, error) {
+	if domain.ShouldSkip(obj.GetAnnotations(), time.Now()) {
+		return nil, nil
+	}
 	sts, ok := obj.(*appsv1.StatefulSet)
 	if !ok {
 		return nil, fmt.Errorf("statefulSetProvider: expected *appsv1.StatefulSet, got %T", obj)

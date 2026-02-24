@@ -25,6 +25,7 @@ import (
 	"github.com/lenaxia/k8s-mendabot/internal/config"
 	"github.com/lenaxia/k8s-mendabot/internal/domain"
 	"github.com/lenaxia/k8s-mendabot/internal/provider"
+	"github.com/lenaxia/k8s-mendabot/internal/provider/native"
 )
 
 // fakeSourceProvider is a controllable domain.SourceProvider for unit tests.
@@ -1226,6 +1227,90 @@ func TestReconcile_ReadinessGate_NilChecker_AllowsJobCreation(t *testing.T) {
 	}
 }
 
+// makeWatchedObjectWithAnnotations creates a ConfigMap with the given annotations as the
+// watched object. Used by priority bypass tests.
+func makeWatchedObjectWithAnnotations(name, namespace string, annotations map[string]string) *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        name,
+			Namespace:   namespace,
+			Annotations: annotations,
+		},
+	}
+}
+
+// TestStabilisationWindow_PriorityCriticalBypassesWindow verifies that when the reconciled
+// resource carries annotation mendabot.io/priority=critical and StabilisationWindow > 0,
+// the stabilisation window is bypassed: a RemediationJob is created immediately, no
+// RequeueAfter is returned, and firstSeen is never touched.
+func TestStabilisationWindow_PriorityCriticalBypassesWindow(t *testing.T) {
+	finding := makeFinding()
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
+	}
+	obj := makeWatchedObjectWithAnnotations("r1", "default", map[string]string{
+		domain.AnnotationPriority: "critical",
+	})
+	c := newTestClient(obj)
+	window := 2 * time.Minute
+	r := newTestReconcilerWithWindow(p, c, window)
+
+	result, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.RequeueAfter != 0 {
+		t.Errorf("expected no RequeueAfter for critical priority, got %v", result.RequeueAfter)
+	}
+
+	var list v1alpha1.RemediationJobList
+	if err := c.List(context.Background(), &list, client.InNamespace(agentNamespace)); err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+	if len(list.Items) != 1 {
+		t.Errorf("expected 1 RemediationJob created immediately for critical priority, got %d", len(list.Items))
+	}
+
+	if len(r.FirstSeen()) != 0 {
+		t.Errorf("expected firstSeen to remain empty for critical priority, got %d entries", len(r.FirstSeen()))
+	}
+}
+
+// TestStabilisationWindow_PriorityCriticalWindowAlreadyZero verifies that when
+// StabilisationWindow==0 and the resource has annotation mendabot.io/priority=critical,
+// a RemediationJob is still created immediately (same as the fast path without annotation).
+func TestStabilisationWindow_PriorityCriticalWindowAlreadyZero(t *testing.T) {
+	finding := makeFinding()
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
+	}
+	obj := makeWatchedObjectWithAnnotations("r1", "default", map[string]string{
+		domain.AnnotationPriority: "critical",
+	})
+	c := newTestClient(obj)
+	r := newTestReconcilerWithWindow(p, c, 0)
+
+	result, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.RequeueAfter != 0 {
+		t.Errorf("expected no RequeueAfter for window=0 with critical priority, got %v", result.RequeueAfter)
+	}
+
+	var list v1alpha1.RemediationJobList
+	if err := c.List(context.Background(), &list, client.InNamespace(agentNamespace)); err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+	if len(list.Items) != 1 {
+		t.Errorf("expected 1 RemediationJob created immediately for window=0 with critical priority, got %d", len(list.Items))
+	}
+}
+
 // TestReconcile_EventRecorder_EmitsRemediationJobCreated verifies that when an
 // EventRecorder is wired and a RemediationJob is successfully created, a Normal
 // "RemediationJobCreated" Kubernetes Event is emitted on the source object.
@@ -1271,5 +1356,65 @@ func TestReconcile_EventRecorder_EmitsRemediationJobCreated(t *testing.T) {
 	}
 	if !strings.Contains(event, string(corev1.EventTypeNormal)) {
 		t.Errorf("expected Normal event type, got: %q", event)
+	}
+}
+
+// TestAnnotationGate_EnabledFalse_NoRemediationJob is an integration test that uses a real
+// podProvider (from internal/provider/native) as the SourceProvider. It creates a failing Pod
+// (CrashLoopBackOff) with mendabot.io/enabled="false" in the fake client, runs
+// SourceProviderReconciler.Reconcile, and asserts that zero RemediationJob objects are created.
+func TestAnnotationGate_EnabledFalse_NoRemediationJob(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().
+		WithScheme(s).
+		WithStatusSubresource(&v1alpha1.RemediationJob{}).
+		Build()
+
+	podProvider := native.NewPodProvider(c)
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "crash-pod",
+			Namespace: "default",
+			Annotations: map[string]string{
+				domain.AnnotationEnabled: "false",
+			},
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name: "my-app",
+					State: corev1.ContainerState{
+						Waiting: &corev1.ContainerStateWaiting{
+							Reason: "CrashLoopBackOff",
+						},
+					},
+				},
+			},
+		},
+	}
+	if err := c.Create(context.Background(), pod); err != nil {
+		t.Fatalf("creating pod: %v", err)
+	}
+
+	r := &provider.SourceProviderReconciler{
+		Client:   c,
+		Scheme:   s,
+		Cfg:      config.Config{AgentNamespace: agentNamespace},
+		Provider: podProvider,
+	}
+
+	_, err := r.Reconcile(context.Background(), reqFor("crash-pod", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var list v1alpha1.RemediationJobList
+	if err := c.List(context.Background(), &list, client.InNamespace(agentNamespace)); err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+	if len(list.Items) != 0 {
+		t.Errorf("expected 0 RemediationJobs when annotation enabled=false on a failing pod, got %d", len(list.Items))
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -37,6 +38,9 @@ func (p *pvcProvider) ObjectType() client.Object { return &corev1.PersistentVolu
 // Returns (nil, nil) if the PVC is not Pending, or if Pending but has no ProvisioningFailed event.
 // Returns (nil, err) if obj is not a *corev1.PersistentVolumeClaim.
 func (p *pvcProvider) ExtractFinding(obj client.Object) (*domain.Finding, error) {
+	if domain.ShouldSkip(obj.GetAnnotations(), time.Now()) {
+		return nil, nil
+	}
 	pvc, ok := obj.(*corev1.PersistentVolumeClaim)
 	if !ok {
 		return nil, fmt.Errorf("pvcProvider: expected *corev1.PersistentVolumeClaim, got %T", obj)
