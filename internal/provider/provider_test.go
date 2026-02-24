@@ -1818,6 +1818,186 @@ func TestReconcile_NilRecorder_NoPanic(t *testing.T) {
 	}
 }
 
+// --- Namespace filter tests (STORY_02) ---
+
+// newNSFilterReconciler constructs a SourceProviderReconciler with the given namespace filter
+// config for namespace filter tests. The finding is set on the provider directly; tests
+// that need a cluster-scoped finding (Namespace="") pass it via the provider's finding field.
+func newNSFilterReconciler(p *fakeSourceProvider, c client.Client, watchNS, excludeNS []string) *provider.SourceProviderReconciler {
+	return &provider.SourceProviderReconciler{
+		Client: c,
+		Scheme: newTestScheme(),
+		Cfg: config.Config{
+			AgentNamespace:    agentNamespace,
+			WatchNamespaces:   watchNS,
+			ExcludeNamespaces: excludeNS,
+		},
+		Provider: p,
+	}
+}
+
+func makePodFinding(namespace string) *domain.Finding {
+	return &domain.Finding{
+		Kind:         "Pod",
+		Name:         "pod-abc",
+		Namespace:    namespace,
+		ParentObject: "my-deploy",
+		Errors:       `[{"text":"CrashLoopBackOff"}]`,
+		Details:      "Pod is crash looping",
+	}
+}
+
+// newObserverDebugLogger returns a *zap.Logger backed by a zaptest/observer core at Debug
+// level so that tests can assert on Debug-level log entries.
+func newObserverDebugLogger() (*zap.Logger, *observer.ObservedLogs) {
+	core, logs := observer.New(zapcore.DebugLevel)
+	return zap.New(core), logs
+}
+
+// TestNSFilter covers all nine namespace-filter cases in a single table-driven test.
+// Each sub-test uses an independent client/reconciler to avoid shared state.
+func TestNSFilter(t *testing.T) {
+	tests := []struct {
+		name        string
+		watchNS     []string
+		excludeNS   []string
+		namespace   string
+		wantCreated bool
+	}{
+		{"WatchEmpty_AllowAll", nil, nil, "production", true},
+		{"WatchListMatch_Allowed", []string{"production"}, nil, "production", true},
+		{"WatchListNoMatch_Skipped", []string{"staging"}, nil, "production", false},
+		{"WatchListMultiMatch", []string{"staging", "production"}, nil, "production", true},
+		{"ExcludeMatch_Skipped", nil, []string{"production"}, "production", false},
+		{"ExcludeNoMatch_Allowed", nil, []string{"kube-system"}, "production", true},
+		{"BothSet_WatchPassExcludeBlock", []string{"production"}, []string{"production"}, "production", false},
+		{"BothSet_WatchBlockShortCircuits", []string{"staging"}, []string{"kube-system"}, "production", false},
+		{"NodeProvider_Exempt", []string{"staging"}, []string{"default"}, "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			finding := makePodFinding(tt.namespace)
+			p := &fakeSourceProvider{name: "native", objectType: &corev1.ConfigMap{}, finding: finding}
+			obj := makeWatchedObject("r1", "default")
+			c := newTestClient(obj)
+			r := newNSFilterReconciler(p, c, tt.watchNS, tt.excludeNS)
+
+			_, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			var list v1alpha1.RemediationJobList
+			if err := c.List(context.Background(), &list, client.InNamespace(agentNamespace)); err != nil {
+				t.Fatalf("list error: %v", err)
+			}
+			wantCount := 0
+			if tt.wantCreated {
+				wantCount = 1
+			}
+			if len(list.Items) != wantCount {
+				t.Errorf("expected %d RemediationJob(s), got %d", wantCount, len(list.Items))
+			}
+		})
+	}
+}
+
+// TestNSFilter_WatchNoMatch_LogsDebug verifies that when WatchNamespaces does not include the
+// finding's namespace, the reconciler emits a Debug log entry containing "WatchNamespaces"
+// with namespace, provider, kind, and name fields, and no RemediationJob is created.
+func TestNSFilter_WatchNoMatch_LogsDebug(t *testing.T) {
+	finding := makePodFinding("production")
+	p := &fakeSourceProvider{name: "native", objectType: &corev1.ConfigMap{}, finding: finding}
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj)
+	logger, logs := newObserverDebugLogger()
+	r := &provider.SourceProviderReconciler{
+		Client: c,
+		Scheme: newTestScheme(),
+		Cfg: config.Config{
+			AgentNamespace:  agentNamespace,
+			WatchNamespaces: []string{"staging"},
+		},
+		Provider: p,
+		Log:      logger,
+	}
+
+	_, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var found bool
+	for _, entry := range logs.All() {
+		if entry.Level != zapcore.DebugLevel {
+			continue
+		}
+		if !strings.Contains(entry.Message, "WatchNamespaces") {
+			continue
+		}
+		cm := entry.ContextMap()
+		if cm["namespace"] != "production" {
+			continue
+		}
+		if cm["provider"] == "" {
+			t.Errorf("expected non-empty provider field in namespace filter debug entry")
+		}
+		if cm["kind"] == "" {
+			t.Errorf("expected non-empty kind field in namespace filter debug entry")
+		}
+		if cm["name"] == "" {
+			t.Errorf("expected non-empty name field in namespace filter debug entry")
+		}
+		found = true
+		break
+	}
+	if !found {
+		t.Errorf("expected Debug log entry with message containing 'WatchNamespaces' and namespace='production', got entries: %v", logs.All())
+	}
+
+	var list v1alpha1.RemediationJobList
+	if err := c.List(context.Background(), &list, client.InNamespace(agentNamespace)); err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+	if len(list.Items) != 0 {
+		t.Errorf("expected 0 RemediationJobs when namespace filtered, got %d", len(list.Items))
+	}
+}
+
+// TestNSFilter_ExcludeMatch_NilLog_NoPanic verifies that when Log is nil and
+// ExcludeNamespaces blocks the finding's namespace, the reconciler does not panic,
+// returns no error, and creates no RemediationJob.
+func TestNSFilter_ExcludeMatch_NilLog_NoPanic(t *testing.T) {
+	finding := makePodFinding("production")
+	p := &fakeSourceProvider{name: "native", objectType: &corev1.ConfigMap{}, finding: finding}
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj)
+	r := &provider.SourceProviderReconciler{
+		Client: c,
+		Scheme: newTestScheme(),
+		Cfg: config.Config{
+			AgentNamespace:    agentNamespace,
+			ExcludeNamespaces: []string{"production"},
+		},
+		Provider: p,
+		Log:      nil,
+	}
+
+	// Must not panic.
+	_, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var list v1alpha1.RemediationJobList
+	if err := c.List(context.Background(), &list, client.InNamespace(agentNamespace)); err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+	if len(list.Items) != 0 {
+		t.Errorf("expected 0 RemediationJobs when namespace excluded and Log=nil, got %d", len(list.Items))
+	}
+}
+
 // TestAnnotationGate_EnabledFalse_NoRemediationJob is an integration test that uses a real
 // podProvider (from internal/provider/native) as the SourceProvider. It creates a failing Pod
 // (CrashLoopBackOff) with mendabot.io/enabled="false" in the fake client, runs

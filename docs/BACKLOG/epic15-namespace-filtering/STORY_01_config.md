@@ -142,7 +142,7 @@ at line 250.
   `config.FromEnv`, following the comma-split/trim/skip-empty pattern.
 - [ ] Run `go test -race ./internal/config/...` — all tests must pass.
 - [ ] Add commented-out env var documentation to
-  `deploy/kustomize/deployment-watcher.yaml` (see Definition of Done).
+  `charts/mendabot/templates/deployment-watcher.yaml` (see Definition of Done).
 
 ---
 
@@ -158,13 +158,13 @@ at line 250.
 
 ## Definition of Done
 
-- [ ] `config.Config` has `WatchNamespaces []string` and `ExcludeNamespaces []string`
-- [ ] `config.FromEnv` parses both env vars; both default to `nil`
-- [ ] All new config tests pass with `-race`
+- [x] `config.Config` has `WatchNamespaces []string` and `ExcludeNamespaces []string`
+- [x] `config.FromEnv` parses both env vars; both default to `nil`
+- [x] All new config tests pass with `-race`
 - [ ] Full test suite passes: `go test -timeout 120s -race ./...`
 - [ ] `go vet ./...` clean
 - [ ] `go build ./...` clean
-- [ ] `deploy/kustomize/deployment-watcher.yaml` has two commented-out env var entries:
+- [x] `charts/mendabot/templates/deployment-watcher.yaml` has two commented-out env var entries:
   ```yaml
   # - name: WATCH_NAMESPACES
   #   value: ""  # comma-separated; empty = watch all namespaces

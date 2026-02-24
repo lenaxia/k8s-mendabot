@@ -166,6 +166,46 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 	}
 
+	// Namespace filter: skip findings from namespaces that are outside the
+	// configured allowlist (WatchNamespaces) or inside the denylist
+	// (ExcludeNamespaces). Cluster-scoped providers (e.g. NodeProvider) always
+	// set finding.Namespace = "" and are unconditionally exempt.
+	if finding.Namespace != "" {
+		if len(r.Cfg.WatchNamespaces) > 0 {
+			allowed := false
+			for _, ns := range r.Cfg.WatchNamespaces {
+				if ns == finding.Namespace {
+					allowed = true
+					break
+				}
+			}
+			if !allowed {
+				if r.Log != nil {
+					r.Log.Debug("namespace filter: skipping finding (not in WatchNamespaces)",
+						zap.String("provider", r.Provider.ProviderName()),
+						zap.String("namespace", finding.Namespace),
+						zap.String("kind", finding.Kind),
+						zap.String("name", finding.Name),
+					)
+				}
+				return ctrl.Result{}, nil
+			}
+		}
+		for _, ns := range r.Cfg.ExcludeNamespaces {
+			if ns == finding.Namespace {
+				if r.Log != nil {
+					r.Log.Debug("namespace filter: skipping finding (in ExcludeNamespaces)",
+						zap.String("provider", r.Provider.ProviderName()),
+						zap.String("namespace", finding.Namespace),
+						zap.String("kind", finding.Kind),
+						zap.String("name", finding.Name),
+					)
+				}
+				return ctrl.Result{}, nil
+			}
+		}
+	}
+
 	fp, err := domain.FindingFingerprint(finding)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("computing fingerprint: %w", err)

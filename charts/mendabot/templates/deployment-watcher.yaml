@@ -64,6 +64,10 @@ spec:
         - name: AGENT_WATCH_NAMESPACES
           value: {{ .Values.watcher.agentWatchNamespaces | quote }}
         {{- end }}
+        # - name: WATCH_NAMESPACES
+        #   value: ""  # comma-separated; empty = watch all namespaces
+        # - name: EXCLUDE_NAMESPACES
+        #   value: ""  # comma-separated; empty = exclude no namespaces
         ports:
         - name: metrics
           containerPort: 8080

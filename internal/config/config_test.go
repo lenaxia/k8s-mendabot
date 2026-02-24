@@ -796,3 +796,206 @@ func TestFromEnv_AgentTypeInvalidValue(t *testing.T) {
 		})
 	}
 }
+
+// TestFromEnv_WatchNamespacesDefault tests that unset WATCH_NAMESPACES defaults to nil.
+func TestFromEnv_WatchNamespacesDefault(t *testing.T) {
+	setRequiredEnv(t)
+	os.Unsetenv("WATCH_NAMESPACES")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.WatchNamespaces != nil {
+		t.Errorf("WatchNamespaces default: got %v, want nil", cfg.WatchNamespaces)
+	}
+}
+
+// TestFromEnv_WatchNamespacesBlank tests that WATCH_NAMESPACES="" results in nil.
+func TestFromEnv_WatchNamespacesBlank(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("WATCH_NAMESPACES", "")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.WatchNamespaces != nil {
+		t.Errorf("WatchNamespaces blank: got %v, want nil", cfg.WatchNamespaces)
+	}
+}
+
+// TestFromEnv_WatchNamespacesSingle tests that a single namespace is parsed correctly.
+func TestFromEnv_WatchNamespacesSingle(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("WATCH_NAMESPACES", "production")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := []string{"production"}
+	if len(cfg.WatchNamespaces) != len(want) {
+		t.Fatalf("WatchNamespaces length: got %d, want %d", len(cfg.WatchNamespaces), len(want))
+	}
+	for i, ns := range want {
+		if cfg.WatchNamespaces[i] != ns {
+			t.Errorf("WatchNamespaces[%d]: got %q, want %q", i, cfg.WatchNamespaces[i], ns)
+		}
+	}
+}
+
+// TestFromEnv_WatchNamespacesMultiple tests that multiple comma-separated namespaces are parsed in order.
+func TestFromEnv_WatchNamespacesMultiple(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("WATCH_NAMESPACES", "default,production,staging")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := []string{"default", "production", "staging"}
+	if len(cfg.WatchNamespaces) != len(want) {
+		t.Fatalf("WatchNamespaces length: got %d, want %d", len(cfg.WatchNamespaces), len(want))
+	}
+	for i, ns := range want {
+		if cfg.WatchNamespaces[i] != ns {
+			t.Errorf("WatchNamespaces[%d]: got %q, want %q", i, cfg.WatchNamespaces[i], ns)
+		}
+	}
+}
+
+// TestFromEnv_WatchNamespacesWhitespace tests that whitespace around namespace names is trimmed.
+func TestFromEnv_WatchNamespacesWhitespace(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("WATCH_NAMESPACES", " default , staging ")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := []string{"default", "staging"}
+	if len(cfg.WatchNamespaces) != len(want) {
+		t.Fatalf("WatchNamespaces length: got %d, want %d", len(cfg.WatchNamespaces), len(want))
+	}
+	for i, ns := range want {
+		if cfg.WatchNamespaces[i] != ns {
+			t.Errorf("WatchNamespaces[%d]: got %q, want %q", i, cfg.WatchNamespaces[i], ns)
+		}
+	}
+}
+
+// TestFromEnv_WatchNamespacesWhitespaceOnly tests that a whitespace-only value results in nil.
+func TestFromEnv_WatchNamespacesWhitespaceOnly(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("WATCH_NAMESPACES", "  ,  ")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.WatchNamespaces != nil {
+		t.Errorf("WatchNamespaces whitespace-only: got %v, want nil", cfg.WatchNamespaces)
+	}
+}
+
+// TestFromEnv_ExcludeNamespacesDefault tests that unset EXCLUDE_NAMESPACES defaults to nil.
+func TestFromEnv_ExcludeNamespacesDefault(t *testing.T) {
+	setRequiredEnv(t)
+	os.Unsetenv("EXCLUDE_NAMESPACES")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.ExcludeNamespaces != nil {
+		t.Errorf("ExcludeNamespaces default: got %v, want nil", cfg.ExcludeNamespaces)
+	}
+}
+
+// TestFromEnv_ExcludeNamespacesBlank tests that EXCLUDE_NAMESPACES="" results in nil.
+func TestFromEnv_ExcludeNamespacesBlank(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("EXCLUDE_NAMESPACES", "")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.ExcludeNamespaces != nil {
+		t.Errorf("ExcludeNamespaces blank: got %v, want nil", cfg.ExcludeNamespaces)
+	}
+}
+
+// TestFromEnv_ExcludeNamespacesSingle tests that a single namespace is parsed correctly.
+func TestFromEnv_ExcludeNamespacesSingle(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("EXCLUDE_NAMESPACES", "kube-system")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := []string{"kube-system"}
+	if len(cfg.ExcludeNamespaces) != len(want) {
+		t.Fatalf("ExcludeNamespaces length: got %d, want %d", len(cfg.ExcludeNamespaces), len(want))
+	}
+	for i, ns := range want {
+		if cfg.ExcludeNamespaces[i] != ns {
+			t.Errorf("ExcludeNamespaces[%d]: got %q, want %q", i, cfg.ExcludeNamespaces[i], ns)
+		}
+	}
+}
+
+// TestFromEnv_ExcludeNamespacesMultiple tests that multiple comma-separated namespaces are parsed in order.
+func TestFromEnv_ExcludeNamespacesMultiple(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("EXCLUDE_NAMESPACES", "kube-system,cert-manager,flux-system")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := []string{"kube-system", "cert-manager", "flux-system"}
+	if len(cfg.ExcludeNamespaces) != len(want) {
+		t.Fatalf("ExcludeNamespaces length: got %d, want %d", len(cfg.ExcludeNamespaces), len(want))
+	}
+	for i, ns := range want {
+		if cfg.ExcludeNamespaces[i] != ns {
+			t.Errorf("ExcludeNamespaces[%d]: got %q, want %q", i, cfg.ExcludeNamespaces[i], ns)
+		}
+	}
+}
+
+// TestFromEnv_ExcludeNamespacesWhitespaceOnly tests that a whitespace-only value results in nil.
+func TestFromEnv_ExcludeNamespacesWhitespaceOnly(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("EXCLUDE_NAMESPACES", "  ,  ")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.ExcludeNamespaces != nil {
+		t.Errorf("ExcludeNamespaces whitespace-only: got %v, want nil", cfg.ExcludeNamespaces)
+	}
+}
+
+// TestFromEnv_BothFiltersCoexist tests that both WATCH_NAMESPACES and EXCLUDE_NAMESPACES
+// can be set simultaneously without error.
+func TestFromEnv_BothFiltersCoexist(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("WATCH_NAMESPACES", "production")
+	t.Setenv("EXCLUDE_NAMESPACES", "kube-system")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.WatchNamespaces) != 1 || cfg.WatchNamespaces[0] != "production" {
+		t.Errorf("WatchNamespaces: got %v, want [production]", cfg.WatchNamespaces)
+	}
+	if len(cfg.ExcludeNamespaces) != 1 || cfg.ExcludeNamespaces[0] != "kube-system" {
+		t.Errorf("ExcludeNamespaces: got %v, want [kube-system]", cfg.ExcludeNamespaces)
+	}
+}
