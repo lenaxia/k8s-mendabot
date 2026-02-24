@@ -1311,6 +1311,271 @@ func TestStabilisationWindow_PriorityCriticalWindowAlreadyZero(t *testing.T) {
 	}
 }
 
+// --- GAP-2: finding.detected audit log ---
+
+// TestAuditLog_FindingDetected verifies that when ExtractFinding returns a non-nil finding,
+// the reconciler emits an audit log entry with event "finding.detected", audit=true,
+// provider field, and a 12-char fingerprint field.
+func TestAuditLog_FindingDetected(t *testing.T) {
+	finding := &domain.Finding{
+		Kind:         "Pod",
+		Name:         "pod-abc",
+		Namespace:    "default",
+		ParentObject: "my-deploy",
+		Errors:       `[{"text":"CrashLoopBackOff"}]`,
+		Details:      "Pod is crash looping",
+	}
+
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
+	}
+
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj)
+	logger, logs := newObserverInfoLogger()
+	r := &provider.SourceProviderReconciler{
+		Client:   c,
+		Scheme:   newTestScheme(),
+		Cfg:      config.Config{AgentNamespace: agentNamespace},
+		Provider: p,
+		Log:      logger,
+	}
+
+	_, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var found bool
+	for _, entry := range logs.All() {
+		cm := entry.ContextMap()
+		if cm["event"] == "finding.detected" && cm["audit"] == true {
+			found = true
+			providerVal, hasProvider := cm["provider"]
+			if !hasProvider || providerVal == "" {
+				t.Errorf("expected non-empty provider field in finding.detected entry")
+			}
+			fpVal, hasFP := cm["fingerprint"]
+			if !hasFP {
+				t.Errorf("expected fingerprint field in finding.detected entry")
+			}
+			if fpStr, ok := fpVal.(string); !ok || len(fpStr) != 12 {
+				t.Errorf("expected fingerprint to be 12 chars, got %v", fpVal)
+			}
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected audit log entry with event=finding.detected and audit=true, got entries: %v", logs.All())
+	}
+}
+
+// --- GAP-3: finding.suppressed.stabilisation_window audit log ---
+
+// TestAuditLog_StabilisationWindowSuppressed verifies that the stabilisation window
+// suppression emits an audit log entry with the correct event and reason sub-cases.
+func TestAuditLog_StabilisationWindowSuppressed(t *testing.T) {
+	tests := []struct {
+		name           string
+		setupFirstSeen func(fp string, r *provider.SourceProviderReconciler)
+		wantReason     string
+	}{
+		{
+			name:           "first_seen",
+			setupFirstSeen: func(_ string, _ *provider.SourceProviderReconciler) {},
+			wantReason:     "first_seen",
+		},
+		{
+			name: "window_open",
+			setupFirstSeen: func(fp string, r *provider.SourceProviderReconciler) {
+				// Seen 30 seconds ago — window not yet elapsed (window = 2m).
+				r.SetFirstSeenForTest(fp, time.Now().Add(-30*time.Second))
+			},
+			wantReason: "window_open",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			finding := makeFinding()
+			fp, err := domain.FindingFingerprint(finding)
+			if err != nil {
+				t.Fatalf("computing fingerprint: %v", err)
+			}
+
+			p := &fakeSourceProvider{
+				name:       "native",
+				objectType: &corev1.ConfigMap{},
+				finding:    finding,
+			}
+			obj := makeWatchedObject("r1", "default")
+			c := newTestClient(obj)
+			logger, logs := newObserverInfoLogger()
+			r := &provider.SourceProviderReconciler{
+				Client: c,
+				Scheme: newTestScheme(),
+				Cfg: config.Config{
+					AgentNamespace:      agentNamespace,
+					StabilisationWindow: 2 * time.Minute,
+				},
+				Provider: p,
+				Log:      logger,
+			}
+
+			tt.setupFirstSeen(fp, r)
+
+			_, err = r.Reconcile(context.Background(), reqFor("r1", "default"))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			var found bool
+			for _, entry := range logs.All() {
+				cm := entry.ContextMap()
+				if cm["event"] == "finding.suppressed.stabilisation_window" &&
+					cm["audit"] == true &&
+					cm["reason"] == tt.wantReason {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("expected audit log entry event=finding.suppressed.stabilisation_window reason=%s audit=true, got entries: %v",
+					tt.wantReason, logs.All())
+			}
+		})
+	}
+}
+
+// --- GAP-4: finding.suppressed.duplicate audit log ---
+
+// TestAuditLog_FindingSuppressedDuplicate verifies that when a non-Failed RemediationJob
+// with a matching fingerprint already exists, the reconciler emits an audit log entry
+// with event "finding.suppressed.duplicate", audit=true, and a remediationJob field.
+func TestAuditLog_FindingSuppressedDuplicate(t *testing.T) {
+	finding := &domain.Finding{
+		Kind:         "Pod",
+		Name:         "pod-abc",
+		Namespace:    "default",
+		ParentObject: "my-deploy",
+		Errors:       `[{"text":"CrashLoopBackOff"}]`,
+	}
+	fp, err := domain.FindingFingerprint(finding)
+	if err != nil {
+		t.Fatalf("computing fingerprint: %v", err)
+	}
+
+	existingRJob := &v1alpha1.RemediationJob{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mendabot-" + fp[:12],
+			Namespace: agentNamespace,
+			Labels:    map[string]string{"remediation.mendabot.io/fingerprint": fp[:12]},
+		},
+		Spec: v1alpha1.RemediationJobSpec{
+			Fingerprint: fp,
+			SourceType:  "native",
+		},
+		Status: v1alpha1.RemediationJobStatus{
+			Phase: v1alpha1.PhasePending,
+		},
+	}
+
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
+	}
+
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj, existingRJob)
+	logger, logs := newObserverInfoLogger()
+	r := &provider.SourceProviderReconciler{
+		Client:   c,
+		Scheme:   newTestScheme(),
+		Cfg:      config.Config{AgentNamespace: agentNamespace},
+		Provider: p,
+		Log:      logger,
+	}
+
+	_, err = r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var found bool
+	for _, entry := range logs.All() {
+		cm := entry.ContextMap()
+		if cm["event"] == "finding.suppressed.duplicate" && cm["audit"] == true {
+			found = true
+			rjVal, hasRJ := cm["remediationJob"]
+			if !hasRJ || rjVal == "" {
+				t.Errorf("expected non-empty remediationJob field in finding.suppressed.duplicate entry")
+			}
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected audit log entry with event=finding.suppressed.duplicate and audit=true, got entries: %v", logs.All())
+	}
+}
+
+// --- GAP-6: readiness.check_failed audit log ---
+
+// TestAuditLog_ReadinessCheckFailed verifies that when the ReadinessChecker returns
+// a non-nil error, the reconciler emits an audit log entry with event
+// "readiness.check_failed", audit=true, and an error field.
+func TestAuditLog_ReadinessCheckFailed(t *testing.T) {
+	finding := &domain.Finding{
+		Kind:         "Pod",
+		Name:         "pod-abc",
+		Namespace:    "default",
+		ParentObject: "my-deploy",
+		Errors:       `[{"text":"CrashLoopBackOff"}]`,
+		Details:      "crash looping",
+	}
+
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
+	}
+
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj)
+	// Use InfoLevel observer — it captures Info, Warn, and Error level entries.
+	logger, logs := newObserverInfoLogger()
+	r := &provider.SourceProviderReconciler{
+		Client:           c,
+		Scheme:           newTestScheme(),
+		Cfg:              config.Config{AgentNamespace: agentNamespace},
+		Provider:         p,
+		Log:              logger,
+		ReadinessChecker: &fakeReadinessChecker{name: "test-sink", err: errors.New("sink unavailable")},
+	}
+
+	_, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var found bool
+	for _, entry := range logs.All() {
+		cm := entry.ContextMap()
+		if cm["event"] == "readiness.check_failed" && cm["audit"] == true {
+			found = true
+			if _, hasErr := cm["error"]; !hasErr {
+				t.Errorf("expected error field in readiness.check_failed entry, got context: %v", cm)
+			}
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected audit log entry with event=readiness.check_failed and audit=true, got entries: %v", logs.All())
+	}
+}
+
 // TestReconcile_EventRecorder_EmitsRemediationJobCreated verifies that when an
 // EventRecorder is wired and a RemediationJob is successfully created, a Normal
 // "RemediationJobCreated" Kubernetes Event is emitted on the source object.
