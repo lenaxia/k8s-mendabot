@@ -199,12 +199,9 @@ kubectl create secret generic github-app \
   --from-literal=installation-id=<your-installation-id> \
   --from-file=private-key=<path-to-private-key.pem>
 
-kubectl create secret generic llm-credentials \
+kubectl create secret generic llm-credentials-opencode \
   --namespace mendabot \
-  --from-literal=api-key=<your-llm-api-key> \
-  --from-literal=base-url=https://api.openai.com/v1 \
-  --from-literal=model=gpt-4o \
-  --from-literal=kube-api-server=https://<your-cluster-api-server>:6443
+  --from-literal=provider-config='{"model":"gpt-4o","providers":{"openai":{"apiKey":"<your-api-key>","baseURL":"https://api.openai.com/v1"}}}'
 ```
 
 ### 2. Install with Helm
@@ -222,17 +219,6 @@ helm install mendabot charts/mendabot/ \
 kubectl get deployment -n mendabot
 kubectl get rjob -n mendabot
 ```
-
-### Kustomize (alternative)
-
-Raw manifests are available in `deploy/kustomize/` for operators who prefer Kustomize:
-
-```sh
-kubectl apply -k deploy/kustomize/
-```
-
-Note: the Kustomize path requires manually creating both Secrets and does not include
-automatic CRD upgrade on `kubectl apply -k`. Use the Helm path for production deployments.
 
 ## Helm Configuration Reference
 
@@ -259,8 +245,9 @@ All `values.yaml` keys and their defaults:
 | `selfRemediation.disableCascadeCheck` | `false` | Disable infrastructure cascade failure detection |
 | `selfRemediation.cascadeNamespaceThreshold` | `50` | % of pods failing before namespace-wide suppression |
 | `selfRemediation.cascadeNodeCacheTTLSeconds` | `30` | TTL (seconds) for cascade checker node state cache |
-| `prompt.name` | `default` | Built-in prompt to use (`files/prompts/<name>.txt`) |
-| `prompt.override` | `""` | Full prompt content override (takes precedence over `prompt.name`) |
+| `agentType` | `opencode` | Agent runner type (`opencode`; `claude` is a stub — not yet functional) |
+| `prompt.coreOverride` | `""` | Full core prompt override (replaces built-in `files/prompts/core.txt`) |
+| `prompt.agentOverride` | `""` | Full agent prompt override (replaces built-in `files/prompts/<agentType>.txt`) |
 | `rbac.create` | `true` | Create RBAC resources |
 | `createNamespace` | `false` | Create `Release.Namespace` if it does not exist |
 | `metrics.enabled` | `false` | Expose metrics Service on port 8080 |

@@ -2,12 +2,8 @@ package llm_test
 
 import (
 	"context"
-	"errors"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,17 +23,16 @@ func newFakeClient(objs ...client.Object) client.Client {
 	return fake.NewClientBuilder().WithScheme(s).WithObjects(objs...).Build()
 }
 
-func validLLMSecret(baseURL string) *corev1.Secret {
+// validLLMSecret returns a correctly structured llm-credentials-<agentType>
+// Secret using the new opaque config blob schema.
+func validLLMSecret(agentType string) *corev1.Secret {
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "llm-credentials",
+			Name:      "llm-credentials-" + agentType,
 			Namespace: testNamespace,
 		},
 		Data: map[string][]byte{
-			"api-key":         []byte("sk-test-key"),
-			"base-url":        []byte(baseURL),
-			"model":           []byte("gpt-4o"),
-			"kube-api-server": []byte("https://kubernetes.default.svc"),
+			"provider-config": []byte(`{"model":"test","providers":{"openai":{"apiKey":"sk-test","baseURL":"https://api.openai.com/v1"}}}`),
 		},
 	}
 }
@@ -46,7 +41,7 @@ func validLLMSecret(baseURL string) *corev1.Secret {
 
 func TestOpenAIChecker_Name(t *testing.T) {
 	c := newFakeClient()
-	checker := llm.NewOpenAIChecker(c, testNamespace)
+	checker := llm.NewOpenAIChecker(c, testNamespace, "opencode")
 	if checker.Name() != "llm/openai" {
 		t.Errorf("Name() = %q, want %q", checker.Name(), "llm/openai")
 	}
@@ -54,31 +49,58 @@ func TestOpenAIChecker_Name(t *testing.T) {
 
 func TestOpenAIChecker_FailsWhenSecretMissing(t *testing.T) {
 	c := newFakeClient()
-	checker := llm.NewOpenAIChecker(c, testNamespace)
+	checker := llm.NewOpenAIChecker(c, testNamespace, "opencode")
 
 	err := checker.Check(context.Background())
 	if err == nil {
 		t.Fatal("expected error when secret is missing")
 	}
-	if !strings.Contains(err.Error(), "llm-credentials") {
+	if !strings.Contains(err.Error(), "llm-credentials-opencode") {
 		t.Errorf("error should mention secret name, got: %v", err)
 	}
 }
 
-func TestOpenAIChecker_FailsWhenKeyMissing(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer srv.Close()
+func TestOpenAIChecker_SecretNameDerivedFromAgentType(t *testing.T) {
+	tests := []struct {
+		agentType      string
+		wantSecretName string
+	}{
+		{"opencode", "llm-credentials-opencode"},
+		{"claude", "llm-credentials-claude"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.agentType, func(t *testing.T) {
+			// Secret for the wrong agent type — checker should not find it.
+			wrongSecret := validLLMSecret("other-agent")
+			c := newFakeClient(wrongSecret)
+			checker := llm.NewOpenAIChecker(c, testNamespace, tt.agentType)
 
-	// Only the three LLM endpoint keys are validated; kube-api-server is not
-	// an LLM credential and is not the responsibility of this checker.
-	for _, missingKey := range []string{"api-key", "base-url", "model"} {
+			err := checker.Check(context.Background())
+			if err == nil {
+				t.Fatal("expected error: correct secret not present")
+			}
+			if !strings.Contains(err.Error(), tt.wantSecretName) {
+				t.Errorf("error should mention %q, got: %v", tt.wantSecretName, err)
+			}
+
+			// Now add the correct secret — checker should pass.
+			correctSecret := validLLMSecret(tt.agentType)
+			c2 := newFakeClient(correctSecret)
+			checker2 := llm.NewOpenAIChecker(c2, testNamespace, tt.agentType)
+			if err := checker2.Check(context.Background()); err != nil {
+				t.Errorf("expected no error with correct secret, got: %v", err)
+			}
+		})
+	}
+}
+
+func TestOpenAIChecker_FailsWhenRequiredKeyMissing(t *testing.T) {
+	for _, missingKey := range []string{"provider-config"} {
 		t.Run("missing_"+missingKey, func(t *testing.T) {
-			secret := validLLMSecret(srv.URL)
+			secret := validLLMSecret("opencode")
 			delete(secret.Data, missingKey)
 			c := newFakeClient(secret)
-			checker := llm.NewOpenAIChecker(c, testNamespace)
+			checker := llm.NewOpenAIChecker(c, testNamespace, "opencode")
 
 			err := checker.Check(context.Background())
 			if err == nil {
@@ -91,180 +113,45 @@ func TestOpenAIChecker_FailsWhenKeyMissing(t *testing.T) {
 	}
 }
 
-// --- OpenAIChecker /models probe ---
+func TestOpenAIChecker_FailsWhenKeyEmpty(t *testing.T) {
+	for _, emptyKey := range []string{"provider-config"} {
+		t.Run("empty_"+emptyKey, func(t *testing.T) {
+			secret := validLLMSecret("opencode")
+			secret.Data[emptyKey] = []byte("")
+			c := newFakeClient(secret)
+			checker := llm.NewOpenAIChecker(c, testNamespace, "opencode")
 
-func TestOpenAIChecker_PassesOnHTTP200(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/models" || r.Method != http.MethodGet {
-			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
-		}
-		if !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
-			t.Errorf("missing or malformed Authorization header: %q", r.Header.Get("Authorization"))
-		}
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer srv.Close()
+			err := checker.Check(context.Background())
+			if err == nil {
+				t.Fatalf("expected error when key %q is empty", emptyKey)
+			}
+		})
+	}
+}
 
-	secret := validLLMSecret(srv.URL)
+func TestOpenAIChecker_PassesWithAllRequiredKeys(t *testing.T) {
+	secret := validLLMSecret("opencode")
 	c := newFakeClient(secret)
-	checker := llm.NewOpenAIChecker(c, testNamespace)
+	checker := llm.NewOpenAIChecker(c, testNamespace, "opencode")
 
 	if err := checker.Check(context.Background()); err != nil {
-		t.Errorf("expected no error on 200, got: %v", err)
+		t.Errorf("expected no error with all keys present, got: %v", err)
 	}
 }
 
-func TestOpenAIChecker_PassesOnHTTP404(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
-	}))
-	defer srv.Close()
-
-	secret := validLLMSecret(srv.URL)
+// TestOpenAIChecker_PassesWithoutModelKey verifies that the readiness checker
+// only requires "provider-config" and does NOT require the "model" key.
+// The model is embedded inside the opaque provider-config blob; requiring a
+// separate "model" key is dead weight that misleads operators.
+// This test FAILS until requiredLLMKeys in openai.go drops "model".
+func TestOpenAIChecker_PassesWithoutModelKey(t *testing.T) {
+	secret := validLLMSecret("opencode")
+	delete(secret.Data, "model")
 	c := newFakeClient(secret)
-	checker := llm.NewOpenAIChecker(c, testNamespace)
+	checker := llm.NewOpenAIChecker(c, testNamespace, "opencode")
 
 	if err := checker.Check(context.Background()); err != nil {
-		t.Errorf("expected no error on 404 (endpoint not implemented), got: %v", err)
-	}
-}
-
-func TestOpenAIChecker_PassesOnHTTP405(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-	}))
-	defer srv.Close()
-
-	secret := validLLMSecret(srv.URL)
-	c := newFakeClient(secret)
-	checker := llm.NewOpenAIChecker(c, testNamespace)
-
-	if err := checker.Check(context.Background()); err != nil {
-		t.Errorf("expected no error on 405 (endpoint not implemented), got: %v", err)
-	}
-}
-
-func TestOpenAIChecker_FailsOnHTTP500(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	defer srv.Close()
-
-	secret := validLLMSecret(srv.URL)
-	c := newFakeClient(secret)
-	checker := llm.NewOpenAIChecker(c, testNamespace)
-
-	err := checker.Check(context.Background())
-	if err == nil {
-		t.Fatal("expected error on 500")
-	}
-	if !strings.Contains(err.Error(), "500") {
-		t.Errorf("error should mention status code, got: %v", err)
-	}
-}
-
-func TestOpenAIChecker_FailsOn401WithCredentialMessage(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusUnauthorized)
-	}))
-	defer srv.Close()
-
-	secret := validLLMSecret(srv.URL)
-	c := newFakeClient(secret)
-	checker := llm.NewOpenAIChecker(c, testNamespace)
-
-	err := checker.Check(context.Background())
-	if err == nil {
-		t.Fatal("expected error on 401")
-	}
-	// Error must mention the credential secret so the operator knows what to fix.
-	if !strings.Contains(err.Error(), "api-key") {
-		t.Errorf("401 error should mention api-key, got: %v", err)
-	}
-	if !strings.Contains(err.Error(), "401") {
-		t.Errorf("401 error should mention status code, got: %v", err)
-	}
-}
-
-func TestOpenAIChecker_FailsOn403WithCredentialMessage(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusForbidden)
-	}))
-	defer srv.Close()
-
-	secret := validLLMSecret(srv.URL)
-	c := newFakeClient(secret)
-	checker := llm.NewOpenAIChecker(c, testNamespace)
-
-	err := checker.Check(context.Background())
-	if err == nil {
-		t.Fatal("expected error on 403")
-	}
-	if !strings.Contains(err.Error(), "403") {
-		t.Errorf("403 error should mention status code, got: %v", err)
-	}
-}
-
-func TestOpenAIChecker_FailsOnUnreachableEndpoint(t *testing.T) {
-	// Use a closed server to simulate a connection-refused error.
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {}))
-	url := srv.URL
-	srv.Close()
-
-	secret := validLLMSecret(url)
-	c := newFakeClient(secret)
-	checker := llm.NewOpenAIChecker(c, testNamespace)
-
-	err := checker.Check(context.Background())
-	if err == nil {
-		t.Fatal("expected error when endpoint is unreachable")
-	}
-}
-
-func TestOpenAIChecker_RespectsContextCancellation(t *testing.T) {
-	// Slow server that holds the connection open long enough for the context
-	// to be cancelled before a response is returned.
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(500 * time.Millisecond)
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer srv.Close()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-	defer cancel()
-
-	secret := validLLMSecret(srv.URL)
-	c := newFakeClient(secret)
-	checker := llm.NewOpenAIChecker(c, testNamespace)
-
-	err := checker.Check(ctx)
-	if err == nil {
-		t.Fatal("expected error from cancelled context, got nil")
-	}
-	// The error must be a context error, not a generic probe failure string.
-	if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
-		t.Errorf("expected context error (DeadlineExceeded or Canceled), got: %v", err)
-	}
-}
-
-func TestOpenAIChecker_StripsTrailingSlashFromBaseURL(t *testing.T) {
-	var gotPath string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotPath = r.URL.Path
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer srv.Close()
-
-	// base-url with trailing slash — should still probe /models not //models
-	secret := validLLMSecret(srv.URL + "/")
-	c := newFakeClient(secret)
-	checker := llm.NewOpenAIChecker(c, testNamespace)
-
-	if err := checker.Check(context.Background()); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if gotPath != "/models" {
-		t.Errorf("probe path = %q, want %q", gotPath, "/models")
+		t.Errorf("checker should pass without 'model' key (model is in provider-config blob), got: %v", err)
 	}
 }
 

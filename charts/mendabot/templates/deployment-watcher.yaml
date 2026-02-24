@@ -46,6 +46,22 @@ spec:
           value: {{ .Values.watcher.remediationJobTTLSeconds | quote }}
         - name: STABILISATION_WINDOW_SECONDS
           value: {{ .Values.watcher.stabilisationWindowSeconds | quote }}
+        - name: SELF_REMEDIATION_MAX_DEPTH
+          value: {{ .Values.selfRemediation.maxDepth | quote }}
+        - name: SELF_REMEDIATION_COOLDOWN_SECONDS
+          value: {{ .Values.selfRemediation.cooldownSeconds | quote }}
+        - name: MENDABOT_UPSTREAM_REPO
+          value: {{ .Values.selfRemediation.upstreamRepo | quote }}
+        - name: MENDABOT_DISABLE_UPSTREAM_CONTRIBUTIONS
+          value: {{ .Values.selfRemediation.disableUpstreamContributions | quote }}
+        - name: DISABLE_CASCADE_CHECK
+          value: {{ .Values.selfRemediation.disableCascadeCheck | quote }}
+        - name: CASCADE_NAMESPACE_THRESHOLD
+          value: {{ .Values.selfRemediation.cascadeNamespaceThreshold | quote }}
+        - name: CASCADE_NODE_CACHE_TTL_SECONDS
+          value: {{ .Values.selfRemediation.cascadeNodeCacheTTLSeconds | quote }}
+        - name: AGENT_TYPE
+          value: {{ .Values.agentType | quote }}
         - name: LLM_PROVIDER
           value: {{ .Values.watcher.llmProvider | quote }}
         - name: INJECTION_DETECTION_ACTION
@@ -54,8 +70,10 @@ spec:
           value: {{ .Values.watcher.maxInvestigationRetries | quote }}
         - name: AGENT_RBAC_SCOPE
           value: {{ .Values.watcher.agentRBACScope | quote }}
+        {{- if .Values.watcher.agentWatchNamespaces }}
         - name: AGENT_WATCH_NAMESPACES
           value: {{ .Values.watcher.agentWatchNamespaces | quote }}
+        {{- end }}
         ports:
         - name: metrics
           containerPort: 8080

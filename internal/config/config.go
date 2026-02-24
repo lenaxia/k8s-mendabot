@@ -8,6 +8,14 @@ import (
 	"time"
 )
 
+// AgentType identifies which agent runner binary the watcher dispatches.
+type AgentType string
+
+const (
+	AgentTypeOpenCode AgentType = "opencode"
+	AgentTypeClaude   AgentType = "claude"
+)
+
 // Config holds all runtime configuration for the mendabot-watcher controller.
 // All fields are populated from environment variables at startup via FromEnv.
 type Config struct {
@@ -16,6 +24,7 @@ type Config struct {
 	AgentImage               string        // AGENT_IMAGE — required
 	AgentNamespace           string        // AGENT_NAMESPACE — required; must equal watcher namespace
 	AgentSA                  string        // AGENT_SA — required
+	AgentType                AgentType     // AGENT_TYPE — default "opencode"
 	SinkType                 string        // SINK_TYPE — default "github"
 	LogLevel                 string        // LOG_LEVEL — default "info"
 	MaxConcurrentJobs        int           // MAX_CONCURRENT_JOBS — default 3
@@ -55,6 +64,17 @@ func FromEnv() (Config, error) {
 			return Config{}, fmt.Errorf("required environment variable %s is not set", r.name)
 		}
 		*r.dest = val
+	}
+
+	agentTypeStr := os.Getenv("AGENT_TYPE")
+	if agentTypeStr == "" {
+		agentTypeStr = string(AgentTypeOpenCode)
+	}
+	switch AgentType(agentTypeStr) {
+	case AgentTypeOpenCode, AgentTypeClaude:
+		cfg.AgentType = AgentType(agentTypeStr)
+	default:
+		return Config{}, fmt.Errorf("AGENT_TYPE %q is not supported; accepted values: opencode, claude", agentTypeStr)
 	}
 
 	cfg.LogLevel = os.Getenv("LOG_LEVEL")

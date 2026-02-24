@@ -101,6 +101,8 @@ func main() {
 
 	jb, err := jobbuilder.New(jobbuilder.Config{
 		AgentNamespace: cfg.AgentNamespace,
+		AgentType:      cfg.AgentType,
+		TTLSeconds:     int32(cfg.RemediationJobTTLSeconds),
 	})
 	if err != nil {
 		logger.Fatal("jobbuilder init failed", zap.Error(err))
@@ -129,7 +131,7 @@ func main() {
 	switch cfg.LLMProvider {
 	case "openai":
 		llmChecker = readiness.NewCachedChecker(
-			llm.NewOpenAIChecker(mgr.GetClient(), cfg.AgentNamespace),
+			llm.NewOpenAIChecker(mgr.GetClient(), cfg.AgentNamespace, string(cfg.AgentType)),
 			provider.ReadinessCacheTTL,
 		)
 	default:

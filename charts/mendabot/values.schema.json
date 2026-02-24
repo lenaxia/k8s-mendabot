@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "agentType": {
+      "type": "string",
+      "enum": ["opencode", "claude"],
+      "description": "Agent runner type. Controls which AI agent binary runs inside the Job."
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": { "type": "string" },
+        "tag": { "type": "string" },
+        "pullPolicy": {
+          "type": "string",
+          "enum": ["Always", "IfNotPresent", "Never"]
+        }
+      }
+    },
+    "agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "image": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "repository": { "type": "string" },
+            "tag": { "type": "string" }
+          }
+        }
+      }
+    },
+    "gitops": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repo": { "type": "string" },
+        "manifestRoot": { "type": "string" }
+      }
+    },
+    "watcher": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "stabilisationWindowSeconds": { "type": "integer", "minimum": 0 },
+        "maxConcurrentJobs": { "type": "integer", "minimum": 1 },
+        "remediationJobTTLSeconds": { "type": "integer", "minimum": 1 },
+        "sinkType": { "type": "string" },
+        "logLevel": {
+          "type": "string",
+          "enum": ["debug", "info", "warn", "error"]
+        },
+        "llmProvider": {
+          "type": "string",
+          "enum": ["", "openai"],
+          "description": "LLM readiness gate. 'openai' enables it; empty disables."
+        },
+        "injectionDetectionAction": {
+          "type": "string",
+          "enum": ["log", "suppress"]
+        },
+        "agentRBACScope": {
+          "type": "string",
+          "enum": ["cluster", "namespace"]
+        },
+        "agentWatchNamespaces": {
+          "type": "string",
+          "description": "Comma-separated namespaces. Required when agentRBACScope=namespace."
+        }
+      }
+    },
+    "selfRemediation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxDepth": { "type": "integer", "minimum": 0, "maximum": 10 },
+        "cooldownSeconds": { "type": "integer", "minimum": 0, "maximum": 3600 },
+        "upstreamRepo": { "type": "string" },
+        "disableUpstreamContributions": { "type": "boolean" },
+        "disableCascadeCheck": { "type": "boolean" },
+        "cascadeNamespaceThreshold": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "cascadeNodeCacheTTLSeconds": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "prompt": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "coreOverride": { "type": "string" },
+        "agentOverride": { "type": "string" }
+      }
+    },
+    "rbac": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create": { "type": "boolean" }
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "description": "Placeholder — no configurable fields; secret names are derived from agentType in job.go"
+    },
+    "createNamespace": { "type": "boolean" },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "serviceMonitor": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "interval": { "type": "string" },
+            "scrapeTimeout": { "type": "string" },
+            "labels": { "type": "object" }
+          }
+        }
+      }
+    }
+  }
+}

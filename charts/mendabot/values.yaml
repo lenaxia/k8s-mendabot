@@ -38,39 +38,80 @@ watcher:
   sinkType: github
   # Zap log level: debug, info, warn, error
   logLevel: info
-  # LLM provider to use (e.g. openai, ollama)
+  # LLM readiness gate. Set to "openai" to enable the gate; leave empty to disable.
+  # When enabled, RemediationJob creation is blocked until the llm-credentials-<agentType>
+  # Secret exists with the required keys. Accepted values: "openai", "" (disabled).
   llmProvider: "openai"
-  # Action to take when prompt injection is detected: log or suppress
+  # Injection detection action: "log" (default) or "suppress".
+  # Controls what happens when a finding is detected during an active remediation.
   injectionDetectionAction: "log"
-  # Maximum number of investigation retries per RemediationJob
+  # Maximum number of investigation retries per RemediationJob before permanently failing.
   maxInvestigationRetries: "3"
-  # RBAC scope granted to the agent: cluster or namespace
+  # RBAC scope for cluster watching: "cluster" (default) or "namespace".
+  # When set to "namespace", agentWatchNamespaces must also be set.
   agentRBACScope: "cluster"
-  # Comma-separated list of namespaces to watch when agentRBACScope=namespace.
-  # Empty string means cluster-wide scope (safe default).
+  # Comma-separated list of namespaces to watch. Required when agentRBACScope=namespace.
+  # Example: "production,staging"
   agentWatchNamespaces: ""
+
+# Self-remediation configuration.
+# These values map directly to Go config fields that control self-remediation behaviour.
+# To effectively disable self-remediation, set maxDepth: 0.
+# Note: self-remediation is triggered automatically by the JobProvider when it detects
+# a failed batch/v1 Job labelled app.kubernetes.io/managed-by=mendabot-watcher.
+selfRemediation:
+  # Maximum self-remediation chain depth. Set to 0 to disable entirely.
+  maxDepth: 2
+  # Cooldown between self-remediation dispatches (seconds). Must be 0–3600.
+  cooldownSeconds: 300
+  # Upstream repository where mendabot bug-fix PRs are opened.
+  upstreamRepo: lenaxia/k8s-mendabot
+  # Set to true to prevent any PR being opened against the upstream mendabot repo
+  # (PRs go to gitops.repo only).
+  disableUpstreamContributions: false
+  # Set to true to disable infrastructure cascade failure detection entirely.
+  disableCascadeCheck: false
+  # Percentage of pods in a namespace that must be failing before a namespace-wide
+  # degradation finding is emitted (suppressing individual pod findings). 0–100.
+  cascadeNamespaceThreshold: 50
+  # TTL (seconds) for the node state cache used by the cascade checker.
+  cascadeNodeCacheTTLSeconds: 30
+
+# Agent runner type. Controls which AI agent binary runs inside the Job.
+# Supported values: "opencode", "claude" (claude is a stub — not yet functional)
+# Default: "opencode"
+#
+# Each agent type requires a corresponding Secret named "llm-credentials-<agentType>"
+# with keys:
+#   provider-config — full agent-runner config JSON (opaque blob; never interpreted by mendabot)
+#                     includes the model name, endpoint URL, and all provider-specific config
+#
+# See NOTES.txt for the exact kubectl create secret commands per agent type.
+agentType: opencode
 
 # Pre-existing Secrets that must be created before helm install.
 # The chart never creates Secret content.
 #
-# IMPORTANT: The Secret names below are hardcoded compile-time constants in
-# internal/controller/job.go. They cannot be overridden via Helm values.
-# Any operator that changes these names without rebuilding the watcher image
+# IMPORTANT: The Secret name is derived from agentType at runtime:
+#   "llm-credentials-<agentType>"  (e.g. "llm-credentials-opencode")
+# This name is a compile-time constant in internal/jobbuilder/job.go.
+# Any operator that changes agentType without creating the corresponding Secret
 # will see CreateContainerConfigError on every agent Job.
 #
-#   Secret "github-app"      — keys: app-id, installation-id, private-key
-#   Secret "llm-credentials" — keys: api-key, base-url, model, kube-api-server
+#   Secret "github-app"                — keys: app-id, installation-id, private-key
+#   Secret "llm-credentials-opencode"  — keys: provider-config
+#   Secret "llm-credentials-claude"    — keys: provider-config
 #
 # See NOTES.txt for the exact kubectl create secret commands.
-secrets: {}  # placeholder — no configurable fields; names are hardcoded in job.go
+secrets: {}  # placeholder — no configurable fields; names are derived from agentType in job.go
 
 # Prompt configuration
 prompt:
-  # Selects a built-in prompt file from charts/mendabot/files/prompts/<name>.txt
-  # Available: "default"
-  name: default
-  # Full prompt content override. When non-empty, takes precedence over prompt.name.
-  override: ""
+  # Full core prompt content override. When non-empty, replaces the built-in core prompt.
+  coreOverride: ""
+  # Full agent-specific prompt content override. When non-empty, replaces the built-in
+  # agent prompt for the selected agentType.
+  agentOverride: ""
 
 # RBAC resource creation. Set to false if you manage RBAC externally.
 rbac:

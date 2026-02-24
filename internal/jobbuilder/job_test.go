@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/lenaxia/k8s-mendabot/api/v1alpha1"
+	"github.com/lenaxia/k8s-mendabot/internal/config"
 )
 
 var testRJob = &v1alpha1.RemediationJob{
@@ -163,10 +164,8 @@ func TestBuild_EnvVars_AllPresent(t *testing.T) {
 		"GITOPS_REPO",
 		"GITOPS_MANIFEST_ROOT",
 		"SINK_TYPE",
-		"OPENAI_API_KEY",
-		"OPENAI_BASE_URL",
-		"OPENAI_MODEL",
-		"KUBE_API_SERVER",
+		"AGENT_PROVIDER_CONFIG",
+		"AGENT_TYPE",
 	}
 	for _, name := range required {
 		if _, ok := getEnv(main, name); !ok {
@@ -304,10 +303,7 @@ func TestBuild_SecretKeyRefs(t *testing.T) {
 		secretName string
 		key        string
 	}{
-		{"OPENAI_API_KEY", "llm-credentials", "api-key"},
-		{"OPENAI_BASE_URL", "llm-credentials", "base-url"},
-		{"OPENAI_MODEL", "llm-credentials", "model"},
-		{"KUBE_API_SERVER", "llm-credentials", "kube-api-server"},
+		{"AGENT_PROVIDER_CONFIG", "llm-credentials-opencode", "provider-config"},
 	}
 
 	for _, tt := range tests {
@@ -361,7 +357,7 @@ func TestBuild_Volumes_AllPresent(t *testing.T) {
 	job := buildJob(t)
 	podSpec := job.Spec.Template.Spec
 
-	podVolumeTests := []string{"shared-workspace", "prompt-configmap", "github-app-secret", "agent-token"}
+	podVolumeTests := []string{"shared-workspace", "prompt-configmap", "agent-token"}
 	for _, name := range podVolumeTests {
 		if _, ok := findVolume(podSpec, name); !ok {
 			t.Errorf("pod volume %q not found", name)
@@ -380,6 +376,9 @@ func TestBuild_Volumes_AllPresent(t *testing.T) {
 			t.Errorf("main container volume mount %q not found", name)
 		}
 	}
+	if _, ok := findVolume(podSpec, "github-app-secret"); ok {
+		t.Error("github-app-secret volume must NOT exist in pod spec — credentials are env-var injected, not file-mounted")
+	}
 	if _, ok := findVolumeMount(main, "github-app-secret"); ok {
 		t.Error("main container must NOT mount github-app-secret (security)")
 	}
@@ -391,10 +390,15 @@ func TestBuild_Volumes_AllPresent(t *testing.T) {
 			break
 		}
 	}
-	for _, name := range []string{"shared-workspace", "github-app-secret"} {
+	for _, name := range []string{"shared-workspace"} {
 		if _, ok := findVolumeMount(initContainer, name); !ok {
 			t.Errorf("init container volume mount %q not found", name)
 		}
+	}
+	// github-app-secret volume must NOT be mounted in init container —
+	// credentials are read via env vars (GITHUB_APP_ID etc.), not files.
+	if _, ok := findVolumeMount(initContainer, "github-app-secret"); ok {
+		t.Error("init container must NOT mount github-app-secret — credentials are env-var injected")
 	}
 }
 
@@ -642,8 +646,7 @@ func TestBuild_InitScript_HasErrorHandling(t *testing.T) {
 }
 
 func contains(s, substr string) bool {
-	return len(s) > 0 && len(substr) > 0 && len(s) >= len(substr) &&
-		(s == substr || len(s) > len(substr) && (s[:len(substr)] == substr || contains(s[1:], substr)))
+	return strings.Contains(s, substr)
 }
 
 func TestBuild_PodSecurityContext(t *testing.T) {
@@ -785,5 +788,179 @@ func TestBuild_CorrelatedFindings_AllFieldsEncoded(t *testing.T) {
 		if f.Details != tt.wantDetails {
 			t.Errorf("[%d] Details = %q, want %q", tt.idx, f.Details, tt.wantDetails)
 		}
+	}
+}
+
+func TestBuild_SecretName_ByAgentType(t *testing.T) {
+	tests := []struct {
+		agentType       config.AgentType
+		wantSecretName  string
+		wantAgentCMName string
+	}{
+		{config.AgentTypeOpenCode, "llm-credentials-opencode", "agent-prompt-opencode"},
+		{config.AgentTypeClaude, "llm-credentials-claude", "agent-prompt-claude"},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.agentType), func(t *testing.T) {
+			b, err := New(Config{AgentNamespace: "mendabot", AgentType: tt.agentType})
+			if err != nil {
+				t.Fatalf("New: %v", err)
+			}
+			job, err := b.Build(testRJob, nil)
+			if err != nil {
+				t.Fatalf("Build: %v", err)
+			}
+			main := job.Spec.Template.Spec.Containers[0]
+
+			ref := findSecretKeyRef(main, "AGENT_PROVIDER_CONFIG")
+			if ref == nil {
+				t.Fatal("AGENT_PROVIDER_CONFIG has no secretKeyRef")
+			}
+			if ref.Name != tt.wantSecretName {
+				t.Errorf("secret name = %q, want %q", ref.Name, tt.wantSecretName)
+			}
+
+			podSpec := job.Spec.Template.Spec
+			vol, ok := findVolume(podSpec, "prompt-configmap")
+			if !ok {
+				t.Fatal("prompt-configmap volume not found")
+			}
+			if vol.Projected == nil {
+				t.Fatal("prompt-configmap volume has no Projected source")
+			}
+			// Expect exactly two sources: core CM and agent CM.
+			if len(vol.Projected.Sources) != 2 {
+				t.Fatalf("projected sources len = %d, want 2", len(vol.Projected.Sources))
+			}
+			coreSrc := vol.Projected.Sources[0].ConfigMap
+			agentSrc := vol.Projected.Sources[1].ConfigMap
+			if coreSrc == nil {
+				t.Fatal("projected source[0] has no ConfigMap")
+			}
+			if agentSrc == nil {
+				t.Fatal("projected source[1] has no ConfigMap")
+			}
+			if coreSrc.Name != "agent-prompt-core" {
+				t.Errorf("core CM name = %q, want %q", coreSrc.Name, "agent-prompt-core")
+			}
+			if agentSrc.Name != tt.wantAgentCMName {
+				t.Errorf("agent CM name = %q, want %q", agentSrc.Name, tt.wantAgentCMName)
+			}
+			// Verify KeyToPath bindings — entrypoint-common.sh reads exactly
+			// /prompt/core.txt and /prompt/agent.txt.
+			if len(coreSrc.Items) != 1 || coreSrc.Items[0].Key != "core.txt" || coreSrc.Items[0].Path != "core.txt" {
+				t.Errorf("core CM KeyToPath = %v, want [{core.txt core.txt}]", coreSrc.Items)
+			}
+			if len(agentSrc.Items) != 1 || agentSrc.Items[0].Key != "agent.txt" || agentSrc.Items[0].Path != "agent.txt" {
+				t.Errorf("agent CM KeyToPath = %v, want [{agent.txt agent.txt}]", agentSrc.Items)
+			}
+			// AGENT_TYPE must be injected so the dispatcher entrypoint routes
+			// to the correct agent binary for this agent type.
+			agentTypeVal, ok := getEnv(main, "AGENT_TYPE")
+			if !ok {
+				t.Fatal("AGENT_TYPE env var missing from main container")
+			}
+			if agentTypeVal != string(tt.agentType) {
+				t.Errorf("AGENT_TYPE = %q, want %q", agentTypeVal, string(tt.agentType))
+			}
+		})
+	}
+}
+
+// --- BUG-1: TTL must come from Config, not be hardcoded ---
+
+// TestBuild_TTL_DefaultIs86400 verifies that when no TTL is specified the Job
+// still gets a sensible default (86400s = 24h).
+func TestBuild_TTL_DefaultIs86400(t *testing.T) {
+	job := buildJob(t)
+	if job.Spec.TTLSecondsAfterFinished == nil {
+		t.Fatal("TTLSecondsAfterFinished is nil")
+	}
+	if *job.Spec.TTLSecondsAfterFinished != 86400 {
+		t.Errorf("TTLSecondsAfterFinished = %d, want 86400", *job.Spec.TTLSecondsAfterFinished)
+	}
+}
+
+// TestBuild_TTL_HonorsConfig verifies that a non-default TTL set in Config is
+// reflected in the Job spec. This test FAILS until Config gets a TTLSeconds
+// field and job.go uses it.
+func TestBuild_TTL_HonorsConfig(t *testing.T) {
+	b, err := New(Config{AgentNamespace: "mendabot", TTLSeconds: 3600})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	job, err := b.Build(testRJob, nil)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if job.Spec.TTLSecondsAfterFinished == nil {
+		t.Fatal("TTLSecondsAfterFinished is nil")
+	}
+	if *job.Spec.TTLSecondsAfterFinished != 3600 {
+		t.Errorf("TTLSecondsAfterFinished = %d, want 3600 (from Config.TTLSeconds)",
+			*job.Spec.TTLSecondsAfterFinished)
+	}
+}
+
+// --- BUG-2: Init container must NOT mount github-app-secret volume ---
+// The init script reads GitHub App credentials via env vars only.
+// The volume mount at /secrets/github-app is unused dead weight.
+
+func TestBuild_InitContainer_DoesNotMountGithubAppSecret(t *testing.T) {
+	job := buildJob(t)
+	var init corev1.Container
+	for _, c := range job.Spec.Template.Spec.InitContainers {
+		if c.Name == "git-token-clone" {
+			init = c
+			break
+		}
+	}
+	for _, vm := range init.VolumeMounts {
+		if vm.Name == "github-app-secret" {
+			t.Errorf("init container must NOT mount github-app-secret — credentials are read via env vars, not files")
+		}
+	}
+}
+
+// --- COMPLEXITY-1: AGENT_MODEL must NOT be injected into the Job container ---
+// The model is embedded inside AGENT_PROVIDER_CONFIG (opaque blob).
+// Injecting AGENT_MODEL as a separate env var is dead weight that misleads
+// operators into thinking it drives model selection.
+
+func TestBuild_AGENT_MODEL_NotInjected(t *testing.T) {
+	job := buildJob(t)
+	main := job.Spec.Template.Spec.Containers[0]
+	for _, e := range main.Env {
+		if e.Name == "AGENT_MODEL" {
+			t.Error("AGENT_MODEL must not be injected into the Job container — model selection is driven by AGENT_PROVIDER_CONFIG blob")
+		}
+	}
+}
+
+func TestBuild_DefaultAgentType_IsOpenCode(t *testing.T) {
+	b, err := New(Config{AgentNamespace: "mendabot"})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	job, err := b.Build(testRJob, nil)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	main := job.Spec.Template.Spec.Containers[0]
+	ref := findSecretKeyRef(main, "AGENT_PROVIDER_CONFIG")
+	if ref == nil {
+		t.Fatal("AGENT_PROVIDER_CONFIG has no secretKeyRef")
+	}
+	if ref.Name != "llm-credentials-opencode" {
+		t.Errorf("default secret name = %q, want %q", ref.Name, "llm-credentials-opencode")
+	}
+	// AGENT_TYPE must be injected into the Job container so the dispatcher
+	// entrypoint script routes to the correct agent binary.
+	agentTypeVal, ok := getEnv(main, "AGENT_TYPE")
+	if !ok {
+		t.Fatal("AGENT_TYPE env var missing from main container")
+	}
+	if agentTypeVal != "opencode" {
+		t.Errorf("AGENT_TYPE = %q, want %q", agentTypeVal, "opencode")
 	}
 }

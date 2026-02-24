@@ -90,3 +90,4 @@ else.
 | [0068](0068_2026-02-23_cross-epic-validation-gap-fixes.md) | 2026-02-23 | Cross-epic skeptical validation: 11 gaps found and fixed (4 Major, 7 Minor) | Complete |
 | [0069](0069_2026-02-23_second-pass-validation-gap-fixes.md) | 2026-02-23 | Second-pass validation: 4 gaps found and fixed (1 Critical, 1 Major, 2 Minor) | Complete |
 | [0070](0070_2026-02-24_third-pass-validation-gap-fixes.md) | 2026-02-24 | Third-pass validation: 5 gaps found and fixed (2 Major, 3 Minor) | Complete |
+| [0071](0071_2026-02-23_epic08-pluggable-agent-complete.md) | 2026-02-23 | Epic 08: pluggable agent runner — AGENT_TYPE, opaque config blob, projected prompt volumes | Complete |

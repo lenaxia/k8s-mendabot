@@ -9,6 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/lenaxia/k8s-mendabot/api/v1alpha1"
+	"github.com/lenaxia/k8s-mendabot/internal/config"
 	"github.com/lenaxia/k8s-mendabot/internal/domain"
 )
 
@@ -16,7 +17,13 @@ var _ domain.JobBuilder = (*Builder)(nil)
 
 type Config struct {
 	AgentNamespace string
+	AgentType      config.AgentType
+	// TTLSeconds controls TTLSecondsAfterFinished on the batch/v1 Job.
+	// Zero means use the default (86400 = 24h).
+	TTLSeconds int32
 }
+
+const defaultTTLSeconds int32 = 86400
 
 type Builder struct {
 	cfg Config
@@ -25,6 +32,12 @@ type Builder struct {
 func New(cfg Config) (*Builder, error) {
 	if cfg.AgentNamespace == "" {
 		return nil, fmt.Errorf("jobbuilder: AgentNamespace must not be empty")
+	}
+	if cfg.AgentType == "" {
+		cfg.AgentType = config.AgentTypeOpenCode
+	}
+	if cfg.TTLSeconds == 0 {
+		cfg.TTLSeconds = defaultTTLSeconds
 	}
 	return &Builder{cfg: cfg}, nil
 }
@@ -53,6 +66,9 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 	}
 
 	jobName := "mendabot-agent-" + rjob.Spec.Fingerprint[:12]
+	secretName := "llm-credentials-" + string(b.cfg.AgentType)
+	coreCMName := "agent-prompt-core"
+	agentCMName := "agent-prompt-" + string(b.cfg.AgentType)
 
 	initContainer := corev1.Container{
 		Name:    "git-token-clone",
@@ -97,11 +113,6 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 				Name:      "shared-workspace",
 				MountPath: "/workspace",
 			},
-			{
-				Name:      "github-app-secret",
-				MountPath: "/secrets/github-app",
-				ReadOnly:  true,
-			},
 		},
 		SecurityContext: &corev1.SecurityContext{
 			AllowPrivilegeEscalation: ptr(false),
@@ -126,41 +137,16 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 			{Name: "GITOPS_MANIFEST_ROOT", Value: rjob.Spec.GitOpsManifestRoot},
 			{Name: "SINK_TYPE", Value: rjob.Spec.SinkType},
 			{
-				Name: "OPENAI_API_KEY",
+				Name: "AGENT_PROVIDER_CONFIG",
 				ValueFrom: &corev1.EnvVarSource{
 					SecretKeyRef: &corev1.SecretKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{Name: "llm-credentials"},
-						Key:                  "api-key",
+						LocalObjectReference: corev1.LocalObjectReference{Name: secretName},
+						Key:                  "provider-config",
 					},
 				},
 			},
-			{
-				Name: "OPENAI_BASE_URL",
-				ValueFrom: &corev1.EnvVarSource{
-					SecretKeyRef: &corev1.SecretKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{Name: "llm-credentials"},
-						Key:                  "base-url",
-					},
-				},
-			},
-			{
-				Name: "OPENAI_MODEL",
-				ValueFrom: &corev1.EnvVarSource{
-					SecretKeyRef: &corev1.SecretKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{Name: "llm-credentials"},
-						Key:                  "model",
-					},
-				},
-			},
-			{
-				Name: "KUBE_API_SERVER",
-				ValueFrom: &corev1.EnvVarSource{
-					SecretKeyRef: &corev1.SecretKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{Name: "llm-credentials"},
-						Key:                  "kube-api-server",
-					},
-				},
-			},
+			{Name: "AGENT_TYPE", Value: string(b.cfg.AgentType)},
+			{Name: "IS_SELF_REMEDIATION", Value: "false"},
 		},
 		VolumeMounts: []corev1.VolumeMount{
 			{
@@ -173,6 +159,10 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 				ReadOnly:  true,
 			},
 			{
+				// Legacy SA token (no audience claim) — accepted by all API servers
+				// including Talos where projected tokens fail audience validation.
+				// Mounted at a non-standard path so entrypoint-common.sh can detect
+				// its presence and prefer it over the auto-mounted projected token.
 				Name:      "agent-token",
 				MountPath: "/var/run/secrets/mendabot/serviceaccount",
 				ReadOnly:  true,
@@ -202,22 +192,36 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 			},
 		},
 		{
+			// Projected volume merges core prompt (core.txt) and agent-specific prompt
+			// (agent.txt) into a single /prompt directory. entrypoint-common.sh reads
+			// both files and concatenates them at runtime.
 			Name: "prompt-configmap",
 			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{Name: "opencode-prompt"},
+				Projected: &corev1.ProjectedVolumeSource{
+					Sources: []corev1.VolumeProjection{
+						{
+							ConfigMap: &corev1.ConfigMapProjection{
+								LocalObjectReference: corev1.LocalObjectReference{Name: coreCMName},
+								Items: []corev1.KeyToPath{
+									{Key: "core.txt", Path: "core.txt"},
+								},
+							},
+						},
+						{
+							ConfigMap: &corev1.ConfigMapProjection{
+								LocalObjectReference: corev1.LocalObjectReference{Name: agentCMName},
+								Items: []corev1.KeyToPath{
+									{Key: "agent.txt", Path: "agent.txt"},
+								},
+							},
+						},
+					},
 				},
 			},
 		},
 		{
-			Name: "github-app-secret",
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: "github-app",
-				},
-			},
-		},
-		{
+			// Legacy SA token secret — no audience claim, works on all distributions.
+			// See entrypoint-common.sh for how this is used.
 			Name: "agent-token",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
@@ -255,7 +259,7 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 		Spec: batchv1.JobSpec{
 			BackoffLimit:            ptr(int32(1)),
 			ActiveDeadlineSeconds:   ptr(int64(900)),
-			TTLSecondsAfterFinished: ptr(int32(86400)),
+			TTLSecondsAfterFinished: ptr(b.cfg.TTLSeconds),
 			Template: corev1.PodTemplateSpec{
 				Spec: corev1.PodSpec{
 					ServiceAccountName: rjob.Spec.AgentSA,

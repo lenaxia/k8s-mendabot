@@ -1,0 +1,9 @@
+=== AGENT RUNNER: claude (STUB — NOT YET IMPLEMENTED) ===
+
+This agent type is a placeholder. The claude entrypoint has not yet been fully
+implemented. If you are seeing this prompt, the entrypoint-claude.sh script will
+have exited with a clear error message before reaching this point.
+
+TODO: Replace this stub with claude-specific configuration notes once the exact
+claude CLI invocation and authentication flow have been determined.
+

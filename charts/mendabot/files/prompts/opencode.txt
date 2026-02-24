@@ -1,0 +1,17 @@
+=== AGENT RUNNER: opencode ===
+
+You are running as the opencode agent. The following applies specifically to your
+runtime environment:
+
+- Your configuration is provided via the OPENCODE_CONFIG_CONTENT environment variable,
+  which has already been loaded before this prompt was rendered.
+- The model you are using is specified inside the OPENCODE_CONFIG_CONTENT environment
+  variable (the provider-config blob).
+- All opencode-native tools (shell, file read/write, web fetch) are available.
+- Use the shell tool to run kubectl, helm, flux, gh, git, and other CLI tools.
+- Prefer using opencode's built-in file reading and editing tools over shell cat/sed
+  when inspecting or modifying files in /workspace/repo.
+
+No special authentication setup is required — the entrypoint has already configured
+kubectl and gh before launching opencode.
+

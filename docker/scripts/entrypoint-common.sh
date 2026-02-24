@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+# entrypoint-common.sh — agent-agnostic setup: env validation, kubeconfig, gh auth,
+# prompt concatenation. Sourced by per-agent entrypoint scripts.
+set -euo pipefail
+
+# Validate agent-agnostic required environment variables.
+: "${FINDING_KIND:?FINDING_KIND must be set}"
+: "${FINDING_NAME:?FINDING_NAME must be set}"
+: "${FINDING_NAMESPACE:?FINDING_NAMESPACE must be set}"
+: "${FINDING_FINGERPRINT:?FINDING_FINGERPRINT must be set}"
+: "${FINDING_ERRORS:?FINDING_ERRORS must be set}"
+: "${GITOPS_REPO:?GITOPS_REPO must be set}"
+: "${GITOPS_MANIFEST_ROOT:?GITOPS_MANIFEST_ROOT must be set}"
+
+# Optional variables — default to safe empty values.
+FINDING_DETAILS="${FINDING_DETAILS:-}"
+FINDING_PARENT="${FINDING_PARENT:-<none>}"
+IS_SELF_REMEDIATION="${IS_SELF_REMEDIATION:-false}"
+CHAIN_DEPTH="${CHAIN_DEPTH:-0}"
+TARGET_REPO_OVERRIDE="${TARGET_REPO_OVERRIDE:-}"
+
+# Build a kubeconfig from in-cluster credentials.
+#
+# Token selection strategy (tried in order):
+#   1. /var/run/secrets/mendabot/serviceaccount/token — legacy SA token with no
+#      audience claim, created by secret-agent-token.yaml. The Kubernetes API server
+#      accepts tokens with no aud claim unconditionally (backwards compatibility
+#      requirement). This works on every distribution including Talos where projected
+#      tokens may fail audience validation due to issuer misconfiguration.
+#   2. /var/run/secrets/kubernetes.io/serviceaccount/token — standard projected SA
+#      token. Works on EKS, GKE, AKS, k3s, kind, kubeadm and any Talos cluster
+#      that has correct service-account-issuer configuration.
+#
+# Server address: KUBERNETES_SERVICE_HOST and KUBERNETES_SERVICE_PORT are injected
+# into every pod by Kubernetes on every distribution — no operator configuration
+# required and no external secret needed.
+LEGACY_TOKEN=/var/run/secrets/mendabot/serviceaccount/token
+LEGACY_CA=/var/run/secrets/mendabot/serviceaccount/ca.crt
+PROJECTED_TOKEN=/var/run/secrets/kubernetes.io/serviceaccount/token
+PROJECTED_CA=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+
+if [ -f "$LEGACY_TOKEN" ] && [ -f "$LEGACY_CA" ]; then
+    SA_TOKEN_FILE="$LEGACY_TOKEN"
+    SA_CA="$LEGACY_CA"
+elif [ -f "$PROJECTED_TOKEN" ] && [ -f "$PROJECTED_CA" ]; then
+    SA_TOKEN_FILE="$PROJECTED_TOKEN"
+    SA_CA="$PROJECTED_CA"
+else
+    echo "ERROR: no usable ServiceAccount token+CA pair found." >&2
+    echo "  Tried legacy:    $LEGACY_TOKEN + $LEGACY_CA" >&2
+    echo "  Tried projected: $PROJECTED_TOKEN + $PROJECTED_CA" >&2
+    exit 1
+fi
+
+: "${KUBERNETES_SERVICE_HOST:?KUBERNETES_SERVICE_HOST not set — is this pod running inside a Kubernetes cluster?}"
+: "${KUBERNETES_SERVICE_PORT:?KUBERNETES_SERVICE_PORT not set — is this pod running inside a Kubernetes cluster?}"
+KUBE_SERVER="https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT}"
+
+mkdir -p /home/agent/.kube
+kubectl config set-cluster in-cluster \
+    --server="${KUBE_SERVER}" \
+    --certificate-authority="${SA_CA}" \
+    --embed-certs=true \
+    --kubeconfig=/home/agent/.kube/config
+kubectl config set-credentials in-cluster \
+    --token="$(cat "${SA_TOKEN_FILE}")" \
+    --kubeconfig=/home/agent/.kube/config
+kubectl config set-context in-cluster \
+    --cluster=in-cluster \
+    --user=in-cluster \
+    --kubeconfig=/home/agent/.kube/config
+kubectl config use-context in-cluster \
+    --kubeconfig=/home/agent/.kube/config
+
+export KUBECONFIG=/home/agent/.kube/config
+
+# Authenticate gh CLI using the token written by the init container.
+# Validate that authentication succeeds — a bad token would otherwise only be
+# discovered mid-investigation when gh pr list fails.
+gh auth login --with-token < /workspace/github-token
+if ! gh auth status > /dev/null 2>&1; then
+    echo "ERROR: gh authentication failed — check /workspace/github-token" >&2
+    exit 1
+fi
+
+# Concatenate prompts into a single rendered file.
+# Order: agent preamble first, then core instructions.
+# /prompt/agent.txt — agent-runner-specific preamble (tool availability, config notes)
+# /prompt/core.txt  — shared investigation instructions (appended after preamble)
+CORE_PROMPT=/prompt/core.txt
+AGENT_PROMPT=/prompt/agent.txt
+
+if [ ! -f "$CORE_PROMPT" ]; then
+    echo "ERROR: core prompt file not found at $CORE_PROMPT" >&2
+    exit 1
+fi
+
+COMBINED_PROMPT=$(cat "$CORE_PROMPT")
+if [ -f "$AGENT_PROMPT" ] && [ -s "$AGENT_PROMPT" ]; then
+    COMBINED_PROMPT="$(cat "$AGENT_PROMPT")
+
+${COMBINED_PROMPT}"
+fi
+
+# Substitute environment variables into the combined prompt template.
+# Restrict envsubst to known variable names to avoid corrupting content in
+# FINDING_ERRORS or FINDING_DETAILS that may contain literal $ signs.
+VARS='${FINDING_KIND}${FINDING_NAME}${FINDING_NAMESPACE}${FINDING_PARENT}${FINDING_FINGERPRINT}${FINDING_ERRORS}${FINDING_DETAILS}${GITOPS_REPO}${GITOPS_MANIFEST_ROOT}${IS_SELF_REMEDIATION}${CHAIN_DEPTH}${TARGET_REPO_OVERRIDE}'
+printf '%s' "$COMBINED_PROMPT" | envsubst "$VARS" > /tmp/rendered-prompt.txt
+
+# Log self-remediation context if applicable.
+if [ "$IS_SELF_REMEDIATION" = "true" ]; then
+    echo "=== SELF-REMEDIATION MODE ==="
+    echo "Chain depth: $CHAIN_DEPTH"
+    echo "Target repo override: ${TARGET_REPO_OVERRIDE:-<none>}"
+    if [ "$CHAIN_DEPTH" -gt 2 ]; then
+        echo "WARNING: Deep cascade detected (depth > 2). Proceeding with caution."
+    fi
+fi

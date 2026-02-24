@@ -5,8 +5,9 @@ Verify the watcher is running:
   kubectl get rjob -n {{ .Release.Namespace }}
 
 REQUIRED: Create the following Secrets before the watcher can function.
-The names and keys below are hardcoded in the mendabot jobbuilder and cannot
-be overridden via Helm values.
+The names and keys below are derived from your agentType value and are
+compile-time constants in the mendabot jobbuilder. They cannot be overridden
+via Helm values.
 
 1. GitHub App credentials (Secret name must be exactly "github-app"):
    kubectl create secret generic github-app \
@@ -15,13 +16,27 @@ be overridden via Helm values.
      --from-literal=installation-id=<your-installation-id> \
      --from-file=private-key=<path-to-private-key.pem>
 
-2. LLM + cluster credentials (Secret name must be exactly "llm-credentials"):
-   kubectl create secret generic llm-credentials \
+2. LLM + cluster credentials (Secret name: "llm-credentials-{{ .Values.agentType }}"):
+   The Secret uses an opaque config blob pattern — mendabot never interprets
+   the provider-config content; it is passed directly to the agent runner.
+
+   For agentType=opencode:
+   kubectl create secret generic llm-credentials-opencode \
      --namespace {{ .Release.Namespace }} \
-     --from-literal=api-key=<your-llm-api-key> \
-     --from-literal=base-url=<your-llm-base-url> \
-     --from-literal=model=<your-model-name> \
-     --from-literal=kube-api-server=https://<your-cluster-api-server>:6443
+     --from-literal=provider-config='{"model":"<model>","providers":{"openai":{"apiKey":"<key>","baseURL":"<url>"}}}'
+
+   For agentType=claude (stub — not yet fully implemented):
+   kubectl create secret generic llm-credentials-claude \
+     --namespace {{ .Release.Namespace }} \
+     --from-literal=provider-config='{}'
+
+BREAKING CHANGE (from <=v0.x):
+  The previous Secret "llm-credentials" with keys api-key/base-url/model/kube-api-server
+  has been replaced. You must:
+  1. Delete the old secret:
+       kubectl delete secret llm-credentials -n {{ .Release.Namespace }}
+  2. Create the new secret per the instructions above.
+  3. Set agentType in your values.yaml (default: "opencode").
 {{- if .Values.metrics.serviceMonitor.enabled }}
 
 NOTE: ServiceMonitor is enabled. Ensure Prometheus Operator is installed in your

@@ -153,9 +153,15 @@ ENV GIT_COMMITTER_EMAIL="mendabot-agent@users.noreply.github.com"
 COPY docker/scripts/get-github-app-token.sh /usr/local/bin/get-github-app-token.sh
 RUN chmod +x /usr/local/bin/get-github-app-token.sh
 
-# Agent entrypoint: runs envsubst on prompt then calls opencode run
+# Agent entrypoints: dispatcher + shared common setup + per-agent-runner scripts
 COPY docker/scripts/agent-entrypoint.sh /usr/local/bin/agent-entrypoint.sh
-RUN chmod +x /usr/local/bin/agent-entrypoint.sh
+COPY docker/scripts/entrypoint-common.sh /usr/local/bin/entrypoint-common.sh
+COPY docker/scripts/entrypoint-opencode.sh /usr/local/bin/entrypoint-opencode.sh
+COPY docker/scripts/entrypoint-claude.sh /usr/local/bin/entrypoint-claude.sh
+RUN chmod +x /usr/local/bin/agent-entrypoint.sh \
+             /usr/local/bin/entrypoint-common.sh \
+             /usr/local/bin/entrypoint-opencode.sh \
+             /usr/local/bin/entrypoint-claude.sh
 
 # Smoke test: verifies all expected binaries are present and executable
 COPY docker/scripts/smoke-test.sh /usr/local/bin/smoke-test.sh

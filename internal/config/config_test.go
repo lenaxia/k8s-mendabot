@@ -731,3 +731,68 @@ func TestFromEnv_MaxInvestigationRetries(t *testing.T) {
 		})
 	}
 }
+
+// TestFromEnv_AgentTypeDefault tests that unset AGENT_TYPE defaults to "opencode".
+func TestFromEnv_AgentTypeDefault(t *testing.T) {
+	setRequiredEnv(t)
+	os.Unsetenv("AGENT_TYPE")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.AgentType != config.AgentTypeOpenCode {
+		t.Errorf("AgentType default: got %q, want %q", cfg.AgentType, config.AgentTypeOpenCode)
+	}
+}
+
+// TestFromEnv_AgentTypeValidValues tests each accepted AGENT_TYPE value.
+func TestFromEnv_AgentTypeValidValues(t *testing.T) {
+	tests := []struct {
+		input string
+		want  config.AgentType
+	}{
+		{"opencode", config.AgentTypeOpenCode},
+		{"claude", config.AgentTypeClaude},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			setRequiredEnv(t)
+			t.Setenv("AGENT_TYPE", tt.input)
+
+			cfg, err := config.FromEnv()
+			if err != nil {
+				t.Fatalf("unexpected error for AGENT_TYPE=%q: %v", tt.input, err)
+			}
+			if cfg.AgentType != tt.want {
+				t.Errorf("AgentType: got %q, want %q", cfg.AgentType, tt.want)
+			}
+		})
+	}
+}
+
+// TestFromEnv_AgentTypeInvalidValue tests that an unknown AGENT_TYPE is rejected.
+func TestFromEnv_AgentTypeInvalidValue(t *testing.T) {
+	for _, bad := range []string{"kiro", "copilot", "OPENCODE", ""} {
+		name := bad
+		if name == "" {
+			name = "(forced-empty-via-setenv)"
+		}
+		t.Run(name, func(t *testing.T) {
+			setRequiredEnv(t)
+			if bad == "" {
+				// force empty via explicit set to distinguish from unset
+				t.Setenv("AGENT_TYPE", " ")
+			} else {
+				t.Setenv("AGENT_TYPE", bad)
+			}
+			_, err := config.FromEnv()
+			if err == nil {
+				t.Fatalf("expected error for AGENT_TYPE=%q, got nil", bad)
+			}
+			if !strings.Contains(err.Error(), "AGENT_TYPE") {
+				t.Errorf("error should mention AGENT_TYPE, got: %v", err)
+			}
+		})
+	}
+}
