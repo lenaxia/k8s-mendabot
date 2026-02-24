@@ -21,6 +21,3 @@ rules:
 - apiGroups: ["remediation.mendabot.io"]
   resources: ["remediationjobs/status"]
   verbs: ["get", "patch", "update"]
-- apiGroups: ["remediation.mendabot.io"]
-  resources: ["remediationjobs/finalizers"]
-  verbs: ["update"]

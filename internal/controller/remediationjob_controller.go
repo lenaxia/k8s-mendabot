@@ -21,7 +21,6 @@ import (
 
 //+kubebuilder:rbac:groups=remediation.mendabot.io,resources=remediationjobs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=remediation.mendabot.io,resources=remediationjobs/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=remediation.mendabot.io,resources=remediationjobs/finalizers,verbs=update
 //+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
 
 // RemediationJobReconciler watches RemediationJob objects and drives the Job lifecycle.
@@ -61,24 +60,35 @@ func (r *RemediationJobReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	switch rjob.Status.Phase {
 	case v1alpha1.PhaseSucceeded:
-		if rjob.Status.CompletedAt != nil {
-			deadline := rjob.Status.CompletedAt.Add(ttl)
-			if time.Now().Before(deadline) {
-				return ctrl.Result{RequeueAfter: time.Until(deadline)}, nil
-			}
-			if err := r.Delete(ctx, &rjob); err != nil && !apierrors.IsNotFound(err) {
+		if rjob.Status.CompletedAt == nil {
+			// Safety net: CompletedAt was never set (e.g. status patch was lost on a
+			// prior reconcile, or the object was externally mutated). Set it now so the
+			// TTL path can run correctly on the next reconcile.  Without this guard the
+			// object would live forever in etcd and the dedup fingerprint would be
+			// permanently suppressed.
+			now := metav1.Now()
+			rjobCopy := rjob.DeepCopyObject().(*v1alpha1.RemediationJob)
+			rjobCopy.Status.CompletedAt = &now
+			if err := r.Status().Patch(ctx, rjobCopy, client.MergeFrom(&rjob)); err != nil && !apierrors.IsNotFound(err) {
 				return ctrl.Result{}, err
 			}
-			if r.Log != nil {
-				r.Log.Info("RemediationJob deleted by TTL",
-					zap.Bool("audit", true),
-					zap.String("event", "remediationjob.deleted_ttl"),
-					zap.String("remediationJob", rjob.Name),
-					zap.String("namespace", rjob.Namespace),
-					zap.String("prRef", rjob.Status.PRRef),
-				)
-			}
-			return ctrl.Result{}, nil
+			return ctrl.Result{RequeueAfter: time.Second}, nil
+		}
+		deadline := rjob.Status.CompletedAt.Add(ttl)
+		if time.Now().Before(deadline) {
+			return ctrl.Result{RequeueAfter: time.Until(deadline)}, nil
+		}
+		if err := r.Delete(ctx, &rjob); err != nil && !apierrors.IsNotFound(err) {
+			return ctrl.Result{}, err
+		}
+		if r.Log != nil {
+			r.Log.Info("RemediationJob deleted by TTL",
+				zap.Bool("audit", true),
+				zap.String("event", "remediationjob.deleted_ttl"),
+				zap.String("remediationJob", rjob.Name),
+				zap.String("namespace", rjob.Namespace),
+				zap.String("prRef", rjob.Status.PRRef),
+			)
 		}
 		return ctrl.Result{}, nil
 

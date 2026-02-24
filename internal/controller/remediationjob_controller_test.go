@@ -604,6 +604,59 @@ func TestRemediationJobReconciler_PhaseFailed_ZeroMaxRetries_UsesDefault(t *test
 	}
 }
 
+// TestRemediationJobReconciler_PhaseSucceeded_NilCompletedAt_SetsCompletedAt verifies that
+// when a RemediationJob is already in PhaseSucceeded but CompletedAt is nil (e.g. status
+// patch for CompletedAt was lost, or an external actor set Phase=Succeeded without the
+// timestamp), the reconciler sets CompletedAt to now and requeues so the TTL path can run
+// normally on the next reconcile.
+func TestRemediationJobReconciler_PhaseSucceeded_NilCompletedAt_SetsCompletedAt(t *testing.T) {
+	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
+	rjob := newRJob("test-succeeded-nil-cat", fp)
+	rjob.Status.Phase = v1alpha1.PhaseSucceeded
+	// CompletedAt is intentionally nil — this is the bug scenario
+
+	before := time.Now()
+
+	c := newFakeClient(t, rjob)
+	jb := &fakeJobBuilder{}
+	r := newReconciler(t, c, jb, defaultCfg())
+
+	result, err := r.Reconcile(context.Background(), rjobReqFor("test-succeeded-nil-cat"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Must requeue so the TTL path runs on the next reconcile
+	if result.RequeueAfter == 0 && !result.Requeue {
+		t.Error("expected a requeue (RequeueAfter > 0 or Requeue=true) when CompletedAt was nil")
+	}
+
+	// CompletedAt must now be set in the persisted status
+	var updated v1alpha1.RemediationJob
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-succeeded-nil-cat", Namespace: testNamespace}, &updated); err != nil {
+		t.Fatalf("get rjob: %v", err)
+	}
+	if updated.Status.CompletedAt == nil {
+		t.Fatal("expected CompletedAt to be set after safety-net reconcile, got nil")
+	}
+	after := time.Now()
+	// Allow a 2-second window to account for metav1.Now() stripping the monotonic
+	// clock and any sub-second rounding.
+	if updated.Status.CompletedAt.Time.Before(before.Add(-2*time.Second)) || updated.Status.CompletedAt.Time.After(after.Add(2*time.Second)) {
+		t.Errorf("CompletedAt %v is outside expected window [%v, %v]",
+			updated.Status.CompletedAt.Time, before, after)
+	}
+
+	// No batch/v1 Job should be created
+	var jobList batchv1.JobList
+	if err := c.List(context.Background(), &jobList, client.InNamespace(testNamespace)); err != nil {
+		t.Fatalf("list jobs: %v", err)
+	}
+	if len(jobList.Items) != 0 {
+		t.Errorf("expected 0 jobs after safety-net reconcile, got %d", len(jobList.Items))
+	}
+}
+
 // TestRemediationJobReconciler_OwnerRef verifies created job has ownerReference pointing to RJob.
 func TestRemediationJobReconciler_OwnerRef(t *testing.T) {
 	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"

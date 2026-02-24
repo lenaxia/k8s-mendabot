@@ -161,7 +161,6 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 					},
 				},
 			},
-			{Name: "IS_SELF_REMEDIATION", Value: "false"},
 		},
 		VolumeMounts: []corev1.VolumeMount{
 			{

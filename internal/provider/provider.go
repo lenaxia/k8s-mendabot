@@ -173,11 +173,23 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	if r.Cfg.StabilisationWindow != 0 {
 		if first, seen := r.firstSeen.Get(fp); !seen {
 			r.firstSeen.Set(fp)
+			if r.Log != nil {
+				r.Log.Info("stabilisation window: first seen, deferring RemediationJob creation",
+					zap.String("fingerprint", fp[:12]),
+					zap.Duration("window", r.Cfg.StabilisationWindow),
+				)
+			}
 			return ctrl.Result{RequeueAfter: r.Cfg.StabilisationWindow}, nil
 		} else {
 			elapsed := time.Since(first)
 			if elapsed < r.Cfg.StabilisationWindow {
 				remaining := r.Cfg.StabilisationWindow - elapsed
+				if r.Log != nil {
+					r.Log.Info("stabilisation window: holding, not yet elapsed",
+						zap.String("fingerprint", fp[:12]),
+						zap.Duration("remaining", remaining),
+					)
+				}
 				return ctrl.Result{RequeueAfter: remaining}, nil
 			}
 			// Window has elapsed — fall through to dedup + Job creation.
@@ -217,6 +229,13 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 				return ctrl.Result{}, delErr
 			}
 		default:
+			if r.Log != nil {
+				r.Log.Debug("dedup: suppressing re-dispatch, existing RemediationJob in active or terminal phase",
+					zap.String("fingerprint", fp[:12]),
+					zap.String("remediationJob", rjob.Name),
+					zap.String("phase", string(rjob.Status.Phase)),
+				)
+			}
 			return ctrl.Result{}, nil
 		}
 	}
