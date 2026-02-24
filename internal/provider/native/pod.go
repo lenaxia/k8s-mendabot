@@ -119,12 +119,6 @@ func (p *podProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 		Namespace:    pod.Namespace,
 		ParentObject: parent,
 		Errors:       string(errorsJSON),
-		SourceRef: domain.SourceRef{
-			APIVersion: "v1",
-			Kind:       "Pod",
-			Name:       pod.Name,
-			Namespace:  pod.Namespace,
-		},
 	}, nil
 }
 

@@ -9,7 +9,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/lenaxia/k8s-mendabot/internal/config"
 	"github.com/lenaxia/k8s-mendabot/internal/domain"
 )
 
@@ -18,15 +17,14 @@ var _ domain.SourceProvider = (*jobProvider)(nil)
 
 type jobProvider struct {
 	client client.Client
-	cfg    config.Config
 }
 
 // NewJobProvider constructs a jobProvider. Panics if c is nil.
-func NewJobProvider(c client.Client, cfg config.Config) domain.SourceProvider {
+func NewJobProvider(c client.Client) domain.SourceProvider {
 	if c == nil {
 		panic("NewJobProvider: client must not be nil")
 	}
-	return &jobProvider{client: c, cfg: cfg}
+	return &jobProvider{client: c}
 }
 
 // ProviderName returns the stable identifier for this provider.
@@ -43,6 +41,13 @@ func (p *jobProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 	job, ok := obj.(*batchv1.Job)
 	if !ok {
 		return nil, fmt.Errorf("jobProvider: expected *batchv1.Job, got %T", obj)
+	}
+
+	// Self-exclusion: skip jobs created by mendabot-watcher (agent jobs).
+	// Without this guard a failed agent job would trigger a new RemediationJob,
+	// causing a self-triggering cascade loop.
+	if job.Labels["app.kubernetes.io/managed-by"] == "mendabot-watcher" {
+		return nil, nil
 	}
 
 	// CronJob exclusion — checked before any failure detection.
@@ -103,12 +108,6 @@ func (p *jobProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 		Namespace:    job.Namespace,
 		ParentObject: parent,
 		Errors:       string(errorsJSON),
-		SourceRef: domain.SourceRef{
-			APIVersion: "batch/v1",
-			Kind:       "Job",
-			Name:       job.Name,
-			Namespace:  job.Namespace,
-		},
 	}
 
 	return finding, nil

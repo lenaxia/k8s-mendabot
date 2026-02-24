@@ -548,6 +548,62 @@ func TestRemediationJobReconciler_TerminalPhases_NoBuild(t *testing.T) {
 	}
 }
 
+// TestRemediationJobReconciler_PhaseFailed_ZeroMaxRetries_UsesDefault verifies that when
+// Spec.MaxRetries == 0 (zero value / unset), the reconciler falls back to the default of 3.
+// With RetryCount=2 and one more failure, RetryCount becomes 3 which equals the effective
+// maxRetries (3), so the phase must transition to PermanentlyFailed.
+func TestRemediationJobReconciler_PhaseFailed_ZeroMaxRetries_UsesDefault(t *testing.T) {
+	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
+	rjob := newRJob("test-zero-maxretries", fp)
+	rjob.Status.Phase = v1alpha1.PhasePending
+	rjob.Spec.MaxRetries = 0   // zero value — should fall back to default of 3
+	rjob.Status.RetryCount = 2 // one more failure pushes it to 3, hitting the fallback cap
+
+	backoffLimit := int32(1)
+	failedJob := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mendabot-agent-" + fp[:12],
+			Namespace: testNamespace,
+			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-zero-maxretries"},
+		},
+		Spec:   batchv1.JobSpec{BackoffLimit: &backoffLimit},
+		Status: batchv1.JobStatus{Failed: backoffLimit + 1},
+	}
+
+	c := newFakeClient(t, rjob, failedJob)
+	jb := &fakeJobBuilder{}
+	r := newReconciler(t, c, jb, defaultCfg())
+
+	_, err := r.Reconcile(context.Background(), rjobReqFor("test-zero-maxretries"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var updated v1alpha1.RemediationJob
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-zero-maxretries", Namespace: testNamespace}, &updated); err != nil {
+		t.Fatalf("get rjob: %v", err)
+	}
+	// RetryCount should be incremented to 3
+	if updated.Status.RetryCount != 3 {
+		t.Errorf("RetryCount = %d, want 3", updated.Status.RetryCount)
+	}
+	// With fallback maxRetries=3 and RetryCount=3, phase must be PermanentlyFailed
+	if updated.Status.Phase != v1alpha1.PhasePermanentlyFailed {
+		t.Errorf("Phase = %q, want %q — fallback MaxRetries=3 not applied", updated.Status.Phase, v1alpha1.PhasePermanentlyFailed)
+	}
+	// The PermanentlyFailed condition must be set
+	found := false
+	for _, cond := range updated.Status.Conditions {
+		if cond.Type == v1alpha1.ConditionPermanentlyFailed && cond.Status == metav1.ConditionTrue {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected ConditionPermanentlyFailed=True, not found in conditions")
+	}
+}
+
 // TestRemediationJobReconciler_OwnerRef verifies created job has ownerReference pointing to RJob.
 func TestRemediationJobReconciler_OwnerRef(t *testing.T) {
 	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"

@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
@@ -68,13 +69,21 @@ func main() {
 		logger.Fatal("failed to add v1alpha1 remediation scheme", zap.Error(err))
 	}
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	opts := ctrl.Options{
 		Scheme:                  scheme,
 		LeaderElection:          false,
 		Metrics:                 metricsserver.Options{BindAddress: ":8080"},
 		HealthProbeBindAddress:  ":8081",
 		GracefulShutdownTimeout: func() *time.Duration { d := 30 * time.Second; return &d }(),
-	})
+	}
+	if len(cfg.AgentWatchNamespaces) > 0 {
+		defaultNS := make(map[string]cache.Config)
+		for _, ns := range cfg.AgentWatchNamespaces {
+			defaultNS[ns] = cache.Config{}
+		}
+		opts.Cache = cache.Options{DefaultNamespaces: defaultNS}
+	}
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), opts)
 	if err != nil {
 		log.Fatalf("unable to start manager: %v", err)
 	}
@@ -136,7 +145,7 @@ func main() {
 		native.NewPVCProvider(nativeClient),
 		native.NewNodeProvider(nativeClient),
 		native.NewStatefulSetProvider(nativeClient),
-		native.NewJobProvider(nativeClient, cfg),
+		native.NewJobProvider(nativeClient),
 	}
 	for _, p := range enabledProviders {
 		if err := (&provider.SourceProviderReconciler{

@@ -3,6 +3,7 @@ package provider_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -1221,5 +1223,53 @@ func TestReconcile_ReadinessGate_NilChecker_AllowsJobCreation(t *testing.T) {
 	}
 	if len(list.Items) != 1 {
 		t.Errorf("expected 1 RemediationJob when ReadinessChecker is nil (gate disabled), got %d", len(list.Items))
+	}
+}
+
+// TestReconcile_EventRecorder_EmitsRemediationJobCreated verifies that when an
+// EventRecorder is wired and a RemediationJob is successfully created, a Normal
+// "RemediationJobCreated" Kubernetes Event is emitted on the source object.
+func TestReconcile_EventRecorder_EmitsRemediationJobCreated(t *testing.T) {
+	finding := &domain.Finding{
+		Kind:         "Pod",
+		Name:         "pod-abc",
+		Namespace:    "default",
+		ParentObject: "my-deploy",
+		Errors:       `[{"text":"CrashLoopBackOff"}]`,
+		Details:      "Pod is crash looping",
+	}
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
+	}
+
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj)
+
+	fakeRec := record.NewFakeRecorder(10)
+	r := &provider.SourceProviderReconciler{
+		Client:        c,
+		Scheme:        newTestScheme(),
+		Cfg:           config.Config{AgentNamespace: agentNamespace},
+		Provider:      p,
+		EventRecorder: fakeRec,
+	}
+
+	_, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Exactly one event must have been emitted.
+	if len(fakeRec.Events) == 0 {
+		t.Fatal("expected at least one event to be emitted, got none")
+	}
+	event := <-fakeRec.Events
+	if !strings.Contains(event, "RemediationJobCreated") {
+		t.Errorf("expected event reason RemediationJobCreated, got: %q", event)
+	}
+	if !strings.Contains(event, string(corev1.EventTypeNormal)) {
+		t.Errorf("expected Normal event type, got: %q", event)
 	}
 }

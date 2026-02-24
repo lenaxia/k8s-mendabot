@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -99,14 +100,19 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			}
 			if delErr := r.Delete(ctx, rjob); delErr != nil && !apierrors.IsNotFound(delErr) {
 				cancelErrs = append(cancelErrs, delErr)
-			} else if r.Log != nil {
-				r.Log.Info("RemediationJob cancelled",
-					zap.Bool("audit", true),
-					zap.String("event", "remediationjob.cancelled"),
-					zap.String("remediationJob", rjob.Name),
-					zap.String("reason", "source_deleted"),
-					zap.String("sourceRef", req.Name),
-				)
+			} else {
+				if r.Log != nil {
+					r.Log.Info("RemediationJob cancelled",
+						zap.Bool("audit", true),
+						zap.String("event", "remediationjob.cancelled"),
+						zap.String("remediationJob", rjob.Name),
+						zap.String("reason", "source_deleted"),
+						zap.String("sourceRef", req.Name),
+					)
+				}
+				if r.EventRecorder != nil {
+					r.EventRecorder.Eventf(obj, corev1.EventTypeWarning, "RemediationJobCancelled", "cancelled RemediationJob %s: source no longer problematic", rjob.Name)
+				}
 			}
 		}
 		if len(cancelErrs) > 0 {
@@ -202,6 +208,9 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 					zap.String("fingerprint", fp[:12]),
 				)
 			}
+			if r.EventRecorder != nil {
+				r.EventRecorder.Eventf(obj, corev1.EventTypeWarning, "RemediationJobPermanentlyFailed", "RemediationJob %s is permanently failed after %d retries", rjob.Name, rjob.Status.RetryCount)
+			}
 			return ctrl.Result{}, nil
 		case v1alpha1.PhaseFailed:
 			if delErr := r.Delete(ctx, rjob); delErr != nil && !apierrors.IsNotFound(delErr) {
@@ -290,6 +299,9 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			zap.String("parentObject", finding.ParentObject),
 			zap.String("remediationJob", rjob.Name),
 		)
+	}
+	if r.EventRecorder != nil {
+		r.EventRecorder.Eventf(obj, corev1.EventTypeNormal, "RemediationJobCreated", "created RemediationJob %s", rjob.Name)
 	}
 
 	return ctrl.Result{}, nil

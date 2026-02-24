@@ -79,12 +79,6 @@ spec:
               gitOpsManifestRoot: {type: string}
               agentImage: {type: string}
               agentSA: {type: string}
-              isSelfRemediation:
-                type: boolean
-                description: "True when this remediation is for a failed mendabot agent Job"
-              chainDepth:
-                type: integer
-                description: "Self-remediation chain depth: 0=not self-remediation, 1=first failure, 2+=nested"
               maxRetries:
                 type: integer
                 format: int32
@@ -96,13 +90,12 @@ spec:
             properties:
               phase:
                 type: string
-                enum: [Pending, Dispatched, Running, Succeeded, Failed, Cancelled, Suppressed, PermanentlyFailed]
+                enum: [Pending, Dispatched, Running, Succeeded, Failed, Cancelled, PermanentlyFailed]
               jobRef: {type: string}
               prRef: {type: string}
               message: {type: string}
               dispatchedAt: {type: string, format: date-time}
               completedAt: {type: string, format: date-time}
-              correlationGroupID: {type: string}
               retryCount:
                 type: integer
                 format: int32

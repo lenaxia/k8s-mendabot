@@ -55,7 +55,7 @@ spec:
                 type: string
               sourceType:
                 type: string
-                description: "Which source provider created this object, e.g. k8sgpt"
+                description: "Which source provider created this object, e.g. native"
               sinkType:
                 type: string
                 description: "Which sink the agent should use, e.g. github"

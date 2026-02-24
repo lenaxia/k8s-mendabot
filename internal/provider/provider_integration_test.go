@@ -48,14 +48,10 @@ func (f *integrationFakeProvider) ExtractFinding(obj client.Object) (*domain.Fin
 	if f.finding == nil {
 		return nil, nil
 	}
-	// Return a copy with source ref filled in from the pod.
+	// Return a copy with name/namespace filled in from the pod.
 	result := *f.finding
-	result.SourceRef = domain.SourceRef{
-		APIVersion: "v1",
-		Kind:       "Pod",
-		Name:       pod.Name,
-		Namespace:  pod.Namespace,
-	}
+	result.Name = pod.Name
+	result.Namespace = pod.Namespace
 	return &result, nil
 }
 

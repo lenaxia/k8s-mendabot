@@ -91,11 +91,5 @@ func (p *statefulSetProvider) ExtractFinding(obj client.Object) (*domain.Finding
 		Namespace:    sts.Namespace,
 		ParentObject: parent,
 		Errors:       string(errorsJSON),
-		SourceRef: domain.SourceRef{
-			APIVersion: "apps/v1",
-			Kind:       "StatefulSet",
-			Name:       sts.Name,
-			Namespace:  sts.Namespace,
-		},
 	}, nil
 }

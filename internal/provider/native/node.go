@@ -102,12 +102,6 @@ func (n *nodeProvider) ExtractFinding(obj client.Object) (*domain.Finding, error
 		Namespace:    "",
 		ParentObject: parent,
 		Errors:       string(errorsJSON),
-		SourceRef: domain.SourceRef{
-			APIVersion: "v1",
-			Kind:       "Node",
-			Name:       node.Name,
-			Namespace:  "",
-		},
 	}, nil
 }
 

@@ -278,6 +278,8 @@ func (r *RemediationJobReconciler) dispatch(
 
 	if r.Log != nil {
 		r.Log.Info("dispatched agent job",
+			zap.Bool("audit", true),
+			zap.String("event", "job.dispatched"),
 			zap.String("remediationJob", rjob.Name),
 			zap.String("job", job.Name),
 			zap.String("namespace", job.Namespace),

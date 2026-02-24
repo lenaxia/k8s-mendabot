@@ -87,3 +87,4 @@ else.
 | [0065](0065_2026-02-23_epic17-story05-crd-schema-updates.md) | 2026-02-23 | Epic 17 STORY_05: CRD YAML schema updates — maxRetries, retryCount, PermanentlyFailed | Complete |
 | [0066](0066_2026-02-24_epic17-story04-provider-gate.md) | 2026-02-24 | Epic 17 STORY_04: switch-based dedup loop, PermanentlyFailed tombstone gate, MaxRetries population | Complete |
 | [0067](0067_2026-02-23_epic17-dead-letter-queue-complete.md) | 2026-02-23 | Epic 17 complete: all 5 stories, 12 packages green, dead-letter queue fully implemented | Complete |
+| [0068](0068_2026-02-23_cross-epic-validation-gap-fixes.md) | 2026-02-23 | Cross-epic skeptical validation: 11 gaps found and fixed (4 Major, 7 Minor) | Complete |
