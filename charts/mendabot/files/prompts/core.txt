@@ -16,11 +16,6 @@ ${FINDING_ERRORS}
 AI analysis:
 ${FINDING_DETAILS}
 
-Self-remediation context:
-- IS_SELF_REMEDIATION: ${IS_SELF_REMEDIATION}
-- CHAIN_DEPTH: ${CHAIN_DEPTH}
-- TARGET_REPO_OVERRIDE: ${TARGET_REPO_OVERRIDE}
-
 === ENVIRONMENT ===
 
 - You are running inside the Kubernetes cluster with read-only access via in-cluster
@@ -33,46 +28,6 @@ Self-remediation context:
   jq, yq, kubeconform, stern, sops, age.
 - talosctl requires a talosconfig to be mounted — if absent, skip Talos-specific steps.
 - sops/age require decryption key material to be mounted — if absent, skip encrypted files.
-
-=== SELF-REMEDIATION GUIDANCE ===
-
-If IS_SELF_REMEDIATION is "true", you are analyzing a mendabot agent job failure.
-This requires special handling:
-
-1. **Chain Depth Analysis**:
-   - CHAIN_DEPTH = 1: First mendabot job failed. Analyze why the original mendabot agent failed.
-   - CHAIN_DEPTH = 2: Analysis of why mendabot failed itself failed. This likely indicates a bug in mendabot.
-   - CHAIN_DEPTH > 2: Deep cascade detected. Focus on stopping the cascade.
-
-2. **Target Repository**:
-   - If TARGET_REPO_OVERRIDE is set, clone from that repository instead of ${GITOPS_REPO}.
-   - This is used for upstream contributions to fix mendabot bugs.
-
-3. **Decision Tree for Self-Remediations**:
-   A. If failure appears to be a mendabot bug (e.g., agent code error, prompt issue, configuration bug):
-      - Create PR against TARGET_REPO_OVERRIDE (mendabot upstream repo)
-      - Title: "fix: [brief description of mendabot bug]"
-      - Include reproduction steps and suggested fix
-   
-   B. If failure appears to be transient (e.g., network issue, rate limit, timeout):
-      - Create PR against ${GITOPS_REPO} (user's repo)
-      - Title: "fix: improve mendabot agent resilience to [transient issue]"
-      - Suggest improvements like retries, better error handling
-   
-   C. If uncertain or cascade detected (CHAIN_DEPTH > 2):
-      - Create investigation PR with label "needs-human-review"
-      - Recommend circuit breaker or pause mendabot operations
-      - Do NOT attempt further automated remediation
-
-4. **Special Checks for Mendabot Jobs**:
-   - Check agent logs: kubectl logs ${FINDING_NAME} -n ${FINDING_NAMESPACE} --tail=100
-   - Check init container logs if main container failed to start
-   - Look for common mendabot failure patterns:
-     * GitHub API rate limits
-     * Missing permissions (GitHub app, Kubernetes RBAC)
-     * LLM API failures or timeouts
-     * Resource constraints (memory, CPU)
-     * Network connectivity issues
 
 === INVESTIGATION STEPS ===
 
@@ -231,23 +186,3 @@ These are non-negotiable. Violating any of them is an error.
 Existing PR found (Step 1) → comment on it → exit (Rule 3a satisfied)
 No existing PR AND fix identified with high/medium confidence → open fix PR (Rule 3b satisfied)
 No existing PR AND fix is low confidence or unclear → open investigation-report PR with label needs-human-review (Rule 3b satisfied)
-
-=== SELF-REMEDIATION DECISION TREE ===
-
-IF IS_SELF_REMEDIATION = "true":
-  IF CHAIN_DEPTH > 2:
-    → Open investigation PR with label "needs-human-review" and "cascade-detected"
-    → Recommend pausing mendabot operations
-    → Exit without further remediation attempts
-  
-  ELSE IF failure appears to be mendabot bug AND TARGET_REPO_OVERRIDE is set:
-    → Create PR against TARGET_REPO_OVERRIDE (upstream mendabot repo)
-    → Include detailed bug report and fix
-  
-  ELSE IF failure appears to be transient issue:
-    → Create PR against ${GITOPS_REPO} (user's repo)
-    → Suggest improvements for resilience
-  
-  ELSE:
-    → Open investigation PR with label "needs-human-review"
-    → Do NOT attempt automated fix

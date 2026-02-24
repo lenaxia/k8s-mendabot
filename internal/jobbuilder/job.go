@@ -146,7 +146,6 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 				},
 			},
 			{Name: "AGENT_TYPE", Value: string(b.cfg.AgentType)},
-			{Name: "IS_SELF_REMEDIATION", Value: "false"},
 		},
 		VolumeMounts: []corev1.VolumeMount{
 			{

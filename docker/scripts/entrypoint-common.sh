@@ -15,9 +15,6 @@ set -euo pipefail
 # Optional variables — default to safe empty values.
 FINDING_DETAILS="${FINDING_DETAILS:-}"
 FINDING_PARENT="${FINDING_PARENT:-<none>}"
-IS_SELF_REMEDIATION="${IS_SELF_REMEDIATION:-false}"
-CHAIN_DEPTH="${CHAIN_DEPTH:-0}"
-TARGET_REPO_OVERRIDE="${TARGET_REPO_OVERRIDE:-}"
 
 # Build a kubeconfig from in-cluster credentials.
 #
@@ -105,15 +102,5 @@ fi
 # Substitute environment variables into the combined prompt template.
 # Restrict envsubst to known variable names to avoid corrupting content in
 # FINDING_ERRORS or FINDING_DETAILS that may contain literal $ signs.
-VARS='${FINDING_KIND}${FINDING_NAME}${FINDING_NAMESPACE}${FINDING_PARENT}${FINDING_FINGERPRINT}${FINDING_ERRORS}${FINDING_DETAILS}${GITOPS_REPO}${GITOPS_MANIFEST_ROOT}${IS_SELF_REMEDIATION}${CHAIN_DEPTH}${TARGET_REPO_OVERRIDE}'
+VARS='${FINDING_KIND}${FINDING_NAME}${FINDING_NAMESPACE}${FINDING_PARENT}${FINDING_FINGERPRINT}${FINDING_ERRORS}${FINDING_DETAILS}${GITOPS_REPO}${GITOPS_MANIFEST_ROOT}'
 printf '%s' "$COMBINED_PROMPT" | envsubst "$VARS" > /tmp/rendered-prompt.txt
-
-# Log self-remediation context if applicable.
-if [ "$IS_SELF_REMEDIATION" = "true" ]; then
-    echo "=== SELF-REMEDIATION MODE ==="
-    echo "Chain depth: $CHAIN_DEPTH"
-    echo "Target repo override: ${TARGET_REPO_OVERRIDE:-<none>}"
-    if [ "$CHAIN_DEPTH" -gt 2 ]; then
-        echo "WARNING: Deep cascade detected (depth > 2). Proceeding with caution."
-    fi
-fi
