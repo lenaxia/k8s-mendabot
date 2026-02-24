@@ -3,14 +3,17 @@ package controller_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -691,5 +694,293 @@ func TestRemediationJobReconciler_OwnerRef(t *testing.T) {
 	}
 	if ref.Kind != "RemediationJob" {
 		t.Errorf("ownerRef.Kind = %q, want %q", ref.Kind, "RemediationJob")
+	}
+}
+
+func drainEvents(ch <-chan string) []string {
+	var out []string
+	for {
+		select {
+		case e := <-ch:
+			out = append(out, e)
+		default:
+			return out
+		}
+	}
+}
+
+// TestReconcile_EmitsEvent_JobDispatched verifies that a JobDispatched event is emitted
+// when a PhasePending rjob has no existing job and dispatch succeeds.
+func TestReconcile_EmitsEvent_JobDispatched(t *testing.T) {
+	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
+	rjob := newRJob("test-rjob", fp)
+	rjob.Status.Phase = v1alpha1.PhasePending
+	c := newFakeClient(t, rjob)
+
+	job := defaultFakeJob(rjob)
+	jb := &fakeJobBuilder{returnJob: job}
+
+	fakeRecorder := record.NewFakeRecorder(10)
+	r := &controller.RemediationJobReconciler{
+		Client:     c,
+		Scheme:     newTestScheme(t),
+		Log:        zap.NewNop(),
+		JobBuilder: jb,
+		Cfg:        defaultCfg(),
+		Recorder:   fakeRecorder,
+	}
+
+	_, err := r.Reconcile(context.Background(), rjobReqFor("test-rjob"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	events := drainEvents(fakeRecorder.Events)
+	var found bool
+	for _, e := range events {
+		if strings.Contains(e, "JobDispatched") && strings.Contains(e, string(corev1.EventTypeNormal)) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected Normal JobDispatched event, got: %v", events)
+	}
+}
+
+// TestReconcile_EmitsEvent_JobSucceeded_WithPR verifies that a JobSucceeded event containing
+// the PR URL is emitted when the owned Job has Succeeded>0 and PRRef is set.
+func TestReconcile_EmitsEvent_JobSucceeded_WithPR(t *testing.T) {
+	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
+	rjob := newRJob("test-rjob-pr", fp)
+	rjob.Status.Phase = v1alpha1.PhaseDispatched
+	rjob.Status.PRRef = "https://github.com/example/repo/pull/42"
+
+	succeededJob := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mendabot-agent-" + fp[:12],
+			Namespace: testNamespace,
+			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-rjob-pr"},
+		},
+		Spec:   batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
+		Status: batchv1.JobStatus{Succeeded: 1},
+	}
+
+	c := newFakeClient(t, rjob, succeededJob)
+	jb := &fakeJobBuilder{}
+
+	fakeRecorder := record.NewFakeRecorder(10)
+	r := &controller.RemediationJobReconciler{
+		Client:     c,
+		Scheme:     newTestScheme(t),
+		Log:        zap.NewNop(),
+		JobBuilder: jb,
+		Cfg:        defaultCfg(),
+		Recorder:   fakeRecorder,
+	}
+
+	_, err := r.Reconcile(context.Background(), rjobReqFor("test-rjob-pr"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	events := drainEvents(fakeRecorder.Events)
+	var found bool
+	for _, e := range events {
+		if strings.Contains(e, "JobSucceeded") && strings.Contains(e, "https://github.com/example/repo/pull/42") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected JobSucceeded event with PR URL, got: %v", events)
+	}
+}
+
+// TestReconcile_EmitsEvent_JobSucceeded_NoPR verifies that a JobSucceeded event without
+// a PR URL is emitted when the owned Job has Succeeded>0 and PRRef is empty.
+func TestReconcile_EmitsEvent_JobSucceeded_NoPR(t *testing.T) {
+	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
+	rjob := newRJob("test-rjob-nopr", fp)
+	rjob.Status.Phase = v1alpha1.PhaseDispatched
+
+	succeededJob := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mendabot-agent-" + fp[:12],
+			Namespace: testNamespace,
+			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-rjob-nopr"},
+		},
+		Spec:   batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
+		Status: batchv1.JobStatus{Succeeded: 1},
+	}
+
+	c := newFakeClient(t, rjob, succeededJob)
+	jb := &fakeJobBuilder{}
+
+	fakeRecorder := record.NewFakeRecorder(10)
+	r := &controller.RemediationJobReconciler{
+		Client:     c,
+		Scheme:     newTestScheme(t),
+		Log:        zap.NewNop(),
+		JobBuilder: jb,
+		Cfg:        defaultCfg(),
+		Recorder:   fakeRecorder,
+	}
+
+	_, err := r.Reconcile(context.Background(), rjobReqFor("test-rjob-nopr"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	events := drainEvents(fakeRecorder.Events)
+	var found bool
+	for _, e := range events {
+		if strings.Contains(e, "JobSucceeded") && strings.Contains(e, "Agent Job completed") && !strings.Contains(e, "PR:") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected JobSucceeded event without PR URL, got: %v", events)
+	}
+}
+
+// TestReconcile_EmitsEvent_JobFailed verifies that a Warning JobFailed event is emitted
+// when the owned Job has Failed >= BackoffLimit+1.
+func TestReconcile_EmitsEvent_JobFailed(t *testing.T) {
+	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
+	rjob := newRJob("test-rjob-failed", fp)
+	rjob.Status.Phase = v1alpha1.PhaseDispatched
+
+	failedJob := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mendabot-agent-" + fp[:12],
+			Namespace: testNamespace,
+			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-rjob-failed"},
+		},
+		Spec:   batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
+		Status: batchv1.JobStatus{Failed: 2},
+	}
+
+	c := newFakeClient(t, rjob, failedJob)
+	jb := &fakeJobBuilder{}
+
+	fakeRecorder := record.NewFakeRecorder(10)
+	r := &controller.RemediationJobReconciler{
+		Client:     c,
+		Scheme:     newTestScheme(t),
+		Log:        zap.NewNop(),
+		JobBuilder: jb,
+		Cfg:        defaultCfg(),
+		Recorder:   fakeRecorder,
+	}
+
+	_, err := r.Reconcile(context.Background(), rjobReqFor("test-rjob-failed"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	events := drainEvents(fakeRecorder.Events)
+	var found bool
+	for _, e := range events {
+		if strings.Contains(e, "JobFailed") && strings.Contains(e, string(corev1.EventTypeWarning)) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected Warning JobFailed event, got: %v", events)
+	}
+}
+
+// TestReconcile_EmitsEvent_JobPermanentlyFailed verifies that a Warning JobPermanentlyFailed
+// event is emitted (not JobFailed) when the owned Job fails and RetryCount reaches MaxRetries.
+func TestReconcile_EmitsEvent_JobPermanentlyFailed(t *testing.T) {
+	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
+	rjob := newRJob("test-rjob-perm-failed", fp)
+	rjob.Status.Phase = v1alpha1.PhaseDispatched
+	rjob.Spec.MaxRetries = 3
+	rjob.Status.RetryCount = 2 // one more failure → RetryCount becomes 3 == MaxRetries → PermanentlyFailed
+
+	backoffLimit := int32(1)
+	failedJob := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mendabot-agent-" + fp[:12],
+			Namespace: testNamespace,
+			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-rjob-perm-failed"},
+		},
+		Spec:   batchv1.JobSpec{BackoffLimit: &backoffLimit},
+		Status: batchv1.JobStatus{Failed: 2},
+	}
+
+	c := newFakeClient(t, rjob, failedJob)
+	jb := &fakeJobBuilder{}
+
+	fakeRecorder := record.NewFakeRecorder(10)
+	r := &controller.RemediationJobReconciler{
+		Client:     c,
+		Scheme:     newTestScheme(t),
+		Log:        zap.NewNop(),
+		JobBuilder: jb,
+		Cfg:        defaultCfg(),
+		Recorder:   fakeRecorder,
+	}
+
+	_, err := r.Reconcile(context.Background(), rjobReqFor("test-rjob-perm-failed"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	events := drainEvents(fakeRecorder.Events)
+	var foundPerm bool
+	var foundFailed bool
+	for _, e := range events {
+		if strings.Contains(e, "JobPermanentlyFailed") {
+			foundPerm = true
+		}
+		if strings.Contains(e, "JobFailed") && !strings.Contains(e, "JobPermanentlyFailed") {
+			foundFailed = true
+		}
+	}
+	if !foundPerm {
+		t.Errorf("expected JobPermanentlyFailed event, got: %v", events)
+	}
+	if foundFailed {
+		t.Errorf("expected no plain JobFailed event on permanently-failed path, got: %v", events)
+	}
+}
+
+// TestReconcile_NilRecorder_NoPanic verifies that a nil Recorder does not panic
+// when a PhasePending rjob is dispatched.
+func TestReconcile_NilRecorder_NoPanic(t *testing.T) {
+	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
+	rjob := newRJob("test-rjob-nil-rec", fp)
+	rjob.Status.Phase = v1alpha1.PhasePending
+	c := newFakeClient(t, rjob)
+
+	job := defaultFakeJob(rjob)
+	jb := &fakeJobBuilder{returnJob: job}
+
+	r := &controller.RemediationJobReconciler{
+		Client:     c,
+		Scheme:     newTestScheme(t),
+		Log:        zap.NewNop(),
+		JobBuilder: jb,
+		Cfg:        defaultCfg(),
+		// Recorder intentionally not set — zero value nil
+	}
+
+	_, err := r.Reconcile(context.Background(), rjobReqFor("test-rjob-nil-rec"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify the job was still created (dispatch succeeded despite nil Recorder)
+	var jobList batchv1.JobList
+	if err := c.List(context.Background(), &jobList, client.InNamespace(testNamespace)); err != nil {
+		t.Fatalf("list jobs: %v", err)
+	}
+	if len(jobList.Items) != 1 {
+		t.Errorf("expected 1 job created, got %d", len(jobList.Items))
 	}
 }

@@ -26,6 +26,7 @@ import (
 	"github.com/lenaxia/k8s-mendabot/internal/domain"
 	"github.com/lenaxia/k8s-mendabot/internal/provider"
 	"github.com/lenaxia/k8s-mendabot/internal/provider/native"
+	"github.com/lenaxia/k8s-mendabot/internal/testutil"
 )
 
 // fakeSourceProvider is a controllable domain.SourceProvider for unit tests.
@@ -1576,17 +1577,16 @@ func TestAuditLog_ReadinessCheckFailed(t *testing.T) {
 	}
 }
 
-// TestReconcile_EventRecorder_EmitsRemediationJobCreated verifies that when an
-// EventRecorder is wired and a RemediationJob is successfully created, a Normal
-// "RemediationJobCreated" Kubernetes Event is emitted on the source object.
-func TestReconcile_EventRecorder_EmitsRemediationJobCreated(t *testing.T) {
+// TestReconcile_EmitsEvent_FindingDetected verifies that a Normal "FindingDetected" event
+// is emitted on the watched object when a valid finding is detected and a RemediationJob
+// is successfully created.
+func TestReconcile_EmitsEvent_FindingDetected(t *testing.T) {
 	finding := &domain.Finding{
 		Kind:         "Pod",
 		Name:         "pod-abc",
 		Namespace:    "default",
 		ParentObject: "my-deploy",
 		Errors:       `[{"text":"CrashLoopBackOff"}]`,
-		Details:      "Pod is crash looping",
 	}
 	p := &fakeSourceProvider{
 		name:       "native",
@@ -1611,16 +1611,213 @@ func TestReconcile_EventRecorder_EmitsRemediationJobCreated(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Exactly one event must have been emitted.
-	if len(fakeRec.Events) == 0 {
-		t.Fatal("expected at least one event to be emitted, got none")
+	events := testutil.DrainEvents(fakeRec)
+	var found bool
+	for _, e := range events {
+		if strings.Contains(e, "FindingDetected") && strings.Contains(e, string(corev1.EventTypeNormal)) {
+			found = true
+			break
+		}
 	}
-	event := <-fakeRec.Events
-	if !strings.Contains(event, "RemediationJobCreated") {
-		t.Errorf("expected event reason RemediationJobCreated, got: %q", event)
+	if !found {
+		t.Errorf("expected Normal FindingDetected event, got: %v", events)
 	}
-	if !strings.Contains(event, string(corev1.EventTypeNormal)) {
-		t.Errorf("expected Normal event type, got: %q", event)
+}
+
+// TestReconcile_EmitsEvent_DuplicateFingerprint verifies that a Normal "DuplicateFingerprint"
+// event is emitted on the watched object when a non-Failed rjob with the same fingerprint
+// already exists (dedup path).
+func TestReconcile_EmitsEvent_DuplicateFingerprint(t *testing.T) {
+	finding := &domain.Finding{
+		Kind:         "Pod",
+		Name:         "pod-abc",
+		Namespace:    "default",
+		ParentObject: "my-deploy",
+		Errors:       `[{"text":"CrashLoopBackOff"}]`,
+	}
+	fp, err := domain.FindingFingerprint(finding)
+	if err != nil {
+		t.Fatalf("computing fingerprint: %v", err)
+	}
+
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
+	}
+
+	existing := &v1alpha1.RemediationJob{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mendabot-" + fp[:12],
+			Namespace: agentNamespace,
+			Labels:    map[string]string{"remediation.mendabot.io/fingerprint": fp[:12]},
+		},
+		Spec: v1alpha1.RemediationJobSpec{
+			Fingerprint: fp,
+			SourceType:  "native",
+		},
+		Status: v1alpha1.RemediationJobStatus{
+			Phase: v1alpha1.PhasePending,
+		},
+	}
+
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj, existing)
+
+	fakeRec := record.NewFakeRecorder(10)
+	r := &provider.SourceProviderReconciler{
+		Client:        c,
+		Scheme:        newTestScheme(),
+		Cfg:           config.Config{AgentNamespace: agentNamespace},
+		Provider:      p,
+		EventRecorder: fakeRec,
+	}
+
+	_, err = r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	events := testutil.DrainEvents(fakeRec)
+	var found bool
+	for _, e := range events {
+		if strings.Contains(e, "DuplicateFingerprint") && strings.Contains(e, string(corev1.EventTypeNormal)) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected Normal DuplicateFingerprint event, got: %v", events)
+	}
+}
+
+// TestReconcile_EmitsEvent_FindingCleared verifies that a Normal "FindingCleared" event
+// is emitted on the watched object when ExtractFinding returns nil, nil.
+func TestReconcile_EmitsEvent_FindingCleared(t *testing.T) {
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    nil,
+		findErr:    nil,
+	}
+
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj)
+
+	fakeRec := record.NewFakeRecorder(10)
+	r := &provider.SourceProviderReconciler{
+		Client:        c,
+		Scheme:        newTestScheme(),
+		Cfg:           config.Config{AgentNamespace: agentNamespace},
+		Provider:      p,
+		EventRecorder: fakeRec,
+	}
+
+	_, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	events := testutil.DrainEvents(fakeRec)
+	var found bool
+	for _, e := range events {
+		if strings.Contains(e, "FindingCleared") && strings.Contains(e, string(corev1.EventTypeNormal)) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected Normal FindingCleared event, got: %v", events)
+	}
+}
+
+// TestReconcile_EmitsEvent_SourceDeleted verifies that a Normal "SourceDeleted" event
+// is emitted on each cancelled rjob when the watched object is not found (source deleted).
+func TestReconcile_EmitsEvent_SourceDeleted(t *testing.T) {
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+	}
+
+	pendingRJob := &v1alpha1.RemediationJob{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mendabot-pending",
+			Namespace: agentNamespace,
+		},
+		Spec: v1alpha1.RemediationJobSpec{
+			SourceResultRef: v1alpha1.ResultRef{Name: "r1", Namespace: "default"},
+		},
+		Status: v1alpha1.RemediationJobStatus{Phase: v1alpha1.PhasePending},
+	}
+
+	// No watched object — it has been deleted.
+	c := newTestClient(pendingRJob)
+
+	fakeRec := record.NewFakeRecorder(10)
+	r := &provider.SourceProviderReconciler{
+		Client:        c,
+		Scheme:        newTestScheme(),
+		Cfg:           config.Config{AgentNamespace: agentNamespace},
+		Provider:      p,
+		EventRecorder: fakeRec,
+	}
+
+	_, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	events := testutil.DrainEvents(fakeRec)
+	var found bool
+	for _, e := range events {
+		if strings.Contains(e, "SourceDeleted") && strings.Contains(e, string(corev1.EventTypeNormal)) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected Normal SourceDeleted event, got: %v", events)
+	}
+}
+
+// TestReconcile_NilRecorder_NoPanic verifies that when EventRecorder is nil and a valid
+// finding is detected, the reconciler does not panic and still creates the RemediationJob.
+func TestReconcile_NilRecorder_NoPanic(t *testing.T) {
+	finding := &domain.Finding{
+		Kind:         "Pod",
+		Name:         "pod-abc",
+		Namespace:    "default",
+		ParentObject: "my-deploy",
+		Errors:       `[{"text":"CrashLoopBackOff"}]`,
+	}
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
+	}
+
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj)
+	// EventRecorder is nil — must not panic.
+	r := &provider.SourceProviderReconciler{
+		Client:        c,
+		Scheme:        newTestScheme(),
+		Cfg:           config.Config{AgentNamespace: agentNamespace},
+		Provider:      p,
+		EventRecorder: nil,
+	}
+
+	_, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var list v1alpha1.RemediationJobList
+	if err := c.List(context.Background(), &list, client.InNamespace(agentNamespace)); err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+	if len(list.Items) != 1 {
+		t.Errorf("expected 1 RemediationJob created even with nil EventRecorder, got %d", len(list.Items))
 	}
 }
 

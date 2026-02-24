@@ -1,7 +1,7 @@
 # Story 02: RemediationJobReconciler — EventRecorder wiring and lifecycle events
 
 **Epic:** epic21-kubernetes-events (FT-U3)
-**Status:** Not Started
+**Status:** Complete
 **Estimate:** S
 
 ## Context

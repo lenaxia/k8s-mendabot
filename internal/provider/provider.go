@@ -101,6 +101,9 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			if delErr := r.Delete(ctx, rjob); delErr != nil && !apierrors.IsNotFound(delErr) {
 				cancelErrs = append(cancelErrs, delErr)
 			} else {
+				if r.EventRecorder != nil {
+					r.EventRecorder.Event(rjob, corev1.EventTypeNormal, "SourceDeleted", "Source object deleted; investigation cancelled")
+				}
 				if r.Log != nil {
 					r.Log.Info("RemediationJob cancelled",
 						zap.Bool("audit", true),
@@ -110,9 +113,6 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 						zap.String("reason", "source_deleted"),
 						zap.String("sourceRef", req.Name),
 					)
-				}
-				if r.EventRecorder != nil {
-					r.EventRecorder.Eventf(obj, corev1.EventTypeWarning, "RemediationJobCancelled", "cancelled RemediationJob %s: source no longer problematic", rjob.Name)
 				}
 			}
 		}
@@ -128,6 +128,9 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	if finding == nil {
 		r.firstSeen.Clear()
+		if r.EventRecorder != nil {
+			r.EventRecorder.Event(obj, corev1.EventTypeNormal, "FindingCleared", "Finding cleared; no active finding on this object")
+		}
 		return ctrl.Result{}, nil
 	}
 
@@ -259,6 +262,9 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 					zap.String("phase", string(rjob.Status.Phase)),
 				)
 			}
+			if r.EventRecorder != nil {
+				r.EventRecorder.Eventf(obj, corev1.EventTypeNormal, "DuplicateFingerprint", "Existing RemediationJob %s already covers this finding", rjob.Name)
+			}
 			return ctrl.Result{}, nil
 		}
 	}
@@ -355,7 +361,7 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		)
 	}
 	if r.EventRecorder != nil {
-		r.EventRecorder.Eventf(obj, corev1.EventTypeNormal, "RemediationJobCreated", "created RemediationJob %s", rjob.Name)
+		r.EventRecorder.Eventf(obj, corev1.EventTypeNormal, "FindingDetected", "Provider %s detected %s/%s in namespace %s", r.Provider.ProviderName(), finding.Kind, finding.Name, finding.Namespace)
 	}
 
 	return ctrl.Result{}, nil

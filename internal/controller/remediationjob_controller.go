@@ -7,10 +7,12 @@ import (
 
 	"go.uber.org/zap"
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -31,7 +33,8 @@ type RemediationJobReconciler struct {
 	Log        *zap.Logger
 	JobBuilder domain.JobBuilder
 	// Cfg holds operator-wide configuration. MaxConcurrentJobs == 0 means unlimited.
-	Cfg config.Config
+	Cfg      config.Config
+	Recorder record.EventRecorder
 }
 
 // Reconcile implements ctrl.Reconciler.
@@ -198,6 +201,27 @@ func (r *RemediationJobReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 				)
 			}
 		}
+		if r.Recorder != nil {
+			switch newPhase {
+			case v1alpha1.PhaseSucceeded:
+				prRef := rjob.Status.PRRef
+				if prRef != "" {
+					r.Recorder.Eventf(&rjob, corev1.EventTypeNormal, "JobSucceeded",
+						"Agent Job completed; PR: %s", prRef)
+				} else {
+					r.Recorder.Event(&rjob, corev1.EventTypeNormal, "JobSucceeded",
+						"Agent Job completed")
+				}
+			case v1alpha1.PhaseFailed:
+				if rjob.Status.Phase == v1alpha1.PhasePermanentlyFailed {
+					r.Recorder.Eventf(&rjob, corev1.EventTypeWarning, "JobPermanentlyFailed",
+						"Agent Job permanently failed after %d attempt(s); no further retries", rjob.Status.RetryCount)
+				} else {
+					r.Recorder.Eventf(&rjob, corev1.EventTypeWarning, "JobFailed",
+						"Agent Job failed after %d attempt(s)", job.Status.Failed)
+				}
+			}
+		}
 		return ctrl.Result{}, nil
 	}
 
@@ -266,6 +290,10 @@ func (r *RemediationJobReconciler) dispatch(
 			if patchErr := r.Status().Patch(ctx, rjob, client.MergeFrom(rjobCopy)); patchErr != nil {
 				return patchErr
 			}
+			if r.Recorder != nil {
+				r.Recorder.Eventf(rjob, corev1.EventTypeNormal, "JobDispatched",
+					"Created agent Job %s", job.Name)
+			}
 			return nil
 		}
 		return fmt.Errorf("creating Job: %w", err)
@@ -294,6 +322,10 @@ func (r *RemediationJobReconciler) dispatch(
 			zap.String("job", job.Name),
 			zap.String("namespace", job.Namespace),
 		)
+	}
+	if r.Recorder != nil {
+		r.Recorder.Eventf(rjob, corev1.EventTypeNormal, "JobDispatched",
+			"Created agent Job %s", job.Name)
 	}
 	return nil
 }

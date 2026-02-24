@@ -13,7 +13,7 @@ Today there is no Events section in `kubectl describe rjob`. Diagnosing a stuck 
 failed `RemediationJob` requires inspecting the `status.message` field, the owned
 `batch/v1 Job`, and log lines separately.
 
-## Status: Not Started
+## Status: Complete
 
 ## Deep-Dive Findings (2026-02-23)
 
@@ -66,8 +66,8 @@ cancelled.
 
 | Story | File | Status |
 |-------|------|--------|
-| SourceProviderReconciler — EventRecorder wiring and finding events | [STORY_01_source_provider_events.md](STORY_01_source_provider_events.md) | Not Started |
-| RemediationJobReconciler — EventRecorder wiring and lifecycle events | [STORY_02_controller_events.md](STORY_02_controller_events.md) | Not Started |
+| SourceProviderReconciler — EventRecorder wiring and finding events | [STORY_01_source_provider_events.md](STORY_01_source_provider_events.md) | Complete |
+| RemediationJobReconciler — EventRecorder wiring and lifecycle events | [STORY_02_controller_events.md](STORY_02_controller_events.md) | Complete |
 
 ## Implementation Order
 

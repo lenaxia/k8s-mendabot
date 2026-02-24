@@ -1,7 +1,7 @@
 # Story 01: SourceProviderReconciler — EventRecorder wiring and finding events
 
 **Epic:** epic21-kubernetes-events (FT-U3)
-**Status:** Not Started
+**Status:** Complete
 **Estimate:** S
 
 ## Context
