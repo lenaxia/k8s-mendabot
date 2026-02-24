@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ── Build stage ──────────────────────────────────────────────────────────────
-FROM golang:1.23-bookworm AS builder
+FROM golang:1.23-bookworm@sha256:e87b2a5f6df2dff71ea330d55d54f4979eb380ae58a7e3aabc9d53121243e689 AS builder
 
 ARG TARGETARCH=amd64
 ARG WATCHER_VERSION=dev
@@ -27,7 +27,7 @@ RUN mkdir -p /out \
       ./cmd/watcher
 
 # ── Runtime stage ────────────────────────────────────────────────────────────
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim@sha256:6458e6ce2b6448e31bfdced4be7d8aa88d389e6694ab09f5a718a694abe147f4
 
 # Install only CA certificates (required for the in-cluster API server TLS connection
 # and for calling the Kubernetes API using the ServiceAccount token).

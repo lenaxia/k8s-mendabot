@@ -140,6 +140,22 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 	}
 
+	if domain.DetectInjection(finding.Details) {
+		if r.Log != nil {
+			r.Log.Warn("potential prompt injection detected in finding details",
+				zap.Bool("audit", true),
+				zap.String("event", "finding.injection_detected_in_details"),
+				zap.String("provider", r.Provider.ProviderName()),
+				zap.String("kind", finding.Kind),
+				zap.String("namespace", finding.Namespace),
+				zap.String("name", finding.Name),
+			)
+		}
+		if r.Cfg.InjectionDetectionAction == "suppress" {
+			return ctrl.Result{}, nil
+		}
+	}
+
 	fp, err := domain.FindingFingerprint(finding)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("computing fingerprint: %w", err)

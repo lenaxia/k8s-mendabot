@@ -2,13 +2,13 @@ package domain
 
 import "regexp"
 
-// redactPatterns is the ordered list of patterns applied by RedactSecrets.
-// Each pattern is applied in sequence; the result of one is the input to the next.
 var redactPatterns = []struct {
 	re          *regexp.Regexp
 	replacement string
 }{
-	{regexp.MustCompile(`(?i)://[^:@\s]+:[^@\s]+@`), `://[REDACTED]@`},
+	{regexp.MustCompile(`(?i)://[^:@\s]*:[^@\s]+@`), `://[REDACTED]@`},
+	{regexp.MustCompile(`(?i)(bearer )\S+`), `${1}[REDACTED]`},
+	{regexp.MustCompile(`(?i)("password"\s*:\s*)"[^"]*"`), `${1}"[REDACTED]"`},
 	{regexp.MustCompile(`(?i)(password\s*[=:]\s*)\S+`), `${1}[REDACTED]`},
 	{regexp.MustCompile(`(?i)(token\s*[=:]\s*)\S+`), `${1}[REDACTED]`},
 	{regexp.MustCompile(`(?i)(secret\s*[=:]\s*)\S+`), `${1}[REDACTED]`},

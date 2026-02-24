@@ -92,6 +92,36 @@ func TestRedactSecrets(t *testing.T) {
 			input: "user=admin password=s3cr3t token=abc123",
 			want:  "user=admin password=[REDACTED] token=[REDACTED]",
 		},
+		{
+			name:  "finding 010: JWT bearer token uppercase",
+			input: "Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.payload.sig",
+			want:  "Authorization: Bearer [REDACTED]",
+		},
+		{
+			name:  "finding 010: JWT bearer token lowercase",
+			input: "bearer eyJhbGciOiJSUzI1NiJ9.payload.sig",
+			want:  "bearer [REDACTED]",
+		},
+		{
+			name:  "finding 011: JSON password no space",
+			input: `{"username":"admin","password":"s3cr3t"}`,
+			want:  `{"username":"admin","password":"[REDACTED]"}`,
+		},
+		{
+			name:  "finding 011: JSON password with space after colon",
+			input: `{"password": "hunter2"}`,
+			want:  `{"password": "[REDACTED]"}`,
+		},
+		{
+			name:  "finding 011: JSON password case-insensitive",
+			input: `{"Password":"MySecret"}`,
+			want:  `{"Password":"[REDACTED]"}`,
+		},
+		{
+			name:  "finding 012: Redis URL with empty username",
+			input: "redis://:s3cr3tpassword@redis.default.svc:6379/0",
+			want:  "redis://[REDACTED]@redis.default.svc:6379/0",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

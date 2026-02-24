@@ -7,6 +7,7 @@ var injectionPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)you\s+are\s+now\s+(in\s+)?(a\s+)?(different|new|maintenance|admin|root|debug)\s+mode`),
 	regexp.MustCompile(`(?i)(override|bypass|disable)\s+(all\s+)?(hard\s+)?rules?`),
 	regexp.MustCompile(`(?i)system\s*:\s*(you\s+are|act\s+as|behave\s+as)`),
+	regexp.MustCompile(`(?i)stop\s+(following|obeying)\s+((the|these|all)\s+)?(rules?|instructions?|guidelines?|prompts?)`),
 }
 
 // DetectInjection returns true if text contains patterns consistent with a
