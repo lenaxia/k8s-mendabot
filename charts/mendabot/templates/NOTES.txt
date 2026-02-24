@@ -20,10 +20,16 @@ via Helm values.
    The Secret uses an opaque config blob pattern — mendabot never interprets
    the provider-config content; it is passed directly to the agent runner.
 
-   For agentType=opencode:
-   kubectl create secret generic llm-credentials-opencode \
-     --namespace {{ .Release.Namespace }} \
-     --from-literal=provider-config='{"model":"<model>","providers":{"openai":{"apiKey":"<key>","baseURL":"<url>"}}}'
+   For agentType=opencode with a custom OpenAI-compatible endpoint:
+    kubectl create secret generic llm-credentials-opencode \
+      --namespace {{ .Release.Namespace }} \
+      --from-literal=provider-config='{"provider":{"myprovider":{"npm":"@ai-sdk/openai-compatible","name":"My Provider","options":{"baseURL":"<url>","apiKey":"<key>"},"models":{"<model-id>":{"name":"<model-name>"}}}},"model":"myprovider/<model-id>"}'
+
+   For agentType=opencode with native OpenAI (api.openai.com):
+    kubectl create secret generic llm-credentials-opencode \
+      --namespace {{ .Release.Namespace }} \
+      --from-literal=provider-config='{"model":"openai/<model-id>"}'
+    # Then run: opencode auth add openai (or set OPENAI_API_KEY in the agent env)
 
    For agentType=claude (stub — not yet fully implemented):
    kubectl create secret generic llm-credentials-claude \
