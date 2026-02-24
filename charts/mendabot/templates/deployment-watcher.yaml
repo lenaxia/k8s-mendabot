@@ -35,7 +35,11 @@ spec:
         - name: AGENT_NAMESPACE
           value: {{ .Release.Namespace | quote }}
         - name: AGENT_SA
+          {{- if eq .Values.watcher.agentRBACScope "namespace" }}
+          value: {{ include "mendabot.agentNSSAName" . | quote }}
+          {{- else }}
           value: {{ include "mendabot.agentSAName" . | quote }}
+          {{- end }}
         - name: SINK_TYPE
           value: {{ .Values.watcher.sinkType | quote }}
         - name: LOG_LEVEL

@@ -21,6 +21,7 @@ import (
 	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
 	"github.com/lenaxia/k8s-mendabot/internal/config"
 	"github.com/lenaxia/k8s-mendabot/internal/controller"
+	"github.com/lenaxia/k8s-mendabot/internal/testutil"
 	"go.uber.org/zap"
 )
 
@@ -697,18 +698,6 @@ func TestRemediationJobReconciler_OwnerRef(t *testing.T) {
 	}
 }
 
-func drainEvents(ch <-chan string) []string {
-	var out []string
-	for {
-		select {
-		case e := <-ch:
-			out = append(out, e)
-		default:
-			return out
-		}
-	}
-}
-
 // TestReconcile_EmitsEvent_JobDispatched verifies that a JobDispatched event is emitted
 // when a PhasePending rjob has no existing job and dispatch succeeds.
 func TestReconcile_EmitsEvent_JobDispatched(t *testing.T) {
@@ -735,7 +724,7 @@ func TestReconcile_EmitsEvent_JobDispatched(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	events := drainEvents(fakeRecorder.Events)
+	events := testutil.DrainEvents(fakeRecorder)
 	var found bool
 	for _, e := range events {
 		if strings.Contains(e, "JobDispatched") && strings.Contains(e, string(corev1.EventTypeNormal)) {
@@ -784,7 +773,7 @@ func TestReconcile_EmitsEvent_JobSucceeded_WithPR(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	events := drainEvents(fakeRecorder.Events)
+	events := testutil.DrainEvents(fakeRecorder)
 	var found bool
 	for _, e := range events {
 		if strings.Contains(e, "JobSucceeded") && strings.Contains(e, "https://github.com/example/repo/pull/42") {
@@ -832,7 +821,7 @@ func TestReconcile_EmitsEvent_JobSucceeded_NoPR(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	events := drainEvents(fakeRecorder.Events)
+	events := testutil.DrainEvents(fakeRecorder)
 	var found bool
 	for _, e := range events {
 		if strings.Contains(e, "JobSucceeded") && strings.Contains(e, "Agent Job completed") && !strings.Contains(e, "PR:") {
@@ -880,7 +869,7 @@ func TestReconcile_EmitsEvent_JobFailed(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	events := drainEvents(fakeRecorder.Events)
+	events := testutil.DrainEvents(fakeRecorder)
 	var found bool
 	for _, e := range events {
 		if strings.Contains(e, "JobFailed") && strings.Contains(e, string(corev1.EventTypeWarning)) {
@@ -931,7 +920,7 @@ func TestReconcile_EmitsEvent_JobPermanentlyFailed(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	events := drainEvents(fakeRecorder.Events)
+	events := testutil.DrainEvents(fakeRecorder)
 	var foundPerm bool
 	var foundFailed bool
 	for _, e := range events {
@@ -1029,7 +1018,7 @@ func TestReconcile_EmitsEvent_JobDispatched_AlreadyExists(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	events := drainEvents(fakeRecorder.Events)
+	events := testutil.DrainEvents(fakeRecorder)
 	var foundDispatched bool
 	var foundNormal bool
 	for _, e := range events {

@@ -17,6 +17,7 @@ import (
 	"github.com/lenaxia/k8s-mendabot/internal/config"
 	"github.com/lenaxia/k8s-mendabot/internal/domain"
 	"github.com/lenaxia/k8s-mendabot/internal/provider"
+	"github.com/lenaxia/k8s-mendabot/internal/testutil"
 )
 
 const integrationNamespace = "default"
@@ -80,21 +81,6 @@ func integrationEventually(t *testing.T, condition func() bool, timeout, interva
 		time.Sleep(interval)
 	}
 	t.Fatal("condition not met within timeout")
-}
-
-// drainProviderEvents drains all pending events from a FakeRecorder channel and
-// returns them as a slice of strings. Used by integration tests to assert event emission
-// without blocking on an empty channel.
-func drainProviderEvents(rec *record.FakeRecorder) []string {
-	var out []string
-	for {
-		select {
-		case e := <-rec.Events:
-			out = append(out, e)
-		default:
-			return out
-		}
-	}
 }
 
 func newTestPod(name, namespace string) *corev1.Pod {
@@ -174,7 +160,7 @@ func TestIntegration_CreateRemediationJob(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = k8sClient.Delete(ctx, found) })
 
-	events := drainProviderEvents(fakeRec)
+	events := testutil.DrainEvents(fakeRec)
 	var foundDetected bool
 	for _, e := range events {
 		if strings.Contains(e, "FindingDetected") {
@@ -378,7 +364,7 @@ func TestIntegration_NoErrors_Skipped(t *testing.T) {
 		}
 	}
 
-	events := drainProviderEvents(fakeRec)
+	events := testutil.DrainEvents(fakeRec)
 	var foundCleared bool
 	for _, e := range events {
 		if strings.Contains(e, "FindingCleared") {

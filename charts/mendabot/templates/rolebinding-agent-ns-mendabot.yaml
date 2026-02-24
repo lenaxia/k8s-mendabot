@@ -1,0 +1,20 @@
+{{- if and .Values.rbac.create (eq .Values.watcher.agentRBACScope "namespace") }}
+---
+# Grants the namespace-scoped agent ServiceAccount get/list/watch access within the
+# mendabot namespace itself, so agent Jobs can read RemediationJob objects.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "mendabot.fullname" . }}-agent-ns-mendabot
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "mendabot.labels" . | nindent 4 }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "mendabot.agentNSSAName" . }}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: {{ include "mendabot.fullname" . }}-agent
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

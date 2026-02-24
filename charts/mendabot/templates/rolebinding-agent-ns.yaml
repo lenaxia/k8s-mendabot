@@ -1,0 +1,23 @@
+{{- if and .Values.rbac.create (eq .Values.watcher.agentRBACScope "namespace") }}
+{{- $root := . }}
+{{- range $ns := splitList "," .Values.watcher.agentWatchNamespaces }}
+{{- if $ns }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "mendabot.fullname" $root }}-agent-ns
+  namespace: {{ $ns | trim }}
+  labels:
+    {{- include "mendabot.labels" $root | nindent 4 }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "mendabot.agentNSSAName" $root }}
+  namespace: {{ $root.Release.Namespace }}
+roleRef:
+  kind: Role
+  name: {{ include "mendabot.fullname" $root }}-agent-ns
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
+{{- end }}
+{{- end }}

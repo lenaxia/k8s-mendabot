@@ -90,6 +90,25 @@ prompt:
   # agent prompt for the selected agentType.
   agentOverride: ""
 
+# Network policy for agent Jobs.
+# When enabled, restricts agent Job pod egress to DNS, the Kubernetes API server,
+# and HTTPS (port 443) for GitHub and the LLM endpoint.
+# Requires a CNI that enforces NetworkPolicy (Cilium, Calico, etc.).
+networkPolicy:
+  enabled: false
+  # Port used by the Kubernetes API server. Standard is 6443; some distributions use 443.
+  apiServerPort: 6443
+  # Optional additional egress rules appended verbatim to the NetworkPolicy spec.
+  # Use to restrict the LLM endpoint to a known CIDR, for example:
+  # additionalEgressRules:
+  # - to:
+  #   - ipBlock:
+  #       cidr: 203.0.113.0/24
+  #   ports:
+  #   - port: 443
+  #     protocol: TCP
+  additionalEgressRules: []
+
 # RBAC resource creation. Set to false if you manage RBAC externally.
 rbac:
   create: true

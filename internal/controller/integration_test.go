@@ -18,6 +18,7 @@ import (
 	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
 	"github.com/lenaxia/k8s-mendabot/internal/config"
 	"github.com/lenaxia/k8s-mendabot/internal/controller"
+	"github.com/lenaxia/k8s-mendabot/internal/testutil"
 	"go.uber.org/zap"
 )
 
@@ -111,21 +112,6 @@ func deleteJob(ctx context.Context, c client.Client, job *batchv1.Job) {
 		_ = c.Update(ctx, existing)
 	}
 	_ = c.Delete(ctx, existing)
-}
-
-// drainIntegrationEvents drains all pending events from a FakeRecorder channel and
-// returns them as a slice of strings. Used by integration tests to assert event emission
-// without blocking on an empty channel.
-func drainIntegrationEvents(rec *record.FakeRecorder) []string {
-	var out []string
-	for {
-		select {
-		case e := <-rec.Events:
-			out = append(out, e)
-		default:
-			return out
-		}
-	}
 }
 
 func newIntegrationRJob(name, fp string) *v1alpha1.RemediationJob {
@@ -282,7 +268,7 @@ func TestRemediationJobReconciler_CreatesJob(t *testing.T) {
 		t.Error("expected DispatchedAt to be set after dispatch")
 	}
 
-	events := drainIntegrationEvents(fakeRec)
+	events := testutil.DrainEvents(fakeRec)
 	var foundDispatched bool
 	for _, e := range events {
 		if strings.Contains(e, "JobDispatched") {
@@ -418,7 +404,7 @@ func TestRemediationJobReconciler_SyncsStatus_Succeeded(t *testing.T) {
 		return updated.Status.Phase == v1alpha1.PhaseSucceeded
 	}, 5*time.Second, 100*time.Millisecond)
 
-	events := drainIntegrationEvents(fakeRec)
+	events := testutil.DrainEvents(fakeRec)
 	var foundSucceeded bool
 	for _, e := range events {
 		if strings.Contains(e, "JobSucceeded") {
@@ -493,7 +479,7 @@ func TestRemediationJobReconciler_SyncsStatus_Failed(t *testing.T) {
 		return updated.Status.Phase == v1alpha1.PhaseFailed
 	}, 5*time.Second, 100*time.Millisecond)
 
-	events := drainIntegrationEvents(fakeRec)
+	events := testutil.DrainEvents(fakeRec)
 	var foundFailed bool
 	for _, e := range events {
 		if strings.Contains(e, "JobFailed") {
@@ -865,7 +851,7 @@ func TestRemediationJobReconciler_PermanentlyFailed(t *testing.T) {
 		t.Errorf("phase = %q, want %q", updated.Status.Phase, v1alpha1.PhasePermanentlyFailed)
 	}
 
-	events := drainIntegrationEvents(fakeRec)
+	events := testutil.DrainEvents(fakeRec)
 	var foundPermFailed bool
 	for _, e := range events {
 		if strings.Contains(e, "JobPermanentlyFailed") {

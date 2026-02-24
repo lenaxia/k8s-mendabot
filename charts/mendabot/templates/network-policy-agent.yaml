@@ -1,0 +1,40 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "mendabot.fullname" . }}-agent-egress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "mendabot.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/managed-by: mendabot-watcher
+  policyTypes:
+  - Egress
+  egress:
+  # DNS resolution (required for all other egress)
+  - ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+
+  # Kubernetes API server (in-cluster).
+  # Port 6443 is the standard kube-apiserver port; some distributions use 443.
+  # Operators on a non-standard port must set networkPolicy.apiServerPort.
+  - ports:
+    - port: {{ .Values.networkPolicy.apiServerPort }}
+      protocol: TCP
+
+  # GitHub and LLM API (HTTPS).
+  # Cannot restrict by IP without external IP management; port-only restriction.
+  # Operators who know their LLM endpoint's CIDR can add an explicit ipBlock rule
+  # via networkPolicy.additionalEgressRules.
+  - ports:
+    - port: 443
+      protocol: TCP
+  {{- with .Values.networkPolicy.additionalEgressRules }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+{{- end }}

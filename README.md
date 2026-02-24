@@ -76,8 +76,8 @@ heuristics (`ignore.*previous.*instructions`) are detected and logged; configura
 suppress the finding entirely (`INJECTION_DETECTION_ACTION=suppress`).
 
 **Agent network policy** — an opt-in `NetworkPolicy` restricts agent Job egress to the
-cluster API server, GitHub, and the LLM endpoint. Available as a Kustomize overlay
-(`deploy/overlays/security/`).
+cluster API server, GitHub, and the LLM endpoint. Enabled via `networkPolicy.enabled: true`
+in `values.yaml`. Requires a CNI that enforces `NetworkPolicy` (Cilium, Calico, etc.).
 
 **Read-only agent RBAC** — the agent holds only `get/list/watch` verbs cluster-wide.
 It cannot create, modify, or delete any Kubernetes resource. All cluster changes go
@@ -187,6 +187,9 @@ All `values.yaml` keys and their defaults:
 | `metrics.serviceMonitor.interval` | `30s` | Prometheus scrape interval |
 | `metrics.serviceMonitor.scrapeTimeout` | `10s` | Prometheus scrape timeout |
 | `metrics.serviceMonitor.labels` | `{}` | Additional labels for the ServiceMonitor |
+| `networkPolicy.enabled` | `false` | Restrict agent Job egress to API server, GitHub, and LLM endpoint |
+| `networkPolicy.apiServerPort` | `6443` | Kubernetes API server port (some distributions use `443`) |
+| `networkPolicy.additionalEgressRules` | `[]` | Extra egress rules appended verbatim (e.g. to restrict LLM endpoint by CIDR) |
 
 ### Configuration validation
 

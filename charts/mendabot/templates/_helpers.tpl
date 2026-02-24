@@ -54,6 +54,13 @@ Agent ServiceAccount name.
 {{- end }}
 
 {{/*
+Namespace-scoped agent ServiceAccount name (used when watcher.agentRBACScope=namespace).
+*/}}
+{{- define "mendabot.agentNSSAName" -}}
+{{- printf "%s-agent-ns" (include "mendabot.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
 Watcher container image (repository:tag).
 Falls back to Chart.AppVersion when image.tag is empty.
 */}}

@@ -70,20 +70,11 @@
         "agentWatchNamespaces": {
           "type": "string",
           "description": "Comma-separated namespaces. Required when agentRBACScope=namespace."
+        },
+        "maxInvestigationRetries": {
+          "type": "string",
+          "description": "Maximum investigation retries per RemediationJob before permanently failing."
         }
-      }
-    },
-    "selfRemediation": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "maxDepth": { "type": "integer", "minimum": 0, "maximum": 10 },
-        "cooldownSeconds": { "type": "integer", "minimum": 0, "maximum": 3600 },
-        "upstreamRepo": { "type": "string" },
-        "disableUpstreamContributions": { "type": "boolean" },
-        "disableCascadeCheck": { "type": "boolean" },
-        "cascadeNamespaceThreshold": { "type": "integer", "minimum": 0, "maximum": 100 },
-        "cascadeNodeCacheTTLSeconds": { "type": "integer", "minimum": 0 }
       }
     },
     "prompt": {
@@ -92,6 +83,15 @@
       "properties": {
         "coreOverride": { "type": "string" },
         "agentOverride": { "type": "string" }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "apiServerPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "additionalEgressRules": { "type": "array" }
       }
     },
     "rbac": {

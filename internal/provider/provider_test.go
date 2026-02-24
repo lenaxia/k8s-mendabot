@@ -1577,7 +1577,6 @@ func TestAuditLog_ReadinessCheckFailed(t *testing.T) {
 	}
 }
 
-// TestReconcile_EmitsEvent_FindingDetected verifies that a Normal "FindingDetected" event
 // is emitted on the watched object when a valid finding is detected and a RemediationJob
 // is successfully created.
 func TestReconcile_EmitsEvent_FindingDetected(t *testing.T) {
@@ -1732,7 +1731,8 @@ func TestReconcile_EmitsEvent_FindingCleared(t *testing.T) {
 }
 
 // TestReconcile_EmitsEvent_SourceDeleted verifies that a Normal "SourceDeleted" event
-// is emitted on each cancelled rjob when the watched object is not found (source deleted).
+// is emitted on each cancelled rjob (not the watched object) when the watched object is
+// not found (source deleted).
 func TestReconcile_EmitsEvent_SourceDeleted(t *testing.T) {
 	p := &fakeSourceProvider{
 		name:       "native",
@@ -1753,13 +1753,13 @@ func TestReconcile_EmitsEvent_SourceDeleted(t *testing.T) {
 	// No watched object — it has been deleted.
 	c := newTestClient(pendingRJob)
 
-	fakeRec := record.NewFakeRecorder(10)
+	rec := &testutil.ObjectRecorder{}
 	r := &provider.SourceProviderReconciler{
 		Client:        c,
 		Scheme:        newTestScheme(),
 		Cfg:           config.Config{AgentNamespace: agentNamespace},
 		Provider:      p,
-		EventRecorder: fakeRec,
+		EventRecorder: rec,
 	}
 
 	_, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
@@ -1767,16 +1767,13 @@ func TestReconcile_EmitsEvent_SourceDeleted(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	events := testutil.DrainEvents(fakeRec)
-	var found bool
-	for _, e := range events {
-		if strings.Contains(e, "SourceDeleted") && strings.Contains(e, string(corev1.EventTypeNormal)) {
-			found = true
-			break
-		}
+	events := rec.FindByReason("SourceDeleted")
+	if len(events) == 0 {
+		t.Fatalf("expected at least one SourceDeleted event, got none")
 	}
-	if !found {
-		t.Errorf("expected Normal SourceDeleted event, got: %v", events)
+	if events[0].Object.(metav1.Object).GetName() != pendingRJob.Name {
+		t.Errorf("SourceDeleted event target = %q, want %q",
+			events[0].Object.(metav1.Object).GetName(), pendingRJob.Name)
 	}
 }
 
