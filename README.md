@@ -36,62 +36,62 @@ touch Kubernetes Secrets in the GitOps repo; exactly one outcome per invocation.
 
 ## Features
 
-**OpenCode agentic workflow** — investigations are driven by [OpenCode](https://opencode.ai)
+**[OpenCode agentic workflow](docs/WORKLOGS/0071_2026-02-23_epic08-pluggable-agent-complete.md)** — investigations are driven by [OpenCode](https://opencode.ai)
 running inside your cluster. Works with any OpenAI-compatible LLM endpoint. Additional
 agent backends are planned.
 
-**Detection** — watches Pods, Deployments, StatefulSets, PVCs, Nodes, and Jobs natively.
+**[Detection](docs/WORKLOGS/0033_2026-02-22_epic09-native-provider-complete.md)** — watches Pods, Deployments, StatefulSets, PVCs, Nodes, and Jobs natively.
 Covers `CrashLoopBackOff`, `ImagePullBackOff`, `OOMKilled`, degraded Deployments,
 unschedulable pods, failed Jobs, PVC provisioning failures, and unhealthy Nodes.
 
-**Deduplication** — findings are deduplicated by parent resource fingerprint
+**[Deduplication](docs/WORKLOGS/0011_2026-02-20_epic01-controller-core-logic.md)** — findings are deduplicated by parent resource fingerprint
 (`sha256(namespace + kind + parentObject + sorted errors)`). Repeated pod restarts from
 the same Deployment produce one investigation. State is stored in `RemediationJob` CRD
 objects — survives watcher restarts, no external store required.
 
-**Stabilisation window** — a configurable hold period (default: 120s) suppresses
+**[Stabilisation window](docs/WORKLOGS/0030_2026-02-22_epic09-story12-stabilisation-window.md)** — a configurable hold period (default: 120s) suppresses
 transient blips before an investigation is dispatched.
 
-**Concurrency throttling** — `maxConcurrentJobs` (default: 3) caps simultaneous agent
+**[Concurrency throttling](docs/WORKLOGS/0011_2026-02-20_epic01-controller-core-logic.md)** — `maxConcurrentJobs` (default: 3) caps simultaneous agent
 Jobs. Excess findings queue as `Pending` and dispatch as slots become available.
 
-**Customisable agent prompt** — the investigation prompt is mounted from a ConfigMap and
+**[Customisable agent prompt](docs/WORKLOGS/0071_2026-02-23_epic08-pluggable-agent-complete.md)** — the investigation prompt is mounted from a ConfigMap and
 can be fully overridden via `prompt.coreOverride` / `prompt.agentOverride` in
 `values.yaml`.
 
-**Prometheus metrics** — optional metrics Service and Prometheus Operator
+**[Prometheus metrics](docs/WORKLOGS/0038_2026-02-23_epic10-helm-chart-implementation.md)** — optional metrics Service and Prometheus Operator
 `ServiceMonitor` for watcher health observability.
 
 ### Security
 
-**Secret redaction** — error text extracted from cluster state (pod `Waiting.Message`,
+**[Secret redaction](docs/WORKLOGS/0054_2026-02-23_story01-secret-redaction.md)** — error text extracted from cluster state (pod `Waiting.Message`,
 node condition messages, etc.) is passed through a redaction filter before being stored
 in `RemediationJob` or injected into the agent. Patterns include URL credentials,
 base64-encoded values ≥ 40 chars, and common secret key prefixes (`password=`,
 `token=`, `api-key=`, etc.).
 
-**Prompt injection detection** — `Finding.Errors` is bounded to 500 characters per
+**[Prompt injection detection](docs/WORKLOGS/0055_2026-02-23_story05-prompt-injection-defence.md)** — `Finding.Errors` is bounded to 500 characters per
 field and wrapped in an explicit untrusted-data envelope in the prompt. Injection
 heuristics (`ignore.*previous.*instructions`) are detected and logged; configurable to
 suppress the finding entirely (`INJECTION_DETECTION_ACTION=suppress`).
 
-**Agent network policy** — an opt-in `NetworkPolicy` restricts agent Job egress to the
+**[Agent network policy](docs/WORKLOGS/0057_2026-02-23_story02-network-policy.md)** — an opt-in `NetworkPolicy` restricts agent Job egress to the
 cluster API server, GitHub, and the LLM endpoint. Enabled via `networkPolicy.enabled: true`
 in `values.yaml`. Requires a CNI that enforces `NetworkPolicy` (Cilium, Calico, etc.).
 
-**Read-only agent RBAC** — the agent holds only `get/list/watch` verbs cluster-wide.
+**[Read-only agent RBAC](docs/WORKLOGS/0016_2026-02-20_epic04-deploy-manifests.md)** — the agent holds only `get/list/watch` verbs cluster-wide.
 It cannot create, modify, or delete any Kubernetes resource. All cluster changes go
 through Git and your GitOps reconciler.
 
-**Namespace-scoped agent RBAC** — `AGENT_RBAC_SCOPE=namespace` switches the agent from
+**[Namespace-scoped agent RBAC](docs/WORKLOGS/0058_2026-02-23_story04-agent-rbac-scoping.md)** — `AGENT_RBAC_SCOPE=namespace` switches the agent from
 a cluster-wide `ClusterRole` to a namespace-scoped `Role`, limiting what the agent can
 read to the namespaces you specify.
 
-**Structured audit log** — all suppression and dispatch decisions emit structured log
+**[Structured audit log](docs/WORKLOGS/0056_2026-02-23_story03-audit-log.md)** — all suppression and dispatch decisions emit structured log
 lines with `audit: true`, queryable from any log aggregation system (Loki,
 Elasticsearch, Datadog) for post-incident forensics.
 
-**Short-lived GitHub credentials** — the agent never holds a long-lived PAT. A GitHub
+**[Short-lived GitHub credentials](docs/WORKLOGS/0014_2026-02-20_epic03-agent-image-complete.md)** — the agent never holds a long-lived PAT. A GitHub
 App installation token (1-hour TTL) is exchanged in the init container and never
 exposed to the main agent container.
 
