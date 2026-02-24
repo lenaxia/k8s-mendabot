@@ -369,6 +369,294 @@ func TestRemediationJobReconciler_Cancelled_ReturnsNil(t *testing.T) {
 	}
 }
 
+// TestRemediationJobReconciler_PhaseFailed_IncrementsRetryCount verifies that
+// when the owned batch/v1 Job transitions to Failed, RetryCount is incremented
+// exactly once.
+func TestRemediationJobReconciler_PhaseFailed_IncrementsRetryCount(t *testing.T) {
+	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
+	rjob := newRJob("test-retry-count", fp)
+	rjob.Status.Phase = v1alpha1.PhasePending
+	rjob.Spec.MaxRetries = 3
+
+	backoffLimit := int32(1)
+	failedJob := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mendabot-agent-" + fp[:12],
+			Namespace: testNamespace,
+			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-retry-count"},
+		},
+		Spec:   batchv1.JobSpec{BackoffLimit: &backoffLimit},
+		Status: batchv1.JobStatus{Failed: backoffLimit + 1},
+	}
+
+	c := newFakeClient(t, rjob, failedJob)
+	jb := &fakeJobBuilder{}
+	r := newReconciler(t, c, jb, defaultCfg())
+
+	_, err := r.Reconcile(context.Background(), rjobReqFor("test-retry-count"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var updated v1alpha1.RemediationJob
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-retry-count", Namespace: testNamespace}, &updated); err != nil {
+		t.Fatalf("get rjob: %v", err)
+	}
+	if updated.Status.RetryCount != 1 {
+		t.Errorf("RetryCount = %d, want 1", updated.Status.RetryCount)
+	}
+	if updated.Status.Phase != v1alpha1.PhaseFailed {
+		t.Errorf("Phase = %q, want %q (below cap)", updated.Status.Phase, v1alpha1.PhaseFailed)
+	}
+}
+
+// TestRemediationJobReconciler_PhaseFailed_AtCap_PermanentlyFails verifies that
+// when RetryCount reaches MaxRetries, phase transitions to PermanentlyFailed.
+func TestRemediationJobReconciler_PhaseFailed_AtCap_PermanentlyFails(t *testing.T) {
+	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
+	rjob := newRJob("test-perm-fail", fp)
+	rjob.Status.Phase = v1alpha1.PhasePending
+	rjob.Spec.MaxRetries = 3
+	rjob.Status.RetryCount = 2 // one more failure will hit the cap
+
+	backoffLimit := int32(1)
+	failedJob := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mendabot-agent-" + fp[:12],
+			Namespace: testNamespace,
+			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-perm-fail"},
+		},
+		Spec:   batchv1.JobSpec{BackoffLimit: &backoffLimit},
+		Status: batchv1.JobStatus{Failed: backoffLimit + 1},
+	}
+
+	c := newFakeClient(t, rjob, failedJob)
+	jb := &fakeJobBuilder{}
+	r := newReconciler(t, c, jb, defaultCfg())
+
+	_, err := r.Reconcile(context.Background(), rjobReqFor("test-perm-fail"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var updated v1alpha1.RemediationJob
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-perm-fail", Namespace: testNamespace}, &updated); err != nil {
+		t.Fatalf("get rjob: %v", err)
+	}
+	if updated.Status.RetryCount != 3 {
+		t.Errorf("RetryCount = %d, want 3", updated.Status.RetryCount)
+	}
+	if updated.Status.Phase != v1alpha1.PhasePermanentlyFailed {
+		t.Errorf("Phase = %q, want %q", updated.Status.Phase, v1alpha1.PhasePermanentlyFailed)
+	}
+	found := false
+	for _, cond := range updated.Status.Conditions {
+		if cond.Type == v1alpha1.ConditionPermanentlyFailed && cond.Status == metav1.ConditionTrue {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected ConditionPermanentlyFailed=True, not found in conditions")
+	}
+}
+
+// TestRemediationJobReconciler_RetryCount_Idempotent verifies that re-reconciling
+// an already-Failed rjob does NOT increment RetryCount again.
+func TestRemediationJobReconciler_RetryCount_Idempotent(t *testing.T) {
+	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
+	rjob := newRJob("test-retry-idem", fp)
+	// Already in Failed phase with RetryCount=1 — simulates second reconcile
+	rjob.Status.Phase = v1alpha1.PhaseFailed
+	rjob.Status.RetryCount = 1
+	rjob.Spec.MaxRetries = 3
+
+	c := newFakeClient(t, rjob)
+	jb := &fakeJobBuilder{}
+	r := newReconciler(t, c, jb, defaultCfg())
+
+	_, err := r.Reconcile(context.Background(), rjobReqFor("test-retry-idem"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var updated v1alpha1.RemediationJob
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-retry-idem", Namespace: testNamespace}, &updated); err != nil {
+		t.Fatalf("get rjob: %v", err)
+	}
+	// Phase is already Failed → short-circuit, no change
+	if updated.Status.RetryCount != 1 {
+		t.Errorf("RetryCount = %d, want 1 (idempotent — must not re-increment on already-Failed rjob)", updated.Status.RetryCount)
+	}
+}
+
+// TestRemediationJobReconciler_PermanentlyFailed_ReturnsNil verifies
+// PermanentlyFailed phase → returns immediately, no dispatch.
+func TestRemediationJobReconciler_PermanentlyFailed_ReturnsNil(t *testing.T) {
+	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
+	rjob := newRJob("test-perm-noop", fp)
+	rjob.Status.Phase = v1alpha1.PhasePermanentlyFailed
+
+	c := newFakeClient(t, rjob)
+	jb := &fakeJobBuilder{}
+	r := newReconciler(t, c, jb, defaultCfg())
+
+	result, err := r.Reconcile(context.Background(), rjobReqFor("test-perm-noop"))
+	if err != nil {
+		t.Errorf("expected nil error for PermanentlyFailed phase, got %v", err)
+	}
+	if result.RequeueAfter != 0 || result.Requeue {
+		t.Errorf("expected zero Result for PermanentlyFailed phase, got %+v", result)
+	}
+	if len(jb.calls) != 0 {
+		t.Error("expected no Build() calls for PermanentlyFailed phase")
+	}
+}
+
+// TestRemediationJobReconciler_TerminalPhases_NoBuild verifies all three
+// terminal-no-dispatch phases return immediately without calling Build().
+func TestRemediationJobReconciler_TerminalPhases_NoBuild(t *testing.T) {
+	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
+	tests := []struct {
+		phase v1alpha1.RemediationJobPhase
+	}{
+		{v1alpha1.PhaseFailed},
+		{v1alpha1.PhaseCancelled},
+		{v1alpha1.PhasePermanentlyFailed},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.phase), func(t *testing.T) {
+			rjob := newRJob("test-terminal-"+string(tt.phase), fp)
+			rjob.Status.Phase = tt.phase
+
+			c := newFakeClient(t, rjob)
+			jb := &fakeJobBuilder{}
+			r := newReconciler(t, c, jb, defaultCfg())
+
+			result, err := r.Reconcile(context.Background(),
+				rjobReqFor("test-terminal-"+string(tt.phase)))
+			if err != nil {
+				t.Errorf("phase %q: unexpected error: %v", tt.phase, err)
+			}
+			if result.RequeueAfter != 0 || result.Requeue {
+				t.Errorf("phase %q: expected zero Result, got %+v", tt.phase, result)
+			}
+			if len(jb.calls) != 0 {
+				t.Errorf("phase %q: expected no Build() calls", tt.phase)
+			}
+		})
+	}
+}
+
+// TestRemediationJobReconciler_PhaseFailed_ZeroMaxRetries_UsesDefault verifies that when
+// Spec.MaxRetries == 0 (zero value / unset), the reconciler falls back to the default of 3.
+// With RetryCount=2 and one more failure, RetryCount becomes 3 which equals the effective
+// maxRetries (3), so the phase must transition to PermanentlyFailed.
+func TestRemediationJobReconciler_PhaseFailed_ZeroMaxRetries_UsesDefault(t *testing.T) {
+	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
+	rjob := newRJob("test-zero-maxretries", fp)
+	rjob.Status.Phase = v1alpha1.PhasePending
+	rjob.Spec.MaxRetries = 0   // zero value — should fall back to default of 3
+	rjob.Status.RetryCount = 2 // one more failure pushes it to 3, hitting the fallback cap
+
+	backoffLimit := int32(1)
+	failedJob := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mendabot-agent-" + fp[:12],
+			Namespace: testNamespace,
+			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-zero-maxretries"},
+		},
+		Spec:   batchv1.JobSpec{BackoffLimit: &backoffLimit},
+		Status: batchv1.JobStatus{Failed: backoffLimit + 1},
+	}
+
+	c := newFakeClient(t, rjob, failedJob)
+	jb := &fakeJobBuilder{}
+	r := newReconciler(t, c, jb, defaultCfg())
+
+	_, err := r.Reconcile(context.Background(), rjobReqFor("test-zero-maxretries"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var updated v1alpha1.RemediationJob
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-zero-maxretries", Namespace: testNamespace}, &updated); err != nil {
+		t.Fatalf("get rjob: %v", err)
+	}
+	// RetryCount should be incremented to 3
+	if updated.Status.RetryCount != 3 {
+		t.Errorf("RetryCount = %d, want 3", updated.Status.RetryCount)
+	}
+	// With fallback maxRetries=3 and RetryCount=3, phase must be PermanentlyFailed
+	if updated.Status.Phase != v1alpha1.PhasePermanentlyFailed {
+		t.Errorf("Phase = %q, want %q — fallback MaxRetries=3 not applied", updated.Status.Phase, v1alpha1.PhasePermanentlyFailed)
+	}
+	// The PermanentlyFailed condition must be set
+	found := false
+	for _, cond := range updated.Status.Conditions {
+		if cond.Type == v1alpha1.ConditionPermanentlyFailed && cond.Status == metav1.ConditionTrue {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected ConditionPermanentlyFailed=True, not found in conditions")
+	}
+}
+
+// TestRemediationJobReconciler_PhaseSucceeded_NilCompletedAt_SetsCompletedAt verifies that
+// when a RemediationJob is already in PhaseSucceeded but CompletedAt is nil (e.g. status
+// patch for CompletedAt was lost, or an external actor set Phase=Succeeded without the
+// timestamp), the reconciler sets CompletedAt to now and requeues so the TTL path can run
+// normally on the next reconcile.
+func TestRemediationJobReconciler_PhaseSucceeded_NilCompletedAt_SetsCompletedAt(t *testing.T) {
+	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
+	rjob := newRJob("test-succeeded-nil-cat", fp)
+	rjob.Status.Phase = v1alpha1.PhaseSucceeded
+	// CompletedAt is intentionally nil — this is the bug scenario
+
+	before := time.Now()
+
+	c := newFakeClient(t, rjob)
+	jb := &fakeJobBuilder{}
+	r := newReconciler(t, c, jb, defaultCfg())
+
+	result, err := r.Reconcile(context.Background(), rjobReqFor("test-succeeded-nil-cat"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Must requeue so the TTL path runs on the next reconcile
+	if result.RequeueAfter == 0 && !result.Requeue {
+		t.Error("expected a requeue (RequeueAfter > 0 or Requeue=true) when CompletedAt was nil")
+	}
+
+	// CompletedAt must now be set in the persisted status
+	var updated v1alpha1.RemediationJob
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-succeeded-nil-cat", Namespace: testNamespace}, &updated); err != nil {
+		t.Fatalf("get rjob: %v", err)
+	}
+	if updated.Status.CompletedAt == nil {
+		t.Fatal("expected CompletedAt to be set after safety-net reconcile, got nil")
+	}
+	after := time.Now()
+	// Allow a 2-second window to account for metav1.Now() stripping the monotonic
+	// clock and any sub-second rounding.
+	if updated.Status.CompletedAt.Time.Before(before.Add(-2*time.Second)) || updated.Status.CompletedAt.Time.After(after.Add(2*time.Second)) {
+		t.Errorf("CompletedAt %v is outside expected window [%v, %v]",
+			updated.Status.CompletedAt.Time, before, after)
+	}
+
+	// No batch/v1 Job should be created
+	var jobList batchv1.JobList
+	if err := c.List(context.Background(), &jobList, client.InNamespace(testNamespace)); err != nil {
+		t.Fatalf("list jobs: %v", err)
+	}
+	if len(jobList.Items) != 0 {
+		t.Errorf("expected 0 jobs after safety-net reconcile, got %d", len(jobList.Items))
+	}
+}
+
 // TestRemediationJobReconciler_OwnerRef verifies created job has ownerReference pointing to RJob.
 func TestRemediationJobReconciler_OwnerRef(t *testing.T) {
 	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"

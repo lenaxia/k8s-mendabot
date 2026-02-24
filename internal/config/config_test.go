@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -437,7 +438,7 @@ func TestFromEnv_ConfigValidationEdgeCases(t *testing.T) {
 				if err == nil {
 					t.Fatal("expected error, got nil")
 				}
-				if tt.errorSubstr != "" && !contains(err.Error(), tt.errorSubstr) {
+				if tt.errorSubstr != "" && !strings.Contains(err.Error(), tt.errorSubstr) {
 					t.Errorf("error %q does not contain %q", err.Error(), tt.errorSubstr)
 				}
 			} else {
@@ -447,10 +448,6 @@ func TestFromEnv_ConfigValidationEdgeCases(t *testing.T) {
 			}
 		})
 	}
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && (s[:len(substr)] == substr || contains(s[1:], substr)))
 }
 
 // TestFromEnv_LLMProviderDefault tests that LLM_PROVIDER defaults to empty string (disabled).
@@ -497,7 +494,7 @@ func TestFromEnv_LLMProviderUnimplementedValues(t *testing.T) {
 			if err == nil {
 				t.Fatalf("expected error for unimplemented LLM_PROVIDER=%q, got nil", provider)
 			}
-			if !contains(err.Error(), "not yet implemented") {
+			if !strings.Contains(err.Error(), "not yet implemented") {
 				t.Errorf("error should say 'not yet implemented', got: %v", err)
 			}
 		})
@@ -513,7 +510,7 @@ func TestFromEnv_LLMProviderInvalidValue(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for unknown LLM_PROVIDER=anthropic, got nil")
 	}
-	if !contains(err.Error(), "anthropic") {
+	if !strings.Contains(err.Error(), "anthropic") {
 		t.Errorf("error should mention the invalid value, got: %v", err)
 	}
 }
@@ -660,5 +657,77 @@ func TestFromEnv_AgentWatchNamespacesWhitespaceOnly(t *testing.T) {
 	_, err := config.FromEnv()
 	if err == nil {
 		t.Error("expected error for whitespace-only AGENT_WATCH_NAMESPACES, got nil")
+	}
+}
+
+// TestFromEnv_MaxInvestigationRetries covers all valid and invalid input cases.
+func TestFromEnv_MaxInvestigationRetries(t *testing.T) {
+	tests := []struct {
+		name      string
+		envValue  string
+		wantValue int32
+		wantErr   bool
+	}{
+		{
+			name:      "unset uses default 3",
+			envValue:  "",
+			wantValue: 3,
+		},
+		{
+			name:      "explicit value 1",
+			envValue:  "1",
+			wantValue: 1,
+		},
+		{
+			name:      "explicit value 5",
+			envValue:  "5",
+			wantValue: 5,
+		},
+		{
+			name:      "explicit value 10",
+			envValue:  "10",
+			wantValue: 10,
+		},
+		{
+			name:     "zero is invalid",
+			envValue: "0",
+			wantErr:  true,
+		},
+		{
+			name:     "negative is invalid",
+			envValue: "-1",
+			wantErr:  true,
+		},
+		{
+			name:     "non-integer is invalid",
+			envValue: "three",
+			wantErr:  true,
+		},
+		{
+			name:     "float is invalid",
+			envValue: "3.5",
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setRequiredEnv(t)
+			t.Setenv("MAX_INVESTIGATION_RETRIES", tt.envValue)
+
+			cfg, err := config.FromEnv()
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("expected error for MAX_INVESTIGATION_RETRIES=%q, got nil", tt.envValue)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if cfg.MaxInvestigationRetries != tt.wantValue {
+				t.Errorf("MaxInvestigationRetries = %d, want %d", cfg.MaxInvestigationRetries, tt.wantValue)
+			}
+		})
 	}
 }

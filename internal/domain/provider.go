@@ -72,7 +72,7 @@ func FindingFingerprint(f *Finding) (string, error) {
 type SourceProvider interface {
 	// ProviderName returns a stable, lowercase identifier for this provider.
 	// Used as the value of RemediationJobSpec.SourceType (e.g. "native", "prometheus").
-	// Must be unique across all registered providers.
+	// Returns the provider type identifier. Multiple providers of the same type (e.g. native Pod, Deployment) may return the same value.
 	ProviderName() string
 
 	// ObjectType returns a pointer to the runtime.Object type this provider watches.
@@ -110,34 +110,4 @@ type Finding struct {
 	// Details is a human-readable explanation of the finding.
 	// May be empty.
 	Details string
-
-	// SourceRef identifies the native object that produced this Finding.
-	SourceRef SourceRef
-}
-
-// SourceRef is a back-reference to the native object that produced a Finding.
-type SourceRef struct {
-	// APIVersion of the native object (e.g. "v1", "apps/v1").
-	APIVersion string
-
-	// Kind of the native object (e.g. "Result").
-	Kind string
-
-	// Name of the native object.
-	Name string
-
-	// Namespace of the native object.
-	Namespace string
-}
-
-// SinkConfig holds the configuration passed to the agent for a specific sink.
-// Populated from watcher env vars and mounted Secrets; injected as Job env vars.
-type SinkConfig struct {
-	// Type identifies the sink implementation (e.g. "github", "gitlab", "gitea").
-	// Injected as SINK_TYPE env var into the agent Job.
-	Type string
-
-	// AdditionalEnv holds sink-specific env vars (e.g. GITLAB_HOST for a GitLab sink).
-	// These are injected alongside the standard FINDING_* vars.
-	AdditionalEnv map[string]string
 }

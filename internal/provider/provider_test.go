@@ -3,6 +3,7 @@ package provider_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -804,6 +806,13 @@ func newObserverLogger() (*zap.Logger, *observer.ObservedLogs) {
 	return zap.New(core), logs
 }
 
+// newObserverInfoLogger returns a *zap.Logger backed by a zaptest/observer core at Info
+// level so that tests can assert on Info-level log entries.
+func newObserverInfoLogger() (*zap.Logger, *observer.ObservedLogs) {
+	core, logs := observer.New(zapcore.InfoLevel)
+	return zap.New(core), logs
+}
+
 // TestReconcile_DetailsInjection_LogsEvent verifies that when finding.Details contains
 // injection text, the reconciler logs an audit warning with event
 // "finding.injection_detected_in_details".
@@ -990,6 +999,206 @@ func TestReconcile_DetailsInjection_NilLogger_NoPanic(t *testing.T) {
 	}
 }
 
+// TestSourceProviderReconciler_PermanentlyFailed_Suppressed verifies that a RemediationJob in
+// PermanentlyFailed phase is NOT deleted, no new job is created, and an audit log entry with
+// event "remediationjob.permanently_failed_suppressed" is emitted.
+func TestSourceProviderReconciler_PermanentlyFailed_Suppressed(t *testing.T) {
+	finding := &domain.Finding{
+		Kind:         "Pod",
+		Name:         "pod-crash",
+		Namespace:    agentNamespace,
+		ParentObject: "my-deploy",
+		Errors:       `[{"text":"OOMKilled"}]`,
+	}
+	fp, err := domain.FindingFingerprint(finding)
+	if err != nil {
+		t.Fatalf("computing fingerprint: %v", err)
+	}
+
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
+	}
+
+	permFailedRJob := &v1alpha1.RemediationJob{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mendabot-" + fp[:12],
+			Namespace: agentNamespace,
+			Labels: map[string]string{
+				"remediation.mendabot.io/fingerprint": fp[:12],
+			},
+			Annotations: map[string]string{
+				"remediation.mendabot.io/fingerprint-full": fp,
+			},
+		},
+		Spec: v1alpha1.RemediationJobSpec{
+			Fingerprint: fp,
+			MaxRetries:  3,
+		},
+		Status: v1alpha1.RemediationJobStatus{
+			Phase:      v1alpha1.PhasePermanentlyFailed,
+			RetryCount: 3,
+		},
+	}
+
+	obj := makeWatchedObject("result-perm", agentNamespace)
+	c := newTestClient(obj, permFailedRJob)
+	logger, logs := newObserverInfoLogger()
+	r := &provider.SourceProviderReconciler{
+		Client:   c,
+		Scheme:   newTestScheme(),
+		Cfg:      config.Config{AgentNamespace: agentNamespace},
+		Provider: p,
+		Log:      logger,
+	}
+
+	_, err = r.Reconcile(context.Background(), reqFor("result-perm", agentNamespace))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var existing v1alpha1.RemediationJob
+	if getErr := c.Get(context.Background(),
+		types.NamespacedName{Name: permFailedRJob.Name, Namespace: agentNamespace},
+		&existing); getErr != nil {
+		t.Errorf("PermanentlyFailed rjob was deleted (expected it to survive): %v", getErr)
+	}
+
+	var rjobList v1alpha1.RemediationJobList
+	if listErr := c.List(context.Background(), &rjobList,
+		client.InNamespace(agentNamespace)); listErr != nil {
+		t.Fatalf("list rjobs: %v", listErr)
+	}
+	if len(rjobList.Items) != 1 {
+		t.Errorf("expected exactly 1 RemediationJob (the tombstone), got %d", len(rjobList.Items))
+	}
+
+	var found bool
+	for _, entry := range logs.All() {
+		eventField, ok := entry.ContextMap()["event"]
+		if ok && eventField == "remediationjob.permanently_failed_suppressed" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected audit log entry with event=remediationjob.permanently_failed_suppressed, got entries: %v", logs.All())
+	}
+}
+
+// TestSourceProviderReconciler_PhaseFailed_DeletesAndCreatesNew verifies the
+// existing PhaseFailed re-dispatch behaviour is unchanged after the switch refactor.
+func TestSourceProviderReconciler_PhaseFailed_DeletesAndCreatesNew(t *testing.T) {
+	finding := &domain.Finding{
+		Kind:         "Pod",
+		Name:         "pod-crash",
+		Namespace:    agentNamespace,
+		ParentObject: "my-deploy",
+		Errors:       `[{"text":"ImagePullBackOff"}]`,
+	}
+	fp, err := domain.FindingFingerprint(finding)
+	if err != nil {
+		t.Fatalf("computing fingerprint: %v", err)
+	}
+
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
+	}
+
+	failedRJob := &v1alpha1.RemediationJob{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mendabot-" + fp[:12],
+			Namespace: agentNamespace,
+			Labels: map[string]string{
+				"remediation.mendabot.io/fingerprint": fp[:12],
+			},
+			Annotations: map[string]string{
+				"remediation.mendabot.io/fingerprint-full": fp,
+			},
+		},
+		Spec: v1alpha1.RemediationJobSpec{
+			Fingerprint: fp,
+			MaxRetries:  3,
+		},
+		Status: v1alpha1.RemediationJobStatus{
+			Phase:      v1alpha1.PhaseFailed,
+			RetryCount: 1,
+		},
+	}
+
+	obj := makeWatchedObject("result-fail", agentNamespace)
+	c := newTestClient(obj, failedRJob)
+	r := newTestReconciler(p, c)
+
+	_, err = r.Reconcile(context.Background(), reqFor("result-fail", agentNamespace))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// The reconciler deletes the Failed rjob and immediately creates a replacement
+	// with the same name. Verify the net result is exactly 1 rjob and it is not Failed.
+	var rjobList v1alpha1.RemediationJobList
+	if listErr := c.List(context.Background(), &rjobList,
+		client.InNamespace(agentNamespace)); listErr != nil {
+		t.Fatalf("list rjobs: %v", listErr)
+	}
+	if len(rjobList.Items) != 1 {
+		t.Errorf("expected 1 RemediationJob (failed deleted, new created), got %d", len(rjobList.Items))
+	}
+	if len(rjobList.Items) == 1 && rjobList.Items[0].Status.Phase == v1alpha1.PhaseFailed {
+		t.Error("expected new RemediationJob not to be in Failed phase")
+	}
+}
+
+// TestSourceProviderReconciler_MaxRetries_PopulatedFromConfig verifies that newly
+// created RemediationJobs carry MaxRetries from Cfg.MaxInvestigationRetries.
+func TestSourceProviderReconciler_MaxRetries_PopulatedFromConfig(t *testing.T) {
+	finding := &domain.Finding{
+		Kind:         "Pod",
+		Name:         "pod-crash",
+		Namespace:    agentNamespace,
+		ParentObject: "my-deploy",
+		Errors:       `[{"text":"CrashLoopBackOff"}]`,
+	}
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
+	}
+
+	obj := makeWatchedObject("result-maxretries", agentNamespace)
+	c := newTestClient(obj)
+	r := &provider.SourceProviderReconciler{
+		Client: c,
+		Scheme: newTestScheme(),
+		Cfg: config.Config{
+			AgentNamespace:          agentNamespace,
+			MaxInvestigationRetries: 5,
+		},
+		Provider: p,
+	}
+
+	_, err := r.Reconcile(context.Background(), reqFor("result-maxretries", agentNamespace))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var rjobList v1alpha1.RemediationJobList
+	if listErr := c.List(context.Background(), &rjobList,
+		client.InNamespace(agentNamespace)); listErr != nil {
+		t.Fatalf("list rjobs: %v", listErr)
+	}
+	if len(rjobList.Items) == 0 {
+		t.Fatal("expected a RemediationJob to be created")
+	}
+	if rjobList.Items[0].Spec.MaxRetries != 5 {
+		t.Errorf("MaxRetries = %d, want 5", rjobList.Items[0].Spec.MaxRetries)
+	}
+}
+
 // TestReconcile_ReadinessGate_NilChecker_AllowsJobCreation verifies that a nil
 // ReadinessChecker (gate disabled) does not block RemediationJob creation.
 func TestReconcile_ReadinessGate_NilChecker_AllowsJobCreation(t *testing.T) {
@@ -1014,5 +1223,53 @@ func TestReconcile_ReadinessGate_NilChecker_AllowsJobCreation(t *testing.T) {
 	}
 	if len(list.Items) != 1 {
 		t.Errorf("expected 1 RemediationJob when ReadinessChecker is nil (gate disabled), got %d", len(list.Items))
+	}
+}
+
+// TestReconcile_EventRecorder_EmitsRemediationJobCreated verifies that when an
+// EventRecorder is wired and a RemediationJob is successfully created, a Normal
+// "RemediationJobCreated" Kubernetes Event is emitted on the source object.
+func TestReconcile_EventRecorder_EmitsRemediationJobCreated(t *testing.T) {
+	finding := &domain.Finding{
+		Kind:         "Pod",
+		Name:         "pod-abc",
+		Namespace:    "default",
+		ParentObject: "my-deploy",
+		Errors:       `[{"text":"CrashLoopBackOff"}]`,
+		Details:      "Pod is crash looping",
+	}
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
+	}
+
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj)
+
+	fakeRec := record.NewFakeRecorder(10)
+	r := &provider.SourceProviderReconciler{
+		Client:        c,
+		Scheme:        newTestScheme(),
+		Cfg:           config.Config{AgentNamespace: agentNamespace},
+		Provider:      p,
+		EventRecorder: fakeRec,
+	}
+
+	_, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Exactly one event must have been emitted.
+	if len(fakeRec.Events) == 0 {
+		t.Fatal("expected at least one event to be emitted, got none")
+	}
+	event := <-fakeRec.Events
+	if !strings.Contains(event, "RemediationJobCreated") {
+		t.Errorf("expected event reason RemediationJobCreated, got: %q", event)
+	}
+	if !strings.Contains(event, string(corev1.EventTypeNormal)) {
+		t.Errorf("expected Normal event type, got: %q", event)
 	}
 }

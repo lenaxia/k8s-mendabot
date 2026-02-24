@@ -38,29 +38,17 @@ watcher:
   sinkType: github
   # Zap log level: debug, info, warn, error
   logLevel: info
-
-# Self-remediation configuration.
-# These values map directly to Go config fields that control self-remediation behaviour.
-# To effectively disable self-remediation, set maxDepth: 0.
-# Note: self-remediation is triggered automatically by the JobProvider when it detects
-# a failed batch/v1 Job labelled app.kubernetes.io/managed-by=mendabot-watcher.
-selfRemediation:
-  # Maximum self-remediation chain depth. Set to 0 to disable entirely.
-  maxDepth: 2
-  # Cooldown between self-remediation dispatches (seconds). Must be 0–3600.
-  cooldownSeconds: 300
-  # Upstream repository where mendabot bug-fix PRs are opened.
-  upstreamRepo: lenaxia/k8s-mendabot
-  # Set to true to prevent any PR being opened against the upstream mendabot repo
-  # (PRs go to gitops.repo only).
-  disableUpstreamContributions: false
-  # Set to true to disable infrastructure cascade failure detection entirely.
-  disableCascadeCheck: false
-  # Percentage of pods in a namespace that must be failing before a namespace-wide
-  # degradation finding is emitted (suppressing individual pod findings). 0–100.
-  cascadeNamespaceThreshold: 50
-  # TTL (seconds) for the node state cache used by the cascade checker.
-  cascadeNodeCacheTTLSeconds: 30
+  # LLM provider to use (e.g. openai, ollama)
+  llmProvider: "openai"
+  # Action to take when prompt injection is detected: log or suppress
+  injectionDetectionAction: "log"
+  # Maximum number of investigation retries per RemediationJob
+  maxInvestigationRetries: "3"
+  # RBAC scope granted to the agent: cluster or namespace
+  agentRBACScope: "cluster"
+  # Comma-separated list of namespaces to watch when agentRBACScope=namespace.
+  # Empty string means cluster-wide scope (safe default).
+  agentWatchNamespaces: ""
 
 # Pre-existing Secrets that must be created before helm install.
 # The chart never creates Secret content.

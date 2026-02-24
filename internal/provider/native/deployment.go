@@ -87,11 +87,5 @@ func (p *deploymentProvider) ExtractFinding(obj client.Object) (*domain.Finding,
 		Namespace:    deploy.Namespace,
 		ParentObject: parent,
 		Errors:       string(errorsJSON),
-		SourceRef: domain.SourceRef{
-			APIVersion: "apps/v1",
-			Kind:       "Deployment",
-			Name:       deploy.Name,
-			Namespace:  deploy.Namespace,
-		},
 	}, nil
 }

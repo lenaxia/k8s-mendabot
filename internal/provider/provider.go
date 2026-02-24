@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -99,14 +100,19 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			}
 			if delErr := r.Delete(ctx, rjob); delErr != nil && !apierrors.IsNotFound(delErr) {
 				cancelErrs = append(cancelErrs, delErr)
-			} else if r.Log != nil {
-				r.Log.Info("RemediationJob cancelled",
-					zap.Bool("audit", true),
-					zap.String("event", "remediationjob.cancelled"),
-					zap.String("remediationJob", rjob.Name),
-					zap.String("reason", "source_deleted"),
-					zap.String("sourceRef", req.Name),
-				)
+			} else {
+				if r.Log != nil {
+					r.Log.Info("RemediationJob cancelled",
+						zap.Bool("audit", true),
+						zap.String("event", "remediationjob.cancelled"),
+						zap.String("remediationJob", rjob.Name),
+						zap.String("reason", "source_deleted"),
+						zap.String("sourceRef", req.Name),
+					)
+				}
+				if r.EventRecorder != nil {
+					r.EventRecorder.Eventf(obj, corev1.EventTypeWarning, "RemediationJobCancelled", "cancelled RemediationJob %s: source no longer problematic", rjob.Name)
+				}
 			}
 		}
 		if len(cancelErrs) > 0 {
@@ -167,11 +173,23 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	if r.Cfg.StabilisationWindow != 0 {
 		if first, seen := r.firstSeen.Get(fp); !seen {
 			r.firstSeen.Set(fp)
+			if r.Log != nil {
+				r.Log.Info("stabilisation window: first seen, deferring RemediationJob creation",
+					zap.String("fingerprint", fp[:12]),
+					zap.Duration("window", r.Cfg.StabilisationWindow),
+				)
+			}
 			return ctrl.Result{RequeueAfter: r.Cfg.StabilisationWindow}, nil
 		} else {
 			elapsed := time.Since(first)
 			if elapsed < r.Cfg.StabilisationWindow {
 				remaining := r.Cfg.StabilisationWindow - elapsed
+				if r.Log != nil {
+					r.Log.Info("stabilisation window: holding, not yet elapsed",
+						zap.String("fingerprint", fp[:12]),
+						zap.Duration("remaining", remaining),
+					)
+				}
 				return ctrl.Result{RequeueAfter: remaining}, nil
 			}
 			// Window has elapsed — fall through to dedup + Job creation.
@@ -192,13 +210,33 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		if rjob.Spec.Fingerprint != fp {
 			continue
 		}
-		if rjob.Status.Phase != v1alpha1.PhaseFailed {
+		switch rjob.Status.Phase {
+		case v1alpha1.PhasePermanentlyFailed:
+			if r.Log != nil {
+				r.Log.Info("RemediationJob permanently failed; suppressing re-dispatch",
+					zap.Bool("audit", true),
+					zap.String("event", "remediationjob.permanently_failed_suppressed"),
+					zap.String("remediationJob", rjob.Name),
+					zap.String("fingerprint", fp[:12]),
+				)
+			}
+			if r.EventRecorder != nil {
+				r.EventRecorder.Eventf(obj, corev1.EventTypeWarning, "RemediationJobPermanentlyFailed", "RemediationJob %s is permanently failed after %d retries", rjob.Name, rjob.Status.RetryCount)
+			}
 			return ctrl.Result{}, nil
-		}
-		// Failed RemediationJob with the same fingerprint — delete it so a new
-		// investigation can be dispatched.
-		if delErr := r.Delete(ctx, rjob); delErr != nil && !apierrors.IsNotFound(delErr) {
-			return ctrl.Result{}, delErr
+		case v1alpha1.PhaseFailed:
+			if delErr := r.Delete(ctx, rjob); delErr != nil && !apierrors.IsNotFound(delErr) {
+				return ctrl.Result{}, delErr
+			}
+		default:
+			if r.Log != nil {
+				r.Log.Debug("dedup: suppressing re-dispatch, existing RemediationJob in active or terminal phase",
+					zap.String("fingerprint", fp[:12]),
+					zap.String("remediationJob", rjob.Name),
+					zap.String("phase", string(rjob.Status.Phase)),
+				)
+			}
+			return ctrl.Result{}, nil
 		}
 	}
 
@@ -209,6 +247,7 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		if err := r.ReadinessChecker.Check(ctx); err != nil {
 			if r.Log != nil {
 				r.Log.Error("readiness check failed, suppressing RemediationJob creation",
+					zap.Bool("audit", true),
 					zap.Error(err),
 					zap.String("checker", r.ReadinessChecker.Name()),
 					zap.String("fingerprint", fp[:12]),
@@ -258,6 +297,7 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			GitOpsManifestRoot: r.Cfg.GitOpsManifestRoot,
 			AgentImage:         r.Cfg.AgentImage,
 			AgentSA:            agentSA,
+			MaxRetries:         r.Cfg.MaxInvestigationRetries,
 		},
 	}
 
@@ -279,6 +319,9 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			zap.String("parentObject", finding.ParentObject),
 			zap.String("remediationJob", rjob.Name),
 		)
+	}
+	if r.EventRecorder != nil {
+		r.EventRecorder.Eventf(obj, corev1.EventTypeNormal, "RemediationJobCreated", "created RemediationJob %s", rjob.Name)
 	}
 
 	return ctrl.Result{}, nil

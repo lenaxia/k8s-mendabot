@@ -10,8 +10,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-
-	"github.com/lenaxia/k8s-mendabot/internal/domain"
 )
 
 // runningPod returns a healthy running pod with all containers ready.
@@ -594,52 +592,6 @@ func TestFindingErrors_IsValidJSON(t *testing.T) {
 	}
 	if len(entries) == 0 {
 		t.Errorf("Errors JSON array is empty, expected at least one entry")
-	}
-}
-
-// TestSourceRef_IsPodV1: SourceRef should identify the pod with APIVersion "v1".
-func TestSourceRef_IsPodV1(t *testing.T) {
-	s := newTestScheme()
-	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPodProvider(c)
-
-	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "crash-pod",
-			Namespace: "production",
-			UID:       "crash-pod-uid",
-		},
-		Status: corev1.PodStatus{
-			Phase: corev1.PodRunning,
-			ContainerStatuses: []corev1.ContainerStatus{
-				{
-					Name: "my-app",
-					State: corev1.ContainerState{
-						Waiting: &corev1.ContainerStateWaiting{
-							Reason: "CrashLoopBackOff",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	finding, err := p.ExtractFinding(pod)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if finding == nil {
-		t.Fatal("expected finding, got nil")
-	}
-
-	wantRef := domain.SourceRef{
-		APIVersion: "v1",
-		Kind:       "Pod",
-		Name:       "crash-pod",
-		Namespace:  "production",
-	}
-	if finding.SourceRef != wantRef {
-		t.Errorf("SourceRef = %+v, want %+v", finding.SourceRef, wantRef)
 	}
 }
 

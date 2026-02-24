@@ -27,6 +27,10 @@ type Config struct {
 	InjectionDetectionAction string   // INJECTION_DETECTION_ACTION — "log" (default) or "suppress"
 	AgentRBACScope           string   // AGENT_RBAC_SCOPE — "cluster" (default) or "namespace"
 	AgentWatchNamespaces     []string // AGENT_WATCH_NAMESPACES — required when scope is "namespace"
+	// MaxInvestigationRetries is the maximum number of times a RemediationJob's
+	// owned batch/v1 Job may fail before the RemediationJob is permanently
+	// tombstoned. Populated from MAX_INVESTIGATION_RETRIES env var; default 3.
+	MaxInvestigationRetries int32 // MAX_INVESTIGATION_RETRIES — default 3
 }
 
 // FromEnv reads configuration from environment variables and returns a Config.
@@ -156,6 +160,20 @@ func FromEnv() (Config, error) {
 		if len(cfg.AgentWatchNamespaces) == 0 {
 			return Config{}, fmt.Errorf("AGENT_WATCH_NAMESPACES is empty after parsing")
 		}
+	}
+
+	retriesStr := os.Getenv("MAX_INVESTIGATION_RETRIES")
+	if retriesStr == "" {
+		cfg.MaxInvestigationRetries = 3
+	} else {
+		n, err := strconv.Atoi(retriesStr)
+		if err != nil {
+			return Config{}, fmt.Errorf("MAX_INVESTIGATION_RETRIES must be an integer: %w", err)
+		}
+		if n <= 0 {
+			return Config{}, fmt.Errorf("MAX_INVESTIGATION_RETRIES must be a positive integer, got %d", n)
+		}
+		cfg.MaxInvestigationRetries = int32(n)
 	}
 
 	return cfg, nil

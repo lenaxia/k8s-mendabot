@@ -45,15 +45,15 @@ a feature is approved for implementation:
 
 | ID | Feature | Value | Complexity | Status |
 |----|---------|-------|------------|--------|
-| FT-A1 | Namespace-scoped provider filtering | ★★★ | ● | Evaluated |
-| FT-A2 | Resource annotation opt-in/opt-out | ★★★ | ● | Evaluated |
+| FT-A1 | Namespace-scoped provider filtering | ★★★ | ● | Planned (epic15) |
+| FT-A2 | Resource annotation opt-in/opt-out | ★★★ | ● | Planned (epic16) |
 | FT-A3 | Severity tiers on findings | ★★ | ● | Evaluated |
 | FT-A4 | Cascading failure root-cause detection | ★★★ | ●●● | Planned (epic11) |
 | FT-A5 | Recurrence memory — reuse prior fix context | ★★★ | ●● | Evaluated |
 | FT-A6 | Multi-signal correlation (related findings) | ★★★ | ●●● | Planned (epic13) |
 | FT-A7 | GitOps drift detection source provider | ★★★ | ●● | Evaluated |
 | FT-A8 | False-positive feedback annotation | ★★★ | ●● | Evaluated |
-| FT-A9 | Mandatory pre-PR manifest validation | ★★★ | ● | Evaluated |
+| FT-A9 | Mandatory pre-PR manifest validation | ★★★ | ● | Planned (epic18) |
 | FT-A10 | Blast radius estimation before PR | ★★ | ●● | Evaluated |
 
 ---
@@ -345,9 +345,9 @@ extra scrutiny.
 
 | ID | Feature | Value | Complexity | Status |
 |----|---------|-------|------------|--------|
-| FT-R1 | Dead-letter queue for permanently-failed jobs | ★★★ | ● | Evaluated |
+| FT-R1 | Dead-letter queue for permanently-failed jobs | ★★★ | ● | Planned (epic17) |
 | FT-R2 | Watcher leader election | ★★ | ● | Evaluated |
-| FT-R3 | GitHub App token expiry guard | ★★ | ● | Evaluated |
+| FT-R3 | GitHub App token expiry guard | ★★ | ● | Planned (epic22) |
 | FT-R4 | Durable stabilisation window (restart-safe) | ★★ | ●● | Evaluated |
 | FT-R5 | Circuit breaker for LLM API failures | ★★ | ●● | Evaluated |
 | FT-R7 | Self-remediation cascade prevention | ★★★ | ●● | Complete (epic11) |
@@ -533,12 +533,12 @@ that burns LLM quota and fills the namespace with failed Jobs.
 |----|---------|-------|------------|--------|
 | FT-U1 | CRD schema generation with controller-gen | ★★★ | ●● | Evaluated |
 | FT-U2 | Prometheus metrics for watcher | ★★★ | ●● | Evaluated |
-| FT-U3 | Kubernetes Events on RemediationJob | ★★ | ● | Evaluated |
+| FT-U3 | Kubernetes Events on RemediationJob | ★★ | ● | Planned (epic21) |
 | FT-U4 | Prompt version annotation on RemediationJob | ★★ | ● | Evaluated |
 | FT-U5 | Slack / webhook notification on PR open | ★★ | ●● | Evaluated |
 | FT-U6 | kubectl plugin (`kubectl mendabot`) | ★ | ●●● | Deferred |
 | FT-U7 | Operator documentation site | ★★ | ●● | Idea |
-| FT-U8 | Dry-run mode (investigate but do not open PRs) | ★★★ | ● | Evaluated |
+| FT-U8 | Dry-run mode (investigate but do not open PRs) | ★★★ | ● | Planned (epic20) |
 
 ---
 
@@ -844,9 +844,9 @@ running one watcher per cluster.
 
 | ID | Feature | Value | Complexity | Status |
 |----|---------|-------|------------|--------|
-| FT-S1 | Secret value redaction in Finding.Errors | ★★★ | ●● | Evaluated |
+| FT-S1 | Secret value redaction in Finding.Errors | ★★★ | ●● | Planned (epic19 — gap check vs epic12) |
 | FT-S2 | Network policy for agent Jobs | ★★ | ● | Evaluated |
-| FT-S3 | Structured audit log for all remediation decisions | ★★ | ● | Evaluated |
+| FT-S3 | Structured audit log for all remediation decisions | ★★ | ● | Planned (epic23 — gap check vs epic12) |
 | FT-S4 | Agent RBAC scoping by namespace | ★★ | ●● | Evaluated |
 | FT-S5 | Prompt injection detection and sanitisation | ★★★ | ●●● | Evaluated |
 

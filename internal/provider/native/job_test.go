@@ -10,9 +10,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-
-	"github.com/lenaxia/k8s-mendabot/internal/config"
-	"github.com/lenaxia/k8s-mendabot/internal/domain"
 )
 
 // newExhaustedJob returns a Job in the backoff-exhausted state:
@@ -33,22 +30,11 @@ func newExhaustedJob(name, namespace string, failedCount int32) *batchv1.Job {
 // ptr returns a pointer to any value.
 func ptr[T any](v T) *T { return &v }
 
-// newTestConfig returns a minimal config for testing.
-func newTestConfig() config.Config {
-	return config.Config{
-		GitOpsRepo:         "test/repo",
-		GitOpsManifestRoot: "manifests",
-		AgentImage:         "test/image:latest",
-		AgentNamespace:     "default",
-		AgentSA:            "default",
-	}
-}
-
 // TestJobProviderName_IsNative verifies ProviderName() returns "native".
 func TestJobProviderName_IsNative(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c, newTestConfig())
+	p := NewJobProvider(c)
 
 	got := p.ProviderName()
 	if got != "native" {
@@ -60,7 +46,7 @@ func TestJobProviderName_IsNative(t *testing.T) {
 func TestJobObjectType_IsJob(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c, newTestConfig())
+	p := NewJobProvider(c)
 
 	obj := p.ObjectType()
 	if _, ok := obj.(*batchv1.Job); !ok {
@@ -72,7 +58,7 @@ func TestJobObjectType_IsJob(t *testing.T) {
 func TestHealthyJob_ReturnsNil(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c, newTestConfig())
+	p := NewJobProvider(c)
 
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{Name: "my-job", Namespace: "default"},
@@ -95,7 +81,7 @@ func TestHealthyJob_ReturnsNil(t *testing.T) {
 func TestSucceededJob_ReturnsNil(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c, newTestConfig())
+	p := NewJobProvider(c)
 
 	now := metav1.NewTime(time.Now())
 	job := &batchv1.Job{
@@ -119,7 +105,7 @@ func TestSucceededJob_ReturnsNil(t *testing.T) {
 func TestFailedJobNoActive_Detected(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c, newTestConfig())
+	p := NewJobProvider(c)
 
 	job := newExhaustedJob("my-job", "default", 3)
 
@@ -146,7 +132,7 @@ func TestFailedJobNoActive_Detected(t *testing.T) {
 func TestCronJobOwned_ReturnsNil(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c, newTestConfig())
+	p := NewJobProvider(c)
 
 	job := newExhaustedJob("cronjob-run-1", "default", 2)
 	job.OwnerReferences = []metav1.OwnerReference{
@@ -166,7 +152,7 @@ func TestCronJobOwned_ReturnsNil(t *testing.T) {
 func TestFailedWithActiveStillRunning_ReturnsNil(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c, newTestConfig())
+	p := NewJobProvider(c)
 
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{Name: "my-job", Namespace: "default"},
@@ -189,7 +175,7 @@ func TestFailedWithActiveStillRunning_ReturnsNil(t *testing.T) {
 func TestCompletedSuccessfully_ReturnsNil(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c, newTestConfig())
+	p := NewJobProvider(c)
 
 	now := metav1.NewTime(time.Now())
 	job := &batchv1.Job{
@@ -215,7 +201,7 @@ func TestCompletedSuccessfully_ReturnsNil(t *testing.T) {
 func TestZeroFailedZeroActive_ReturnsNil(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c, newTestConfig())
+	p := NewJobProvider(c)
 
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{Name: "my-job", Namespace: "default"},
@@ -238,7 +224,7 @@ func TestZeroFailedZeroActive_ReturnsNil(t *testing.T) {
 func TestSuspendedJob_ReturnsNil(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c, newTestConfig())
+	p := NewJobProvider(c)
 
 	job := newExhaustedJob("my-job", "default", 2)
 	job.Status.Conditions = []batchv1.JobCondition{
@@ -261,7 +247,7 @@ func TestSuspendedJob_ReturnsNil(t *testing.T) {
 func TestJobWrongType_ReturnsError(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c, newTestConfig())
+	p := NewJobProvider(c)
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: "my-pod", Namespace: "default"},
@@ -279,7 +265,7 @@ func TestJobWrongType_ReturnsError(t *testing.T) {
 func TestJobFindingErrors_IsValidJSON(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c, newTestConfig())
+	p := NewJobProvider(c)
 
 	job := newExhaustedJob("my-job", "default", 3)
 
@@ -306,7 +292,7 @@ func TestJobFindingErrors_IsValidJSON(t *testing.T) {
 func TestJobErrorText_IncludesFailureCount(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c, newTestConfig())
+	p := NewJobProvider(c)
 
 	job := newExhaustedJob("my-job", "default", 5)
 
@@ -322,39 +308,12 @@ func TestJobErrorText_IncludesFailureCount(t *testing.T) {
 	assertErrorTextContains(t, finding.Errors, "5")
 }
 
-// TestJobSourceRef_IsBatchV1: SourceRef identifies the job with APIVersion "batch/v1".
-func TestJobSourceRef_IsBatchV1(t *testing.T) {
-	s := newTestScheme()
-	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c, newTestConfig())
-
-	job := newExhaustedJob("my-job", "production", 3)
-
-	finding, err := p.ExtractFinding(job)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if finding == nil {
-		t.Fatal("expected finding, got nil")
-	}
-
-	wantRef := domain.SourceRef{
-		APIVersion: "batch/v1",
-		Kind:       "Job",
-		Name:       "my-job",
-		Namespace:  "production",
-	}
-	if finding.SourceRef != wantRef {
-		t.Errorf("SourceRef = %+v, want %+v", finding.SourceRef, wantRef)
-	}
-}
-
 // TestJobStandaloneParentObject: exhausted Job with no ownerReferences →
 // Finding.ParentObject == "Job/<name>".
 func TestJobStandaloneParentObject(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c, newTestConfig())
+	p := NewJobProvider(c)
 
 	job := newExhaustedJob("my-job", "default", 3)
 	job.OwnerReferences = nil
@@ -378,7 +337,7 @@ func TestJobStandaloneParentObject(t *testing.T) {
 func TestJobFailedWithConditionReason(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c, newTestConfig())
+	p := NewJobProvider(c)
 
 	job := newExhaustedJob("my-job", "default", 3)
 	job.Status.Conditions = []batchv1.JobCondition{
@@ -406,7 +365,7 @@ func TestJobFailedWithConditionReason(t *testing.T) {
 func TestJobErrorText_Format(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c, newTestConfig())
+	p := NewJobProvider(c)
 
 	job := newExhaustedJob("my-job", "default", 4)
 
@@ -434,12 +393,47 @@ func TestJobErrorText_Format(t *testing.T) {
 	}
 }
 
+// TestJobProvider_ExtractFinding_ExcludesMendabotManagedJobs verifies that a failed
+// job labelled "app.kubernetes.io/managed-by"="mendabot-watcher" is silently skipped
+// (self-exclusion guard prevents cascade loops), while a failed job without that label
+// is still surfaced as a finding.
+func TestJobProvider_ExtractFinding_ExcludesMendabotManagedJobs(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewJobProvider(c)
+
+	// Case 1: failed job WITH the managed-by label → must return (nil, nil).
+	managedJob := newExhaustedJob("mendabot-agent-abc123456789", "mendabot-system", 2)
+	managedJob.Labels = map[string]string{
+		"app.kubernetes.io/managed-by": "mendabot-watcher",
+	}
+
+	finding, err := p.ExtractFinding(managedJob)
+	if err != nil {
+		t.Fatalf("managed job: unexpected error: %v", err)
+	}
+	if finding != nil {
+		t.Errorf("managed job: expected nil finding (self-exclusion), got %+v", finding)
+	}
+
+	// Case 2: failed job WITHOUT the label → must return a non-nil finding.
+	unmanagedJob := newExhaustedJob("some-other-job", "default", 2)
+
+	finding, err = p.ExtractFinding(unmanagedJob)
+	if err != nil {
+		t.Fatalf("unmanaged job: unexpected error: %v", err)
+	}
+	if finding == nil {
+		t.Fatal("unmanaged job: expected non-nil finding, got nil")
+	}
+}
+
 // TestJobConditionMessageRedacted: job failed condition message containing password=secret123
 // → error text must NOT contain "secret123" and must contain "[REDACTED]".
 func TestJobConditionMessageRedacted(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c, newTestConfig())
+	p := NewJobProvider(c)
 
 	job := newExhaustedJob("redact-job", "default", 3)
 	job.Status.Conditions = []batchv1.JobCondition{

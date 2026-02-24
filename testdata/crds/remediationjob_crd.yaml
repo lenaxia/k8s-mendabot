@@ -55,7 +55,7 @@ spec:
                 type: string
               sourceType:
                 type: string
-                description: "Which source provider created this object, e.g. k8sgpt"
+                description: "Which source provider created this object, e.g. native"
               sinkType:
                 type: string
                 description: "Which sink the agent should use, e.g. github"
@@ -79,15 +79,26 @@ spec:
               gitOpsManifestRoot: {type: string}
               agentImage: {type: string}
               agentSA: {type: string}
+              maxRetries:
+                type: integer
+                format: int32
+                minimum: 1
+                default: 3
+                description: "Maximum number of job failures before the RemediationJob is permanently tombstoned"
           status:
             type: object
             properties:
               phase:
                 type: string
-                enum: [Pending, Dispatched, Running, Succeeded, Failed, Cancelled]
+                enum: [Pending, Dispatched, Running, Succeeded, Failed, Cancelled, PermanentlyFailed]
               jobRef: {type: string}
               prRef: {type: string}
               message: {type: string}
+              retryCount:
+                type: integer
+                format: int32
+                minimum: 0
+                description: "Number of times the owned batch/v1 Job has entered the Failed state"
               dispatchedAt: {type: string, format: date-time}
               completedAt: {type: string, format: date-time}
               conditions:

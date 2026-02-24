@@ -81,3 +81,12 @@ else.
 | [0059](0059_2026-02-23_epic12-story06-pentest-complete.md) | 2026-02-23 | STORY_06: penetration test plan executed; 5 PASS, 1 SKIP; no HIGH/CRITICAL findings | Complete |
 | [0060](0060_2026-02-23_go-toolchain-cve-remediation.md) | 2026-02-23 | Finding 2026-02-23-001: upgrade go 1.23.0 → 1.23.12 to fix GO-2026-4341/4340/4337 | Complete |
 | [0061](0061_2026-02-23_epic12-security-remediation-complete.md) | 2026-02-23 | Epic 12 orchestrator: all 11 open security findings remediated, report updated | Complete |
+| [0062](0062_2026-02-23_epic17-story01-crd-types.md) | 2026-02-23 | Epic 17 STORY_01: PhasePermanentlyFailed, ConditionPermanentlyFailed, MaxRetries, RetryCount | Complete |
+| [0063](0063_2026-02-23_epic17-story02-config-retries.md) | 2026-02-23 | Epic 17 STORY_02: MaxInvestigationRetries int32 field + MAX_INVESTIGATION_RETRIES env var parsing | Complete |
+| [0064](0064_2026-02-23_epic17-story03-retry-count.md) | 2026-02-23 | Epic 17 STORY_03: RetryCount increment, PermanentlyFailed cap, terminal switch, audit log | Complete |
+| [0065](0065_2026-02-23_epic17-story05-crd-schema-updates.md) | 2026-02-23 | Epic 17 STORY_05: CRD YAML schema updates — maxRetries, retryCount, PermanentlyFailed | Complete |
+| [0066](0066_2026-02-24_epic17-story04-provider-gate.md) | 2026-02-24 | Epic 17 STORY_04: switch-based dedup loop, PermanentlyFailed tombstone gate, MaxRetries population | Complete |
+| [0067](0067_2026-02-23_epic17-dead-letter-queue-complete.md) | 2026-02-23 | Epic 17 complete: all 5 stories, 12 packages green, dead-letter queue fully implemented | Complete |
+| [0068](0068_2026-02-23_cross-epic-validation-gap-fixes.md) | 2026-02-23 | Cross-epic skeptical validation: 11 gaps found and fixed (4 Major, 7 Minor) | Complete |
+| [0069](0069_2026-02-23_second-pass-validation-gap-fixes.md) | 2026-02-23 | Second-pass validation: 4 gaps found and fixed (1 Critical, 1 Major, 2 Minor) | Complete |
+| [0070](0070_2026-02-24_third-pass-validation-gap-fixes.md) | 2026-02-24 | Third-pass validation: 5 gaps found and fixed (2 Major, 3 Minor) | Complete |

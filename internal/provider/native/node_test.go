@@ -366,42 +366,6 @@ func TestNodeProvider_ParentObject(t *testing.T) {
 	}
 }
 
-// TestNodeProvider_SourceRef: finding SourceRef identifies the node correctly.
-func TestNodeProvider_SourceRef(t *testing.T) {
-	s := newTestScheme()
-	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewNodeProvider(c)
-
-	node := healthyNode("control-plane-01")
-	node.Status.Conditions[0] = corev1.NodeCondition{
-		Type:    corev1.NodeReady,
-		Status:  corev1.ConditionFalse,
-		Reason:  "KubeletNotReady",
-		Message: "kubelet not ready",
-	}
-
-	finding, err := p.ExtractFinding(node)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if finding == nil {
-		t.Fatal("expected finding, got nil")
-	}
-
-	if finding.SourceRef.APIVersion != "v1" {
-		t.Errorf("SourceRef.APIVersion = %q, want %q", finding.SourceRef.APIVersion, "v1")
-	}
-	if finding.SourceRef.Kind != "Node" {
-		t.Errorf("SourceRef.Kind = %q, want %q", finding.SourceRef.Kind, "Node")
-	}
-	if finding.SourceRef.Name != "control-plane-01" {
-		t.Errorf("SourceRef.Name = %q, want %q", finding.SourceRef.Name, "control-plane-01")
-	}
-	if finding.SourceRef.Namespace != "" {
-		t.Errorf("SourceRef.Namespace = %q, want empty (cluster-scoped)", finding.SourceRef.Namespace)
-	}
-}
-
 // TestNodeProvider_ErrorTextFormat: error text includes condition type, status, reason, and message.
 func TestNodeProvider_ErrorTextFormat(t *testing.T) {
 	s := newTestScheme()

@@ -66,6 +66,11 @@ const (
 	// PhaseCancelled means the RemediationJob was deleted before it could complete
 	// because its source Result was deleted while the job was Pending or Running.
 	PhaseCancelled RemediationJobPhase = "Cancelled"
+
+	// PhasePermanentlyFailed means RetryCount has reached MaxRetries.
+	// The RemediationJob will never be re-dispatched. The SourceProviderReconciler
+	// treats this phase as a terminal tombstone and does not delete-and-recreate.
+	PhasePermanentlyFailed RemediationJobPhase = "PermanentlyFailed"
 )
 
 // Standard condition type constants.
@@ -78,6 +83,10 @@ const (
 
 	// ConditionJobFailed is True if the batch/v1 Job failed.
 	ConditionJobFailed = "JobFailed"
+
+	// ConditionPermanentlyFailed is True when RetryCount >= MaxRetries and the
+	// RemediationJob has entered the PermanentlyFailed phase.
+	ConditionPermanentlyFailed = "PermanentlyFailed"
 )
 
 // RemediationJobSpec defines the desired state of a RemediationJob.
@@ -115,6 +124,15 @@ type RemediationJobSpec struct {
 
 	// AgentSA is the ServiceAccount name for the agent Job.
 	AgentSA string `json:"agentSA"`
+
+	// MaxRetries is the maximum number of times the owned batch/v1 Job may fail
+	// before this RemediationJob is permanently tombstoned.
+	// Populated by SourceProviderReconciler from config.Config.MaxInvestigationRetries.
+	// Zero means "use the operator default" (resolved at creation time — the field
+	// will always be > 0 after creation).
+	// +kubebuilder:default=3
+	// +kubebuilder:validation:Minimum=1
+	MaxRetries int32 `json:"maxRetries,omitempty"`
 }
 
 // ResultRef is a back-reference to the source object that triggered a RemediationJob.
@@ -151,7 +169,7 @@ type FindingSpec struct {
 // RemediationJobStatus defines the observed state of a RemediationJob.
 type RemediationJobStatus struct {
 	// Phase is the current lifecycle phase of this RemediationJob.
-	// +kubebuilder:validation:Enum=Pending;Dispatched;Running;Succeeded;Failed;Cancelled
+	// +kubebuilder:validation:Enum=Pending;Dispatched;Running;Succeeded;Failed;Cancelled;PermanentlyFailed
 	Phase RemediationJobPhase `json:"phase,omitempty"`
 
 	// JobRef is the name of the batch/v1 Job created for this remediation.
@@ -171,6 +189,12 @@ type RemediationJobStatus struct {
 	// Message is a human-readable description of the current state,
 	// e.g. an error message if Phase is Failed.
 	Message string `json:"message,omitempty"`
+
+	// RetryCount is the number of times the owned batch/v1 Job has entered the
+	// Failed state. Incremented by RemediationJobReconciler each time the job
+	// transitions to PhaseFailed. Read by SourceProviderReconciler to decide
+	// whether to re-dispatch or tombstone.
+	RetryCount int32 `json:"retryCount,omitempty"`
 
 	// Conditions follows the standard Kubernetes condition pattern.
 	// +listType=map
@@ -204,12 +228,13 @@ func (in *RemediationJob) DeepCopyInto(out *RemediationJob) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
 	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
-	// Spec contains only value types (strings); a shallow copy is sufficient.
+	// Spec contains only value types; a shallow copy is sufficient.
 	out.Spec = in.Spec
 	out.Status.Phase = in.Status.Phase
 	out.Status.JobRef = in.Status.JobRef
 	out.Status.PRRef = in.Status.PRRef
 	out.Status.Message = in.Status.Message
+	out.Status.RetryCount = in.Status.RetryCount
 	if in.Status.DispatchedAt != nil {
 		t := *in.Status.DispatchedAt
 		out.Status.DispatchedAt = &t

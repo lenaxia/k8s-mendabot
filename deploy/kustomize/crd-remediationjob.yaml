@@ -79,24 +79,28 @@ spec:
               gitOpsManifestRoot: {type: string}
               agentImage: {type: string}
               agentSA: {type: string}
-              isSelfRemediation:
-                type: boolean
-                description: "True when this remediation is for a failed mendabot agent Job"
-              chainDepth:
+              maxRetries:
                 type: integer
-                description: "Self-remediation chain depth: 0=not self-remediation, 1=first failure, 2+=nested"
+                format: int32
+                minimum: 1
+                default: 3
+                description: "Maximum number of job failures before the RemediationJob is permanently tombstoned"
           status:
             type: object
             properties:
               phase:
                 type: string
-                enum: [Pending, Dispatched, Running, Succeeded, Failed, Cancelled, Suppressed]
+                enum: [Pending, Dispatched, Running, Succeeded, Failed, Cancelled, PermanentlyFailed]
               jobRef: {type: string}
               prRef: {type: string}
               message: {type: string}
               dispatchedAt: {type: string, format: date-time}
               completedAt: {type: string, format: date-time}
-              correlationGroupID: {type: string}
+              retryCount:
+                type: integer
+                format: int32
+                minimum: 0
+                description: "Number of times the owned batch/v1 Job has entered the Failed state"
               conditions:
                 type: array
                 items:

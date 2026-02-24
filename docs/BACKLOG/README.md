@@ -33,6 +33,15 @@ the epic and individual story files for each unit of work.
 | epic12 — Security Review | [epic12-security-review/](epic12-security-review/) | Secret redaction, network policy, audit log, RBAC scoping, prompt injection defence, pentest | epic01, epic02, epic04, epic05, epic09 | Complete |
 | epic13 — Multi-Signal Correlation | [epic13-multi-signal-correlation/](epic13-multi-signal-correlation/) | Correlate related findings into a single investigation via a CorrelationWindow | epic01, epic02, epic09, epic11 | Not Started |
 | epic14 — Test Infrastructure Correctness | [epic14-test-infrastructure/](epic14-test-infrastructure/) | Fix CRD schema drift and envtest isolation defects; document rules to prevent recurrence | epic13 | Not Started |
+| epic15 — Namespace Filtering | [epic15-namespace-filtering/](epic15-namespace-filtering/) | WATCH_NAMESPACES / EXCLUDE_NAMESPACES env vars to suppress system namespace noise | epic09 | Not Started |
+| epic16 — Annotation Control | [epic16-annotation-control/](epic16-annotation-control/) | Per-resource mendabot.io/enabled, skip-until, priority annotations | epic09, epic15 | Not Started |
+| epic17 — Dead-Letter Queue | [epic17-dead-letter-queue/](epic17-dead-letter-queue/) | RetryCount + MaxRetries + PermanentlyFailed phase; stops infinite retry loops | epic00.1, epic01, epic09 | Not Started |
+| epic18 — Manifest Validation | [epic18-manifest-validation/](epic18-manifest-validation/) | Promote kubeconform to a HARD RULE in the agent prompt | epic05, epic03 | Not Started |
+| epic19 — Secret Redaction (gap check) | [epic19-secret-redaction/](epic19-secret-redaction/) | Verify epic12 STORY_01 completeness; fill any gaps | epic12 | Not Started |
+| epic20 — Dry-Run Mode | [epic20-dry-run-mode/](epic20-dry-run-mode/) | DRY_RUN=true; investigate but do not open PRs; write report to status.message | epic00, epic02, epic01, epic05 | Not Started |
+| epic21 — Kubernetes Events | [epic21-kubernetes-events/](epic21-kubernetes-events/) | EventRecorder in both reconcilers; lifecycle visible in kubectl describe rjob | epic01, epic09 | Not Started |
+| epic22 — Token Expiry Guard | [epic22-token-expiry-guard/](epic22-token-expiry-guard/) | Fast-fail on expired GitHub App token in agent-entrypoint.sh | epic03 | Not Started |
+| epic23 — Structured Audit Log (gap check) | [epic23-structured-audit-log/](epic23-structured-audit-log/) | Verify epic12 STORY_03 completeness; fill gaps from epics 15–22 | epic12, epic15–22 | Not Started |
 
 ## Implementation Order
 
@@ -54,6 +63,17 @@ epic11-self-remediation-cascade (depends on epic01, epic02, epic04)
 epic12-security-review (depends on epic01, epic02, epic04, epic05, epic09)
 epic13-multi-signal-correlation (depends on epic01, epic02, epic09, epic11)
 epic14-test-infrastructure (depends on epic13)
+
+v1 epics (can be worked in parallel after epic09 and epic12 are complete):
+epic15-namespace-filtering (depends on epic09)
+epic16-annotation-control (depends on epic09, epic15)
+epic17-dead-letter-queue (depends on epic00.1, epic01, epic09)
+epic18-manifest-validation (depends on epic03, epic05)
+epic19-secret-redaction (depends on epic12 — gap check only)
+epic20-dry-run-mode (depends on epic00, epic01, epic02, epic05)
+epic21-kubernetes-events (depends on epic01, epic09)
+epic22-token-expiry-guard (depends on epic03)
+epic23-structured-audit-log (depends on epic12, epic15-22 — gap check)
 ```
 
 ## Feature Tracker

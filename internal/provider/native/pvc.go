@@ -72,12 +72,6 @@ func (p *pvcProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 		Namespace:    pvc.Namespace,
 		ParentObject: parent,
 		Errors:       string(errorsJSON),
-		SourceRef: domain.SourceRef{
-			APIVersion: "v1",
-			Kind:       "PersistentVolumeClaim",
-			Name:       pvc.Name,
-			Namespace:  pvc.Namespace,
-		},
 	}, nil
 }
 

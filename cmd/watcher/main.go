@@ -71,7 +71,7 @@ func main() {
 		logger.Fatal("failed to add v1alpha1 remediation scheme", zap.Error(err))
 	}
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	opts := ctrl.Options{
 		Scheme:                  scheme,
 		LeaderElection:          false,
 		Metrics:                 metricsserver.Options{BindAddress: ":8080"},
@@ -86,7 +86,15 @@ func main() {
 				},
 			},
 		},
-	})
+	}
+	if len(cfg.AgentWatchNamespaces) > 0 {
+		defaultNS := make(map[string]cache.Config)
+		for _, ns := range cfg.AgentWatchNamespaces {
+			defaultNS[ns] = cache.Config{}
+		}
+		opts.Cache.DefaultNamespaces = defaultNS
+	}
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), opts)
 	if err != nil {
 		log.Fatalf("unable to start manager: %v", err)
 	}
@@ -148,7 +156,7 @@ func main() {
 		native.NewPVCProvider(nativeClient),
 		native.NewNodeProvider(nativeClient),
 		native.NewStatefulSetProvider(nativeClient),
-		native.NewJobProvider(nativeClient, cfg),
+		native.NewJobProvider(nativeClient),
 	}
 	for _, p := range enabledProviders {
 		if err := (&provider.SourceProviderReconciler{

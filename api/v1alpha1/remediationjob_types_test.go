@@ -22,6 +22,8 @@ func TestPhaseConstants(t *testing.T) {
 		{"PhaseRunning", v1alpha1.PhaseRunning, "Running"},
 		{"PhaseSucceeded", v1alpha1.PhaseSucceeded, "Succeeded"},
 		{"PhaseFailed", v1alpha1.PhaseFailed, "Failed"},
+		{"PhaseCancelled", v1alpha1.PhaseCancelled, "Cancelled"},
+		{"PhasePermanentlyFailed", v1alpha1.PhasePermanentlyFailed, "PermanentlyFailed"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -47,6 +49,9 @@ func TestConditionTypeConstants(t *testing.T) {
 	}
 	if v1alpha1.ConditionJobFailed != "JobFailed" {
 		t.Errorf("ConditionJobFailed: got %q, want %q", v1alpha1.ConditionJobFailed, "JobFailed")
+	}
+	if v1alpha1.ConditionPermanentlyFailed != "PermanentlyFailed" {
+		t.Errorf("ConditionPermanentlyFailed: got %q, want %q", v1alpha1.ConditionPermanentlyFailed, "PermanentlyFailed")
 	}
 }
 
@@ -170,7 +175,6 @@ func TestRemediationJob_DeepCopyInto_DispatchedAtIndependent(t *testing.T) {
 	}
 }
 
-// GAP 8: CompletedAt deep copy independence.
 func TestRemediationJob_DeepCopyInto_CompletedAtIndependent(t *testing.T) {
 	now := metav1.NewTime(time.Now())
 	original := &v1alpha1.RemediationJob{
@@ -188,7 +192,6 @@ func TestRemediationJob_DeepCopyInto_CompletedAtIndependent(t *testing.T) {
 	}
 }
 
-// GAP 7: DeepCopyObject nil receiver tests.
 func TestRemediationJob_DeepCopyObject_Nil(t *testing.T) {
 	var rjob *v1alpha1.RemediationJob
 	result := rjob.DeepCopyObject()
@@ -263,6 +266,81 @@ func TestAddToScheme_RegistersRemediationJobTypes(t *testing.T) {
 	}
 	if !found2 {
 		t.Errorf("RemediationJobList not registered under remediation.mendabot.io/v1alpha1, got %v", gvks2)
+	}
+}
+
+func TestPhasePermanentlyFailed_ConstantValue(t *testing.T) {
+	if string(v1alpha1.PhasePermanentlyFailed) != "PermanentlyFailed" {
+		t.Errorf("PhasePermanentlyFailed = %q, want %q",
+			v1alpha1.PhasePermanentlyFailed, "PermanentlyFailed")
+	}
+}
+
+func TestConditionPermanentlyFailed_ConstantValue(t *testing.T) {
+	if v1alpha1.ConditionPermanentlyFailed != "PermanentlyFailed" {
+		t.Errorf("ConditionPermanentlyFailed = %q, want %q",
+			v1alpha1.ConditionPermanentlyFailed, "PermanentlyFailed")
+	}
+}
+
+func TestDeepCopyInto_CopiesRetryCount(t *testing.T) {
+	tests := []struct {
+		name       string
+		retryCount int32
+	}{
+		{"zero", 0},
+		{"one", 1},
+		{"at-max", 3},
+		{"over-max", 99},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			src := &v1alpha1.RemediationJob{}
+			src.Status.RetryCount = tt.retryCount
+			dst := &v1alpha1.RemediationJob{}
+			src.DeepCopyInto(dst)
+			if dst.Status.RetryCount != tt.retryCount {
+				t.Errorf("DeepCopyInto: RetryCount = %d, want %d",
+					dst.Status.RetryCount, tt.retryCount)
+			}
+		})
+	}
+}
+
+func TestDeepCopyInto_CopiesMaxRetries(t *testing.T) {
+	tests := []struct {
+		name       string
+		maxRetries int32
+	}{
+		{"default", 3},
+		{"one", 1},
+		{"ten", 10},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			src := &v1alpha1.RemediationJob{}
+			src.Spec.MaxRetries = tt.maxRetries
+			dst := &v1alpha1.RemediationJob{}
+			src.DeepCopyInto(dst)
+			if dst.Spec.MaxRetries != tt.maxRetries {
+				t.Errorf("DeepCopyInto: MaxRetries = %d, want %d",
+					dst.Spec.MaxRetries, tt.maxRetries)
+			}
+		})
+	}
+}
+
+func TestRemediationJobSpec_MaxRetriesField(t *testing.T) {
+	spec := v1alpha1.RemediationJobSpec{}
+	if spec.MaxRetries != 0 {
+		t.Errorf("zero-value MaxRetries = %d, want 0 (kubebuilder default applies at API server admission, not in Go)", spec.MaxRetries)
+	}
+}
+
+func TestRemediationJobStatus_RetryCountField(t *testing.T) {
+	status := v1alpha1.RemediationJobStatus{}
+	if status.RetryCount != 0 {
+		t.Errorf("zero-value RetryCount = %d, want 0", status.RetryCount)
 	}
 }
 
