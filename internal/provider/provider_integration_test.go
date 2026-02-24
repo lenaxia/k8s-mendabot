@@ -2,12 +2,14 @@ package provider_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -57,13 +59,15 @@ func (f *integrationFakeProvider) ExtractFinding(obj client.Object) (*domain.Fin
 
 var _ domain.SourceProvider = (*integrationFakeProvider)(nil)
 
-func newIntegrationSourceReconciler(p *integrationFakeProvider) *provider.SourceProviderReconciler {
+func newIntegrationSourceReconciler(p *integrationFakeProvider) (*provider.SourceProviderReconciler, *record.FakeRecorder) {
+	rec := record.NewFakeRecorder(32)
 	return &provider.SourceProviderReconciler{
-		Client:   k8sClient,
-		Scheme:   k8sClient.Scheme(),
-		Cfg:      integrationProviderCfg(),
-		Provider: p,
-	}
+		Client:        k8sClient,
+		Scheme:        k8sClient.Scheme(),
+		Cfg:           integrationProviderCfg(),
+		Provider:      p,
+		EventRecorder: rec,
+	}, rec
 }
 
 func integrationEventually(t *testing.T, condition func() bool, timeout, interval time.Duration) {
@@ -76,6 +80,21 @@ func integrationEventually(t *testing.T, condition func() bool, timeout, interva
 		time.Sleep(interval)
 	}
 	t.Fatal("condition not met within timeout")
+}
+
+// drainProviderEvents drains all pending events from a FakeRecorder channel and
+// returns them as a slice of strings. Used by integration tests to assert event emission
+// without blocking on an empty channel.
+func drainProviderEvents(rec *record.FakeRecorder) []string {
+	var out []string
+	for {
+		select {
+		case e := <-rec.Events:
+			out = append(out, e)
+		default:
+			return out
+		}
+	}
 }
 
 func newTestPod(name, namespace string) *corev1.Pod {
@@ -120,7 +139,7 @@ func TestIntegration_CreateRemediationJob(t *testing.T) {
 	}
 	p := &integrationFakeProvider{name: "native", finding: finding}
 
-	rec := newIntegrationSourceReconciler(p)
+	rec, fakeRec := newIntegrationSourceReconciler(p)
 	req := integrationReq(pod.Name, integrationNamespace)
 	if _, err := rec.Reconcile(ctx, req); err != nil {
 		t.Fatalf("Reconcile: %v", err)
@@ -154,6 +173,18 @@ func TestIntegration_CreateRemediationJob(t *testing.T) {
 		t.Errorf("sourceType = %q, want %q", found.Spec.SourceType, "native")
 	}
 	t.Cleanup(func() { _ = k8sClient.Delete(ctx, found) })
+
+	events := drainProviderEvents(fakeRec)
+	var foundDetected bool
+	for _, e := range events {
+		if strings.Contains(e, "FindingDetected") {
+			foundDetected = true
+			break
+		}
+	}
+	if !foundDetected {
+		t.Errorf("expected FindingDetected event, got: %v", events)
+	}
 }
 
 // TestIntegration_DuplicateFingerprint_Skips verifies: same fingerprint on second
@@ -179,7 +210,7 @@ func TestIntegration_DuplicateFingerprint_Skips(t *testing.T) {
 		Details:      "test finding details",
 	}
 	p := &integrationFakeProvider{name: "native", finding: finding}
-	rec := newIntegrationSourceReconciler(p)
+	rec, _ := newIntegrationSourceReconciler(p)
 	req := integrationReq(pod.Name, integrationNamespace)
 
 	if _, err := rec.Reconcile(ctx, req); err != nil {
@@ -247,7 +278,7 @@ func TestIntegration_FailedPhase_ReDispatches(t *testing.T) {
 		Details:      "test finding details",
 	}
 	p := &integrationFakeProvider{name: "native", finding: finding}
-	rec := newIntegrationSourceReconciler(p)
+	rec, _ := newIntegrationSourceReconciler(p)
 	req := integrationReq(pod.Name, integrationNamespace)
 
 	if _, err := rec.Reconcile(ctx, req); err != nil {
@@ -330,7 +361,7 @@ func TestIntegration_NoErrors_Skipped(t *testing.T) {
 
 	// Provider returns nil finding (no errors detected).
 	p := &integrationFakeProvider{name: "native", finding: nil}
-	rec := newIntegrationSourceReconciler(p)
+	rec, fakeRec := newIntegrationSourceReconciler(p)
 	req := integrationReq(pod.Name, integrationNamespace)
 
 	if _, err := rec.Reconcile(ctx, req); err != nil {
@@ -345,6 +376,18 @@ func TestIntegration_NoErrors_Skipped(t *testing.T) {
 		if rjobList.Items[i].Spec.SourceResultRef.Name == pod.Name {
 			t.Errorf("expected no RemediationJob for nil-finding pod, found %q", rjobList.Items[i].Name)
 		}
+	}
+
+	events := drainProviderEvents(fakeRec)
+	var foundCleared bool
+	for _, e := range events {
+		if strings.Contains(e, "FindingCleared") {
+			foundCleared = true
+			break
+		}
+	}
+	if !foundCleared {
+		t.Errorf("expected FindingCleared event, got: %v", events)
 	}
 }
 
@@ -404,7 +447,7 @@ func TestIntegration_ResultDeleted_CancelsPending(t *testing.T) {
 
 	// No Pod exists — source is deleted.
 	p := &integrationFakeProvider{name: "native", finding: nil}
-	rec := newIntegrationSourceReconciler(p)
+	rec, _ := newIntegrationSourceReconciler(p)
 	req := integrationReq("pod-deleted-pending", integrationNamespace)
 
 	if _, err := rec.Reconcile(ctx, req); err != nil {
@@ -472,7 +515,7 @@ func TestIntegration_ResultDeleted_CancelsDispatched(t *testing.T) {
 
 	// No Pod exists — source is deleted.
 	p := &integrationFakeProvider{name: "native", finding: nil}
-	rec := newIntegrationSourceReconciler(p)
+	rec, _ := newIntegrationSourceReconciler(p)
 	req := integrationReq("pod-deleted-dispatched", integrationNamespace)
 
 	if _, err := rec.Reconcile(ctx, req); err != nil {
@@ -538,7 +581,7 @@ func TestIntegration_ResultDeleted_CancelsBlankPhase(t *testing.T) {
 
 	// Source pod does not exist (was deleted before the controller first reconciled).
 	p := &integrationFakeProvider{name: "native", finding: nil}
-	rec := newIntegrationSourceReconciler(p)
+	rec, _ := newIntegrationSourceReconciler(p)
 	req := integrationReq("pod-blank-phase", integrationNamespace)
 
 	if _, err := rec.Reconcile(ctx, req); err != nil {

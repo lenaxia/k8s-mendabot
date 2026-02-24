@@ -2,6 +2,7 @@ package controller_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -51,14 +53,16 @@ func integrationControllerCfg() config.Config {
 	}
 }
 
-func newCtrlReconciler(c client.Client, jb *fakeJobBuilder) *controller.RemediationJobReconciler {
+func newCtrlReconciler(c client.Client, jb *fakeJobBuilder) (*controller.RemediationJobReconciler, *record.FakeRecorder) {
+	rec := record.NewFakeRecorder(32)
 	return &controller.RemediationJobReconciler{
 		Client:     c,
 		Scheme:     c.Scheme(),
 		Log:        zap.NewNop(),
 		JobBuilder: jb,
 		Cfg:        integrationControllerCfg(),
-	}
+		Recorder:   rec,
+	}, rec
 }
 
 func waitFor(t *testing.T, condition func() bool, timeout, interval time.Duration) {
@@ -107,6 +111,21 @@ func deleteJob(ctx context.Context, c client.Client, job *batchv1.Job) {
 		_ = c.Update(ctx, existing)
 	}
 	_ = c.Delete(ctx, existing)
+}
+
+// drainIntegrationEvents drains all pending events from a FakeRecorder channel and
+// returns them as a slice of strings. Used by integration tests to assert event emission
+// without blocking on an empty channel.
+func drainIntegrationEvents(rec *record.FakeRecorder) []string {
+	var out []string
+	for {
+		select {
+		case e := <-rec.Events:
+			out = append(out, e)
+		default:
+			return out
+		}
+	}
 }
 
 func newIntegrationRJob(name, fp string) *v1alpha1.RemediationJob {
@@ -214,7 +233,7 @@ func TestRemediationJobReconciler_CreatesJob(t *testing.T) {
 
 	job := newIntegrationJob(rjob)
 	jb := &fakeJobBuilder{returnJob: job}
-	rec := newCtrlReconciler(c, jb)
+	rec, fakeRec := newCtrlReconciler(c, jb)
 
 	// First call: "" → Pending (initialisation step).
 	if _, err := rec.Reconcile(ctx, ctrlReq("rjob-creates-job")); err != nil {
@@ -262,6 +281,18 @@ func TestRemediationJobReconciler_CreatesJob(t *testing.T) {
 	if updated.Status.DispatchedAt == nil {
 		t.Error("expected DispatchedAt to be set after dispatch")
 	}
+
+	events := drainIntegrationEvents(fakeRec)
+	var foundDispatched bool
+	for _, e := range events {
+		if strings.Contains(e, "JobDispatched") {
+			foundDispatched = true
+			break
+		}
+	}
+	if !foundDispatched {
+		t.Errorf("expected JobDispatched event, got: %v", events)
+	}
 }
 
 // TestRemediationJobReconciler_SyncsStatus_Running verifies: Job active → phase = Running.
@@ -306,7 +337,7 @@ func TestRemediationJobReconciler_SyncsStatus_Running(t *testing.T) {
 	}
 
 	jb := &fakeJobBuilder{}
-	rec := newCtrlReconciler(c, jb)
+	rec, _ := newCtrlReconciler(c, jb)
 
 	// First call: "" → Pending (initialisation step).
 	if _, err := rec.Reconcile(ctx, ctrlReq("rjob-syncs-running")); err != nil {
@@ -368,7 +399,7 @@ func TestRemediationJobReconciler_SyncsStatus_Succeeded(t *testing.T) {
 	}
 
 	jb := &fakeJobBuilder{}
-	rec := newCtrlReconciler(c, jb)
+	rec, fakeRec := newCtrlReconciler(c, jb)
 
 	// First call: "" → Pending (initialisation step).
 	if _, err := rec.Reconcile(ctx, ctrlReq("rjob-syncs-succeeded")); err != nil {
@@ -386,6 +417,18 @@ func TestRemediationJobReconciler_SyncsStatus_Succeeded(t *testing.T) {
 		}
 		return updated.Status.Phase == v1alpha1.PhaseSucceeded
 	}, 5*time.Second, 100*time.Millisecond)
+
+	events := drainIntegrationEvents(fakeRec)
+	var foundSucceeded bool
+	for _, e := range events {
+		if strings.Contains(e, "JobSucceeded") {
+			foundSucceeded = true
+			break
+		}
+	}
+	if !foundSucceeded {
+		t.Errorf("expected JobSucceeded event, got: %v", events)
+	}
 }
 
 // TestRemediationJobReconciler_SyncsStatus_Failed verifies: Job failed → phase = Failed.
@@ -431,7 +474,7 @@ func TestRemediationJobReconciler_SyncsStatus_Failed(t *testing.T) {
 	}
 
 	jb := &fakeJobBuilder{}
-	rec := newCtrlReconciler(c, jb)
+	rec, fakeRec := newCtrlReconciler(c, jb)
 
 	// First call: "" → Pending (initialisation step).
 	if _, err := rec.Reconcile(ctx, ctrlReq("rjob-syncs-failed")); err != nil {
@@ -449,6 +492,18 @@ func TestRemediationJobReconciler_SyncsStatus_Failed(t *testing.T) {
 		}
 		return updated.Status.Phase == v1alpha1.PhaseFailed
 	}, 5*time.Second, 100*time.Millisecond)
+
+	events := drainIntegrationEvents(fakeRec)
+	var foundFailed bool
+	for _, e := range events {
+		if strings.Contains(e, "JobFailed") {
+			foundFailed = true
+			break
+		}
+	}
+	if !foundFailed {
+		t.Errorf("expected JobFailed event, got: %v", events)
+	}
 }
 
 // TestRemediationJobReconciler_MaxConcurrentJobs_Requeues verifies: At limit → requeues,
@@ -579,7 +634,7 @@ func TestRemediationJobReconciler_OwnerReference(t *testing.T) {
 
 	job := newIntegrationJob(rjob)
 	jb := &fakeJobBuilder{returnJob: job}
-	rec := newCtrlReconciler(c, jb)
+	rec, _ := newCtrlReconciler(c, jb)
 
 	// First call: "" → Pending (initialisation step).
 	if _, err := rec.Reconcile(ctx, ctrlReq("rjob-ownerref")); err != nil {
@@ -721,5 +776,104 @@ func TestRemediationJobReconciler_Terminal_NoOp(t *testing.T) {
 				t.Errorf("expected no jobs for terminal phase %q, got %d", tc.phase, len(jobList.Items))
 			}
 		})
+	}
+}
+
+// TestRemediationJobReconciler_PermanentlyFailed verifies that when RetryCount >= MaxRetries
+// the reconciler transitions the rjob to PhasePermanentlyFailed.
+func TestRemediationJobReconciler_PermanentlyFailed(t *testing.T) {
+	if !suiteReady {
+		t.Skip("envtest not available: KUBEBUILDER_ASSETS not set")
+	}
+	ctx := context.Background()
+	c := newIntegrationClient(t)
+
+	const fp = "eeee5555ffff6666aaaa7777bbbb8888eeee5555ffff6666aaaa7777bbbb8888"
+
+	// Pre-test: wait for any stale job from a prior run to be fully gone.
+	staleJob := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "mendabot-agent-" + fp[:12], Namespace: integrationCtrlNamespace}}
+	deleteJob(ctx, c, staleJob)
+	waitForGone(t, ctx, c, staleJob, 10*time.Second)
+
+	rjob := newIntegrationRJob("rjob-perm-failed", fp)
+	if err := c.Create(ctx, rjob); err != nil {
+		t.Fatalf("create RemediationJob: %v", err)
+	}
+	t.Cleanup(func() { _ = c.Delete(ctx, rjob) })
+
+	// Set initial status: Phase=Dispatched, MaxRetries=2, RetryCount=1 — one more failure will hit the cap.
+	rjobCopy := rjob.DeepCopyObject().(*v1alpha1.RemediationJob)
+	rjob.Status.Phase = v1alpha1.PhaseDispatched
+	rjob.Status.RetryCount = 1
+	if err := c.Status().Patch(ctx, rjob, client.MergeFrom(rjobCopy)); err != nil {
+		t.Fatalf("patch status: %v", err)
+	}
+
+	// Re-fetch to apply MaxRetries via spec — patch spec directly.
+	if err := c.Get(ctx, types.NamespacedName{Name: rjob.Name, Namespace: integrationCtrlNamespace}, rjob); err != nil {
+		t.Fatalf("re-fetch rjob: %v", err)
+	}
+	rjobSpecCopy := rjob.DeepCopyObject().(*v1alpha1.RemediationJob)
+	rjob.Spec.MaxRetries = 2
+	if err := c.Patch(ctx, rjob, client.MergeFrom(rjobSpecCopy)); err != nil {
+		t.Fatalf("patch spec MaxRetries: %v", err)
+	}
+
+	// Re-fetch to get the latest resourceVersion after spec patch.
+	if err := c.Get(ctx, types.NamespacedName{Name: rjob.Name, Namespace: integrationCtrlNamespace}, rjob); err != nil {
+		t.Fatalf("re-fetch rjob after spec patch: %v", err)
+	}
+
+	// Create an owned batch/v1 Job in failed state: BackoffLimit=1, Failed=2.
+	backoffLimit := int32(1)
+	existingJob := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mendabot-agent-" + fp[:12],
+			Namespace: integrationCtrlNamespace,
+			Labels: map[string]string{
+				"remediation.mendabot.io/remediation-job": rjob.Name,
+			},
+		},
+		Spec: batchv1.JobSpec{BackoffLimit: &backoffLimit, Template: minimalPodTemplateSpec()},
+	}
+	if err := c.Create(ctx, existingJob); err != nil {
+		t.Fatalf("create Job: %v", err)
+	}
+	t.Cleanup(func() { deleteJob(ctx, c, existingJob) })
+
+	existingJob.Status.Failed = backoffLimit + 1
+	if err := c.Status().Update(ctx, existingJob); err != nil {
+		t.Fatalf("update Job status: %v", err)
+	}
+
+	jb := &fakeJobBuilder{}
+	rec, fakeRec := newCtrlReconciler(c, jb)
+
+	if _, err := rec.Reconcile(ctx, ctrlReq("rjob-perm-failed")); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+
+	var updated v1alpha1.RemediationJob
+	waitFor(t, func() bool {
+		if err := c.Get(ctx, types.NamespacedName{Name: rjob.Name, Namespace: integrationCtrlNamespace}, &updated); err != nil {
+			return false
+		}
+		return updated.Status.Phase == v1alpha1.PhasePermanentlyFailed
+	}, 5*time.Second, 100*time.Millisecond)
+
+	if updated.Status.Phase != v1alpha1.PhasePermanentlyFailed {
+		t.Errorf("phase = %q, want %q", updated.Status.Phase, v1alpha1.PhasePermanentlyFailed)
+	}
+
+	events := drainIntegrationEvents(fakeRec)
+	var foundPermFailed bool
+	for _, e := range events {
+		if strings.Contains(e, "JobPermanentlyFailed") {
+			foundPermFailed = true
+			break
+		}
+	}
+	if !foundPermFailed {
+		t.Errorf("expected JobPermanentlyFailed event, got: %v", events)
 	}
 }

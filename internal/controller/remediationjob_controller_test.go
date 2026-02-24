@@ -984,3 +984,66 @@ func TestReconcile_NilRecorder_NoPanic(t *testing.T) {
 		t.Errorf("expected 1 job created, got %d", len(jobList.Items))
 	}
 }
+
+// TestReconcile_EmitsEvent_JobDispatched_AlreadyExists verifies that a Normal JobDispatched
+// event is emitted even when dispatch hits the AlreadyExists path (a batch/v1 Job with the
+// expected name was already present before Reconcile ran).
+func TestReconcile_EmitsEvent_JobDispatched_AlreadyExists(t *testing.T) {
+	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
+	rjob := newRJob("test-rjob-already-exists", fp)
+	rjob.Status.Phase = v1alpha1.PhasePending
+
+	// Pre-create the Job with the same name that JobBuilder would produce, but WITHOUT
+	// the rjob ownership label — this means the List query in the reconciler won't find
+	// it, so the controller proceeds to dispatch(), which calls r.Create() and gets
+	// AlreadyExists because the name conflicts.
+	preExistingJob := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mendabot-agent-" + fp[:12],
+			Namespace: testNamespace,
+			// intentionally no "remediation.mendabot.io/remediation-job" label
+			Labels: map[string]string{
+				"app.kubernetes.io/managed-by": "mendabot-watcher",
+			},
+		},
+		Spec: batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
+	}
+
+	c := newFakeClient(t, rjob, preExistingJob)
+
+	job := defaultFakeJob(rjob)
+	jb := &fakeJobBuilder{returnJob: job}
+
+	fakeRecorder := record.NewFakeRecorder(10)
+	r := &controller.RemediationJobReconciler{
+		Client:     c,
+		Scheme:     newTestScheme(t),
+		Log:        zap.NewNop(),
+		JobBuilder: jb,
+		Cfg:        defaultCfg(),
+		Recorder:   fakeRecorder,
+	}
+
+	_, err := r.Reconcile(context.Background(), rjobReqFor("test-rjob-already-exists"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	events := drainEvents(fakeRecorder.Events)
+	var foundDispatched bool
+	var foundNormal bool
+	for _, e := range events {
+		if strings.Contains(e, "JobDispatched") {
+			foundDispatched = true
+			if strings.Contains(e, string(corev1.EventTypeNormal)) {
+				foundNormal = true
+			}
+		}
+	}
+	if !foundDispatched {
+		t.Errorf("expected JobDispatched event on AlreadyExists path, got: %v", events)
+	}
+	if !foundNormal {
+		t.Errorf("expected Normal event type for JobDispatched on AlreadyExists path, got: %v", events)
+	}
+}

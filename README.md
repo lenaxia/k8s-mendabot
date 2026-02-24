@@ -77,7 +77,7 @@ suppress the finding entirely (`INJECTION_DETECTION_ACTION=suppress`).
 
 **Agent network policy** — an opt-in `NetworkPolicy` restricts agent Job egress to the
 cluster API server, GitHub, and the LLM endpoint. Available as a Kustomize overlay
-(`deploy/kustomize/overlays/security/`).
+(`deploy/overlays/security/`).
 
 **Read-only agent RBAC** — the agent holds only `get/list/watch` verbs cluster-wide.
 It cannot create, modify, or delete any Kubernetes resource. All cluster changes go
@@ -193,8 +193,6 @@ All `values.yaml` keys and their defaults:
 The watcher validates configuration at startup with clear error messages.
 
 **Numeric validations:**
-- `SELF_REMEDIATION_MAX_DEPTH`: must be ≥ 0 and ≤ 10
-- `SELF_REMEDIATION_COOLDOWN_SECONDS`: must be ≥ 0 and ≤ 3600
 - `MAX_CONCURRENT_JOBS`: must be > 0
 - `REMEDIATION_JOB_TTL_SECONDS`: must be > 0
 - `STABILISATION_WINDOW_SECONDS`: must be ≥ 0
