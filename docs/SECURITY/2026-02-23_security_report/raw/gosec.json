@@ -1,0 +1,28 @@
+{
+	"Golang errors": {},
+	"Issues": [
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/home/mikekao/personal/k8s-mendabot-appsec/internal/metrics/metrics.go",
+			"code": "92: \t// Register all metrics with controller-runtime metrics registry\n93: \tRegisterMetrics(metrics.Registry)\n94: }\n",
+			"line": "93",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		}
+	],
+	"Stats": {
+		"files": 23,
+		"lines": 3633,
+		"nosec": 0,
+		"found": 1
+	},
+	"GosecVersion": "dev"
+}

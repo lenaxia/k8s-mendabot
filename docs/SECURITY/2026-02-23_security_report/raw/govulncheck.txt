@@ -1,0 +1,42 @@
+=== Symbol Results ===
+
+Vulnerability #1: GO-2026-4341
+    Memory exhaustion in query parameter parsing in net/url
+  More info: https://pkg.go.dev/vuln/GO-2026-4341
+  Standard library
+    Found in: net/url@go1.25.5
+    Fixed in: net/url@go1.25.6
+    Example traces found:
+      #1: internal/provider/provider.go:134:22: provider.SourceProviderReconciler.Reconcile calls sync.Once.Do, which eventually calls url.ParseQuery
+      #2: internal/provider/provider.go:134:22: provider.SourceProviderReconciler.Reconcile calls sync.Once.Do, which eventually calls url.URL.Query
+
+Vulnerability #2: GO-2026-4340
+    Handshake messages may be processed at the incorrect encryption level in
+    crypto/tls
+  More info: https://pkg.go.dev/vuln/GO-2026-4340
+  Standard library
+    Found in: crypto/tls@go1.25.5
+    Fixed in: crypto/tls@go1.25.6
+    Example traces found:
+      #1: internal/provider/provider.go:134:22: provider.SourceProviderReconciler.Reconcile calls sync.Once.Do, which eventually calls tls.Conn.HandshakeContext
+      #2: internal/provider/provider.go:134:22: provider.SourceProviderReconciler.Reconcile calls sync.Once.Do, which eventually calls tls.Conn.Read
+      #3: cmd/watcher/main.go:59:15: watcher.main calls zap.Logger.Fatal, which eventually calls tls.Conn.Write
+      #4: internal/provider/provider.go:87:35: provider.SourceProviderReconciler.Reconcile calls client.subResourceClient.Patch, which eventually calls tls.Dialer.DialContext
+
+Vulnerability #3: GO-2026-4337
+    Unexpected session resumption in crypto/tls
+  More info: https://pkg.go.dev/vuln/GO-2026-4337
+  Standard library
+    Found in: crypto/tls@go1.25.5
+    Fixed in: crypto/tls@go1.25.7
+    Example traces found:
+      #1: internal/provider/provider.go:134:22: provider.SourceProviderReconciler.Reconcile calls sync.Once.Do, which eventually calls tls.Conn.HandshakeContext
+      #2: internal/provider/provider.go:134:22: provider.SourceProviderReconciler.Reconcile calls sync.Once.Do, which eventually calls tls.Conn.Read
+      #3: cmd/watcher/main.go:59:15: watcher.main calls zap.Logger.Fatal, which eventually calls tls.Conn.Write
+      #4: internal/provider/provider.go:87:35: provider.SourceProviderReconciler.Reconcile calls client.subResourceClient.Patch, which eventually calls tls.Dialer.DialContext
+
+Your code is affected by 3 vulnerabilities from the Go standard library.
+This scan also found 0 vulnerabilities in packages you import and 7
+vulnerabilities in modules you require, but your code doesn't appear to call
+these vulnerabilities.
+Use '-show verbose' for more details.
