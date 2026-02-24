@@ -1,209 +1,201 @@
-# Worklog: 0076 — LLM Configuration Attempts and Debugging
+# Worklog: LLM Configuration Attempts and Debugging
 
-**Date**: 2026-02-24
+**Date:** 2026-02-24
+**Session:** Debugging OpenCode CLI config schema and watcher RBAC to unblock agent execution
+**Status:** Complete
 
-## Summary
+---
 
-After deploying v0.3.7 and recreating `llm-credentials-opencode` secret, attempted multiple OpenCode CLI configuration formats. All remediationjobs fail due to invalid opencode config schema. LLM readiness check re-enabled successfully.
+## Objective
 
-## Actions Taken
+Two blockers prevented agent execution:
+
+1. The `OPENCODE_CONFIG_CONTENT` JSON in `llm-credentials-opencode` used an incorrect
+   schema — all formats tried were rejected by OpenCode CLI at startup.
+2. The watcher pod could not start because `secrets` was missing from the
+   `mendabot-watcher` ClusterRole, causing controller-runtime REST mapper initialisation
+   to fail with `v1: Unauthorized`.
+
+---
+
+## Work Completed
 
 ### 1. Re-enabled LLM Readiness Check
 
-**Command:**
+Patched the watcher deployment to set `LLM_PROVIDER=openai`, re-enabling the LLM
+readiness gate. Verified via watcher logs that RemediationJobs are dispatched without
+readiness errors.
+
 ```bash
-kubectl patch deployment mendabot -n default -p '{"spec":{"template":{"spec":{"containers":[{"name":"watcher","env":[{"name":"LLM_PROVIDER","value":"openai"}]}]}}}}'
+kubectl patch deployment mendabot -n default \
+  -p '{"spec":{"template":{"spec":{"containers":[{"name":"watcher","env":[{"name":"LLM_PROVIDER","value":"openai"}]}]}}}}'
 ```
 
-**Result**: LLM readiness check is now enabled (`LLM_PROVIDER=openai` set in deployment).
+### 2. Iterated Through Incorrect OpenCode Config Formats (All Rejected)
 
-### 2. Recreated Secret with provider.openai.model Format
+Three formats were attempted, all rejected by OpenCode CLI at `OPENCODE_CONFIG_CONTENT`:
 
-**Command:**
+| Format tried | Error |
+|---|---|
+| `{"provider":{"openai":{"model":"glm-4.7","options":{...}}}}` | `Unrecognized key: "model" provider.openai` |
+| `{"provider":{"openai":{"options":{"baseURL":...,"apiKey":...}}}}` | No `model` key — nothing selected |
+| `{"model":"glm-4.7","options":{"baseURL":...,"apiKey":...}}` | `Unrecognized key: "options"` |
+
+### 3. Identified OpenCode Config Root Cause
+
+Consulted `opencode.ai/docs/providers` and `opencode.ai/docs/config`. All attempted
+formats violated the actual schema:
+
+1. **`model` is a top-level config key**, not a key inside `provider.<name>`. The value
+   must be `"<provider-id>/<model-id>"`.
+2. **`options` belongs inside `provider.<name>`**, not at the config root.
+3. For a non-standard model at a custom endpoint, a **custom provider** with
+   `"npm": "@ai-sdk/openai-compatible"` is required. Reusing the built-in `openai`
+   provider for `glm-4.7` does not work — its model registry does not know this name.
+
+### 4. Applied Correct OpenCode Config and Cleared RemediationJobs
+
+Created the secret with the correct schema:
+
 ```bash
 kubectl delete secret llm-credentials-opencode -n default
-kubectl create secret generic llm-credentials-opencode -n default \
-  --from-literal=provider-config='{"provider":{"openai":{"model":"glm-4.7","options":{"baseURL":"https://ai.thekao.cloud/v1","apiKey":"sk-Ba0CTdypBUrbkIdJXXlmhA"}}}'
-```
 
-**Result**: Secret created successfully, but agent pods fail with error:
-```
-Configuration is invalid at OPENCODE_CONFIG_CONTENT
-↳ Unrecognized key: "model" provider.openai
-```
-
-### 3. Recreated Secret with Minimal Model/Options Format
-
-**Command:**
-```bash
-kubectl delete secret llm-credentials-opencode -n default
-mkdir -p /tmp
 cat > /tmp/config.json << 'EOF'
 {
+  "$schema": "https://opencode.ai/config.json",
   "provider": {
-    "openai": {
-      "model": "glm-4.7",
+    "thekao-cloud": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "TheKao Cloud",
       "options": {
         "baseURL": "https://ai.thekao.cloud/v1",
-        "apiKey": "sk-Ba0CTdypBUrbkIdJXXlmhA"
+        "apiKey": "<redacted>"
+      },
+      "models": {
+        "glm-4.7": {
+          "name": "GLM-4.7"
+        }
       }
     }
-  }
+  },
+  "model": "thekao-cloud/glm-4.7"
 }
 EOF
-kubectl create secret generic llm-credentials-opencode -n default --from-file=provider-config=/tmp/config.json
-```
 
-**Result**: Secret created successfully with valid JSON. However, agent pods fail with error:
-```
-Configuration is invalid at OPENCODE_CONFIG_CONTENT
-↳ Unrecognized key: "options"
-```
-
-### 4. Recreated Secret with Root-level Model/Options
-
-**Command:**
-```bash
-kubectl delete secret llm-credentials-opencode -n default
-cat > /tmp/config.json << 'EOF'
-{
-  "model": "glm-4.7",
-  "options": {
-    "baseURL": "https://ai.thekao.cloud/v1",
-    "apiKey": "sk-Ba0CTdypBUrbkIdJXXlmhA"
-  }
-}
-EOF
-kubectl create secret generic llm-credentials-opencode -n default --from-file=provider-config=/tmp/config.json
-```
-
-**Result**: Secret created. Agent pods fail with error:
-```
-Configuration is invalid at OPENCODE_CONFIG_CONTENT
-↳ Unrecognized key: "options"
-```
-
-### 5. Deleted All RemediationJobs (Multiple Times)
-
-Cleaned up remediationjobs multiple times to trigger fresh agent runs with new secret:
-```bash
-kubectl delete remediationjobs --all -n default
-```
-
-## Issues Encountered
-
-### 1. OpenCode CLI Config Schema Unknown
-
-**Problem**: The OpenCode CLI (v0.3.7) in the mendabot-agent image rejects all configuration formats attempted.
-
-**Tried formats (all rejected)**:
-
-1. `{"provider":{"openai":{"model":"glm-4.7","options":{"baseURL":"...","apiKey":"..."}}}`
-   - Error: `Unrecognized key: "model" provider.openai`
-
-2. `{"model":"glm-4.7","options":{"baseURL":"...","apiKey":"..."}}`
-   - Error: `Unrecognized key: "options"`
-
-**Analysis**:
-- The opencode.ai/docs show examples for organizational provider configuration, but the actual CLI schema appears different
-- The `provider.{name}` structure may be for remote config (.well-known/opencode), not for local OPENCODE_CONFIG_CONTENT env var
-- For custom OpenAI-compatible endpoints, the config schema is unclear
-
-**Status**: BLOCKER - Cannot configure opencode to use custom LLM endpoint.
-
-### 2. RemediationJobs Created But Agents Fail
-
-**Observation**: RemediationJobs are being created successfully by watcher:
-
-```
-INFO  RemediationJob created (test-broken-image, test-crashloop)
-INFO  dispatched agent job (jobs starting)
-```
-
-However, agent pods fail immediately with config errors:
-```
-ERROR  Configuration is invalid at OPENCODE_CONFIG_CONTENT
-```
-
-**Current secret content**:
-```json
-{
-  "model": "glm-4.7",
-  "options": {
-    "baseURL": "https://ai.thekao.cloud/v1",
-    "apiKey": "sk-Ba0CTdypBUrbkIdJXXlmhA"
-  }
-}
-```
-
-This format follows opencode.ai/docs for provider config, but CLI still rejects it.
-
-### 3. LLM Readiness Check Working
-
-**Observation**: After patching deployment to add `LLM_PROVIDER=openai`, the watcher logs show readiness checks are not blocking jobs. RemediationJobs are created without readiness check errors.
-
-**Watcher logs snippet**:
-```
-INFO  Starting workers (deployment)
-INFO  RemediationJob created
-INFO  dispatched agent job
-```
-
-No "readiness check failed" errors present, indicating the readiness check is working correctly.
-
-## Status
-
-**Watcher deployment**: ✅ Running (v0.3.7)
-**RemediationJobs**: ✅ Being created for findings
-**Agent jobs**: ✅ Starting with v0.3.7 agent image
-**Agent execution**: ❌ BLOCKED - All agents fail with config errors
-**LLM migration**: ⚠️ Secret created but config format unknown
-
-## Current Secret
-
-**Name**: `llm-credentials-opencode`
-**Namespace**: `default`
-**Type**: `Opaque`
-**Data**: `provider-config` key with JSON:
-```json
-{
-  "model": "glm-4.7",
-  "options": {
-    "baseURL": "https://ai.thekao.cloud/v1",
-    "apiKey": "sk-Ba0CTdypBUrbkIdJXXlmhA"
-  }
-}
-```
-
-## Follow-up Items
-
-1. **Document correct OpenCode config format** - Need to find official documentation or source code for OpenCode CLI config schema for custom OpenAI-compatible providers.
-
-2. **Test with standard OpenAI endpoint** - Try connecting to actual OpenAI API to verify config format works with supported models, then adapt for custom endpoint.
-
-3. **Check OpenCode CLI version** - Verify if v0.3.7 in the mendabot-agent image is correct or if there's a newer version with different config schema.
-
-4. **Consider alternative authentication** - OpenCode docs suggest using `/connect` flow for authentication instead of manual JSON config. May need to investigate this approach.
-
-5. **Check if model name is the issue** - "glm-4.7" may not be recognized as a valid model identifier even if the endpoint supports it.
-
-## Git Commands Used
-
-```bash
-# Patched deployment to enable LLM readiness
-kubectl patch deployment mendabot -n default -p '{"spec":{"template":{"spec":{"containers":[{"name":"watcher","env":[{"name":"LLM_PROVIDER","value":"openai"}]}]}}}}'
-
-# Recreated secret multiple times
-kubectl delete secret llm-credentials-opencode -n default
 kubectl create secret generic llm-credentials-opencode -n default \
-  --from-literal=provider-config='{"provider":{"openai":{"model":"glm-4.7","options":{"baseURL":"https://ai.thekao.cloud/v1","apiKey":"sk-Ba0CTdypBUrbkIdJXXlmhA"}}}'
+  --from-file=provider-config=/tmp/config.json
+```
 
-# Cleaned up remediationjobs to trigger fresh runs
+Deleted all RemediationJobs to trigger fresh agent runs with the corrected secret:
+
+```bash
 kubectl delete remediationjobs --all -n default
 ```
 
-## Deployment Info
+### 5. Diagnosed and Fixed Watcher `Unauthorized` Error
 
-**Image**: `ghcr.io/lenaxia/mendabot-watcher:v0.3.7`
-**LLM_PROVIDER**: `openai`
-**Secret**: `llm-credentials-opencode` in namespace `default`
+Watcher pod `mendabot-68d6d55795-llw4n` failed to start with:
+
+```
+unable to start manager: failed to determine if *v1.Secret is namespaced:
+failed to get restmapping: failed to get API group resources:
+unable to retrieve the complete list of server APIs: v1: Unauthorized
+```
+
+controller-runtime tries to register a `*v1.Secret` informer at startup (for LLM
+credential watching). `secrets` was absent from the `mendabot-watcher` ClusterRole,
+so the REST mapper initialisation failed before the manager could start.
+
+Patched the live ClusterRole:
+
+```bash
+kubectl patch clusterrole mendabot-watcher --type='json' \
+  -p='[{"op":"add","path":"/rules/0/resources/-","value":"secrets"}]'
+```
+
+Deleted the failing pod to trigger an immediate restart:
+
+```bash
+kubectl delete pod mendabot-68d6d55795-llw4n -n default
+```
+
+New pod `mendabot-68d6d55795-pwx7t` started cleanly. All controllers came up:
+
+```
+Starting Controller  controller=remediationjob
+Starting Controller  controller=deployment
+Starting Controller  controller=pod
+Starting Controller  controller=node
+Starting Controller  controller=persistentvolumeclaim
+Starting Controller  controller=job
+Starting Controller  controller=statefulset
+Starting workers     (all controllers)
+```
+
+RemediationJobs were immediately dispatched and 3 agent pods reached `Running`:
+- `mendabot-agent-22693f928816-ftsld`
+- `mendabot-agent-2167deb6ac69-gvkg6`
+- `mendabot-agent-0cd2345e0966-5t4wz`
+
+Agent logs confirmed the gitops repo was cloned and opencode is executing.
+
+### 6. Persisted RBAC Fix to Helm Chart
+
+The live `kubectl patch` would be lost on the next `helm upgrade`. Added `secrets`
+permanently to `charts/mendabot/templates/clusterrole-watcher.yaml`:
+
+```yaml
+- apiGroups: [""]
+  resources: ["pods", "persistentvolumeclaims", "nodes", "namespaces", "secrets"]
+  verbs: ["get", "list", "watch"]
+```
+
+---
+
+## Key Decisions
+
+**Custom provider ID instead of `openai`:** The built-in `openai` provider in OpenCode
+uses `@ai-sdk/openai` (not `@ai-sdk/openai-compatible`) and its model registry does not
+accept arbitrary model names. A custom provider entry with
+`"npm": "@ai-sdk/openai-compatible"` is required for any non-standard endpoint or model.
+
+**`model` format is `"<provider-id>/<model-id>"`:** The provider-id must exactly match
+the key under `"provider"` in the config, and the model-id must match a key under
+`"models"` within that provider.
+
+**`secrets` in ClusterRole is required for controller-runtime startup:** Any resource
+type registered with the controller-runtime scheme or cache must have a corresponding
+RBAC rule. Missing it causes REST mapper initialisation to fail before the manager starts.
+
+---
+
+## Blockers
+
+None.
+
+---
+
+## Tests Run
+
+No automated tests run. This session was live cluster debugging only.
+
+---
+
+## Next Steps
+
+1. **Verify agent PRs are opened** — confirm at least one agent completes successfully
+   and opens a PR against the gitops repo for `test-broken-image` or `test-crashloop`:
+   ```bash
+   kubectl get remediationjobs -n default
+   kubectl logs -n default -l app=mendabot-agent --tail=50
+   ```
+
+2. **Commit and release Helm chart** — the `clusterrole-watcher.yaml` change needs to
+   be committed and a new chart version cut so the fix is included in future deployments.
+
+---
+
+## Files Modified
+
+- `charts/mendabot/templates/clusterrole-watcher.yaml` — added `secrets` to core API
+  group read rule
