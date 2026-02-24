@@ -47,7 +47,7 @@ a feature is approved for implementation:
 |----|---------|-------|------------|--------|
 | FT-A1 | Namespace-scoped provider filtering | ★★★ | ● | Planned (epic15) |
 | FT-A2 | Resource annotation opt-in/opt-out | ★★★ | ● | Planned (epic16) |
-| FT-A3 | Severity tiers on findings | ★★ | ● | Evaluated |
+| FT-A3 | Severity tiers on findings | ★★ | ● | Planned (epic24) |
 | FT-A4 | Cascading failure root-cause detection | ★★★ | ●●● | Planned (epic11) |
 | FT-A5 | Recurrence memory — reuse prior fix context | ★★★ | ●● | Evaluated |
 | FT-A6 | Multi-signal correlation (related findings) | ★★★ | ●●● | Planned (epic13) |

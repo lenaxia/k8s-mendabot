@@ -218,6 +218,25 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 	}
 
+	minSeverity := r.Cfg.MinSeverity
+	if minSeverity == "" {
+		minSeverity = domain.SeverityLow
+	}
+	if !domain.MeetsSeverityThreshold(finding.Severity, minSeverity) {
+		if r.Log != nil {
+			r.Log.Info("finding suppressed",
+				zap.Bool("audit", true),
+				zap.String("event", "finding.suppressed.min_severity"),
+				zap.String("provider", r.Provider.ProviderName()),
+				zap.String("kind", finding.Kind),
+				zap.String("namespace", finding.Namespace),
+				zap.String("severity", string(finding.Severity)),
+				zap.String("minSeverity", string(minSeverity)),
+			)
+		}
+		return ctrl.Result{}, nil
+	}
+
 	fp, err := domain.FindingFingerprint(finding)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("computing fingerprint: %w", err)
@@ -381,6 +400,7 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			AgentImage:         r.Cfg.AgentImage,
 			AgentSA:            agentSA,
 			MaxRetries:         r.Cfg.MaxInvestigationRetries,
+			Severity:           string(finding.Severity),
 		},
 	}
 

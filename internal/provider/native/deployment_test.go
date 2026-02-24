@@ -75,7 +75,7 @@ func TestHealthyDeployment(t *testing.T) {
 }
 
 // TestDegradedDeployment: spec.replicas=3, status.replicas=3, status.readyReplicas=1
-// → Finding with mismatch error text.
+// → Finding with mismatch error text; readyReplicas=1, spec/2=1, 1 < 1 is false → medium severity.
 func TestDegradedDeployment(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
@@ -112,9 +112,12 @@ func TestDegradedDeployment(t *testing.T) {
 		t.Errorf("finding.Namespace = %q, want %q", finding.Namespace, "default")
 	}
 	assertErrorsJSON(t, finding.Errors)
+	if finding.Severity != domain.SeverityMedium {
+		t.Errorf("finding.Severity = %q, want %q (1 of 3: 3/2=1, not less than half)", finding.Severity, domain.SeverityMedium)
+	}
 }
 
-// TestZeroReadyReplicas: spec.replicas=2, status.replicas=2, status.readyReplicas=0 → Finding.
+// TestZeroReadyReplicas: spec.replicas=2, status.replicas=2, status.readyReplicas=0 → Finding; severity = critical.
 func TestZeroReadyReplicas(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
@@ -142,6 +145,9 @@ func TestZeroReadyReplicas(t *testing.T) {
 		t.Fatal("expected finding for zero-ready deployment, got nil")
 	}
 	assertErrorsJSON(t, finding.Errors)
+	if finding.Severity != domain.SeverityCritical {
+		t.Errorf("finding.Severity = %q, want %q", finding.Severity, domain.SeverityCritical)
+	}
 }
 
 // TestScalingDownTransient: spec.replicas=2, status.replicas=3, status.readyReplicas=2
@@ -175,7 +181,7 @@ func TestScalingDownTransient(t *testing.T) {
 }
 
 // TestAvailableConditionFalse: spec.replicas=3, status.readyReplicas=3,
-// condition Available=False with non-empty Reason and Message → Finding returned.
+// condition Available=False with non-empty Reason and Message → Finding returned; severity = medium.
 func TestAvailableConditionFalse(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
@@ -211,6 +217,9 @@ func TestAvailableConditionFalse(t *testing.T) {
 		t.Fatal("expected finding for Available=False condition, got nil")
 	}
 	assertErrorsJSON(t, finding.Errors)
+	if finding.Severity != domain.SeverityMedium {
+		t.Errorf("finding.Severity = %q, want %q", finding.Severity, domain.SeverityMedium)
+	}
 }
 
 // TestErrorTextIncludesReason: when Available=False, error text must include the Reason
@@ -510,12 +519,88 @@ func TestBothConditions_TwoEntries(t *testing.T) {
 	if len(entries) != 2 {
 		t.Errorf("expected 2 error entries (replica mismatch + Available=False), got %d: %s", len(entries), finding.Errors)
 	}
+	if finding.Severity != domain.SeverityMedium {
+		t.Errorf("expected severity medium, got %q", finding.Severity)
+	}
 }
 
 // TestDeploymentAnnotationEnabled_False: degraded deployment (ReadyReplicas=0, Replicas=3)
 // with mendabot.io/enabled=false → (nil, nil).
 // Uses an unhealthy object to prove the gate fires on an object that would otherwise produce
 // a non-nil finding.
+
+// TestDeploymentSeverity_Critical: spec=4, readyReplicas=0 → critical.
+func TestDeploymentSeverity_Critical(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewDeploymentProvider(c)
+
+	deploy := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{Name: "crit-deploy", Namespace: "default"},
+		Spec:       appsv1.DeploymentSpec{Replicas: int32Ptr(4)},
+		Status:     appsv1.DeploymentStatus{Replicas: 4, ReadyReplicas: 0},
+	}
+
+	finding, err := p.ExtractFinding(deploy)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding == nil {
+		t.Fatal("expected finding, got nil")
+	}
+	if finding.Severity != domain.SeverityCritical {
+		t.Errorf("finding.Severity = %q, want %q", finding.Severity, domain.SeverityCritical)
+	}
+}
+
+// TestDeploymentSeverity_High: spec=4, readyReplicas=1 (< 4/2=2, so less than half) → high.
+func TestDeploymentSeverity_High(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewDeploymentProvider(c)
+
+	deploy := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{Name: "high-deploy", Namespace: "default"},
+		Spec:       appsv1.DeploymentSpec{Replicas: int32Ptr(4)},
+		Status:     appsv1.DeploymentStatus{Replicas: 4, ReadyReplicas: 1},
+	}
+
+	finding, err := p.ExtractFinding(deploy)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding == nil {
+		t.Fatal("expected finding, got nil")
+	}
+	if finding.Severity != domain.SeverityHigh {
+		t.Errorf("finding.Severity = %q, want %q", finding.Severity, domain.SeverityHigh)
+	}
+}
+
+// TestDeploymentSeverity_Medium: spec=4, readyReplicas=3 (3 >= 4/2=2, but 3 < 4) → medium.
+func TestDeploymentSeverity_Medium(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewDeploymentProvider(c)
+
+	deploy := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{Name: "med-deploy", Namespace: "default"},
+		Spec:       appsv1.DeploymentSpec{Replicas: int32Ptr(4)},
+		Status:     appsv1.DeploymentStatus{Replicas: 4, ReadyReplicas: 3},
+	}
+
+	finding, err := p.ExtractFinding(deploy)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding == nil {
+		t.Fatal("expected finding, got nil")
+	}
+	if finding.Severity != domain.SeverityMedium {
+		t.Errorf("finding.Severity = %q, want %q", finding.Severity, domain.SeverityMedium)
+	}
+}
+
 func TestDeploymentAnnotationEnabled_False(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()

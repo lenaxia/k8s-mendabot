@@ -42,6 +42,7 @@ the epic and individual story files for each unit of work.
 | epic21 — Kubernetes Events | [epic21-kubernetes-events/](epic21-kubernetes-events/) | EventRecorder in both reconcilers; lifecycle visible in kubectl describe rjob | epic01, epic09 | Not Started |
 | epic22 — Token Expiry Guard | [epic22-token-expiry-guard/](epic22-token-expiry-guard/) | Fast-fail on expired GitHub App token in agent-entrypoint.sh | epic03 | Not Started |
 | epic23 — Structured Audit Log (gap check) | [epic23-structured-audit-log/](epic23-structured-audit-log/) | Verify epic12 STORY_03 completeness; fill gaps from epics 15–22 | epic12, epic15–22 | Not Started |
+| epic24 — Severity Tiers | [epic24-severity-tiers/](epic24-severity-tiers/) | Severity field on findings; MIN_SEVERITY filter; FINDING_SEVERITY in agent prompt | epic09, epic00.1 | Not Started |
 
 ## Implementation Order
 
@@ -74,6 +75,7 @@ epic20-dry-run-mode (depends on epic00, epic01, epic02, epic05)
 epic21-kubernetes-events (depends on epic01, epic09)
 epic22-token-expiry-guard (depends on epic03)
 epic23-structured-audit-log (depends on epic12, epic15-22 — gap check)
+epic24-severity-tiers (depends on epic09, epic00.1)
 ```
 
 ## Feature Tracker

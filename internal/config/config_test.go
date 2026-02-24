@@ -981,6 +981,72 @@ func TestFromEnv_ExcludeNamespacesWhitespaceOnly(t *testing.T) {
 	}
 }
 
+// TestFromEnv_MinSeverity covers all valid, default, and invalid MIN_SEVERITY cases.
+func TestFromEnv_MinSeverity(t *testing.T) {
+	tests := []struct {
+		name      string
+		envValue  string
+		wantValue string
+		wantErr   bool
+	}{
+		{
+			name:      "unset defaults to low",
+			envValue:  "",
+			wantValue: "low",
+		},
+		{
+			name:      "critical",
+			envValue:  "critical",
+			wantValue: "critical",
+		},
+		{
+			name:      "high",
+			envValue:  "high",
+			wantValue: "high",
+		},
+		{
+			name:      "medium",
+			envValue:  "medium",
+			wantValue: "medium",
+		},
+		{
+			name:      "low",
+			envValue:  "low",
+			wantValue: "low",
+		},
+		{
+			name:     "bogus value returns error",
+			envValue: "bogus",
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setRequiredEnv(t)
+			if tt.envValue == "" {
+				os.Unsetenv("MIN_SEVERITY")
+			} else {
+				t.Setenv("MIN_SEVERITY", tt.envValue)
+			}
+
+			cfg, err := config.FromEnv()
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error for MIN_SEVERITY=%q, got nil", tt.envValue)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if string(cfg.MinSeverity) != tt.wantValue {
+				t.Errorf("MinSeverity = %q, want %q", cfg.MinSeverity, tt.wantValue)
+			}
+		})
+	}
+}
+
 // TestFromEnv_BothFiltersCoexist tests that both WATCH_NAMESPACES and EXCLUDE_NAMESPACES
 // can be set simultaneously without error.
 func TestFromEnv_BothFiltersCoexist(t *testing.T) {

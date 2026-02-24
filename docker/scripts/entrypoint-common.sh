@@ -102,5 +102,5 @@ fi
 # Substitute environment variables into the combined prompt template.
 # Restrict envsubst to known variable names to avoid corrupting content in
 # FINDING_ERRORS or FINDING_DETAILS that may contain literal $ signs.
-VARS='${FINDING_KIND}${FINDING_NAME}${FINDING_NAMESPACE}${FINDING_PARENT}${FINDING_FINGERPRINT}${FINDING_ERRORS}${FINDING_DETAILS}${GITOPS_REPO}${GITOPS_MANIFEST_ROOT}'
+VARS='${FINDING_KIND}${FINDING_NAME}${FINDING_NAMESPACE}${FINDING_PARENT}${FINDING_FINGERPRINT}${FINDING_ERRORS}${FINDING_DETAILS}${FINDING_SEVERITY}${GITOPS_REPO}${GITOPS_MANIFEST_ROOT}'
 printf '%s' "$COMBINED_PROMPT" | envsubst "$VARS" > /tmp/rendered-prompt.txt

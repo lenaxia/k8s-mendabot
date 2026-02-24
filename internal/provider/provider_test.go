@@ -67,9 +67,12 @@ func newTestClient(objs ...client.Object) client.Client {
 
 func newTestReconciler(p *fakeSourceProvider, c client.Client) *provider.SourceProviderReconciler {
 	return &provider.SourceProviderReconciler{
-		Client:   c,
-		Scheme:   newTestScheme(),
-		Cfg:      config.Config{AgentNamespace: agentNamespace},
+		Client: c,
+		Scheme: newTestScheme(),
+		Cfg: config.Config{
+			AgentNamespace: agentNamespace,
+			MinSeverity:    domain.SeverityLow,
+		},
 		Provider: p,
 	}
 }
@@ -2503,5 +2506,223 @@ func TestAnnotationGate_EnabledFalse_NoRemediationJob(t *testing.T) {
 	}
 	if len(list.Items) != 0 {
 		t.Errorf("expected 0 RemediationJobs when annotation enabled=false on a failing pod, got %d", len(list.Items))
+	}
+}
+
+// --- Severity filter tests (STORY_04) ---
+
+// newSeverityReconciler constructs a SourceProviderReconciler with the given MinSeverity config.
+func newSeverityReconciler(p *fakeSourceProvider, c client.Client, minSeverity domain.Severity) *provider.SourceProviderReconciler {
+	return &provider.SourceProviderReconciler{
+		Client: c,
+		Scheme: newTestScheme(),
+		Cfg: config.Config{
+			AgentNamespace: agentNamespace,
+			MinSeverity:    minSeverity,
+		},
+		Provider: p,
+	}
+}
+
+// TestSeverityFilter_MeetsThreshold_CreatesJob verifies that a finding with Severity=high
+// and MinSeverity=high passes the threshold and results in a RemediationJob being created.
+func TestSeverityFilter_MeetsThreshold_CreatesJob(t *testing.T) {
+	finding := &domain.Finding{
+		Kind:         "Pod",
+		Name:         "pod-abc",
+		Namespace:    "default",
+		ParentObject: "my-deploy",
+		Errors:       `[{"text":"CrashLoopBackOff"}]`,
+		Severity:     domain.SeverityHigh,
+	}
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
+	}
+
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj)
+	r := newSeverityReconciler(p, c, domain.SeverityHigh)
+
+	_, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var list v1alpha1.RemediationJobList
+	if err := c.List(context.Background(), &list, client.InNamespace(agentNamespace)); err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+	if len(list.Items) != 1 {
+		t.Errorf("expected 1 RemediationJob (severity=high meets threshold=high), got %d", len(list.Items))
+	}
+}
+
+// TestSeverityFilter_BelowThreshold_NoJob verifies that a finding with Severity=low
+// and MinSeverity=high is suppressed — no RemediationJob is created.
+func TestSeverityFilter_BelowThreshold_NoJob(t *testing.T) {
+	finding := &domain.Finding{
+		Kind:         "Pod",
+		Name:         "pod-abc",
+		Namespace:    "default",
+		ParentObject: "my-deploy",
+		Errors:       `[{"text":"non-critical warning"}]`,
+		Severity:     domain.SeverityLow,
+	}
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
+	}
+
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj)
+	r := newSeverityReconciler(p, c, domain.SeverityHigh)
+
+	result, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.RequeueAfter != 0 {
+		t.Errorf("expected no RequeueAfter on severity suppression, got %v", result.RequeueAfter)
+	}
+
+	var list v1alpha1.RemediationJobList
+	if err := c.List(context.Background(), &list, client.InNamespace(agentNamespace)); err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+	if len(list.Items) != 0 {
+		t.Errorf("expected 0 RemediationJobs (severity=low below threshold=high), got %d", len(list.Items))
+	}
+}
+
+// TestSeverityFilter_SeverityPopulatedOnJob verifies that when a RemediationJob is created,
+// its Spec.Severity is set from finding.Severity.
+func TestSeverityFilter_SeverityPopulatedOnJob(t *testing.T) {
+	finding := &domain.Finding{
+		Kind:         "Pod",
+		Name:         "pod-abc",
+		Namespace:    "default",
+		ParentObject: "my-deploy",
+		Errors:       `[{"text":"CrashLoopBackOff"}]`,
+		Severity:     domain.SeverityCritical,
+	}
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
+	}
+
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj)
+	r := newSeverityReconciler(p, c, domain.SeverityLow)
+
+	_, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var list v1alpha1.RemediationJobList
+	if err := c.List(context.Background(), &list, client.InNamespace(agentNamespace)); err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+	if len(list.Items) != 1 {
+		t.Fatalf("expected 1 RemediationJob, got %d", len(list.Items))
+	}
+	if list.Items[0].Spec.Severity != string(domain.SeverityCritical) {
+		t.Errorf("Spec.Severity = %q, want %q", list.Items[0].Spec.Severity, string(domain.SeverityCritical))
+	}
+}
+
+// TestSeverityFilter_EmptySeverity_PassesDefaultLow verifies that a finding with Severity=""
+// (zero value / unset) passes the default MinSeverity=low threshold and results in a
+// RemediationJob being created.
+func TestSeverityFilter_EmptySeverity_PassesDefaultLow(t *testing.T) {
+	finding := &domain.Finding{
+		Kind:         "Pod",
+		Name:         "pod-abc",
+		Namespace:    "default",
+		ParentObject: "my-deploy",
+		Errors:       `[{"text":"CrashLoopBackOff"}]`,
+		Severity:     "",
+	}
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
+	}
+
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj)
+	r := newSeverityReconciler(p, c, domain.SeverityLow)
+
+	_, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var list v1alpha1.RemediationJobList
+	if err := c.List(context.Background(), &list, client.InNamespace(agentNamespace)); err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+	if len(list.Items) != 1 {
+		t.Errorf("expected 1 RemediationJob (empty severity passes threshold=low), got %d", len(list.Items))
+	}
+}
+
+// TestSeverityFilter_BelowThreshold_AuditLog verifies that when a finding is suppressed by
+// the severity filter, an audit log entry with event "finding.suppressed.min_severity" is
+// emitted with the expected structured fields.
+func TestSeverityFilter_BelowThreshold_AuditLog(t *testing.T) {
+	finding := &domain.Finding{
+		Kind:         "Pod",
+		Name:         "pod-abc",
+		Namespace:    "default",
+		ParentObject: "my-deploy",
+		Errors:       `[{"text":"non-critical warning"}]`,
+		Severity:     domain.SeverityLow,
+	}
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
+	}
+
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj)
+	logger, logs := newObserverInfoLogger()
+	r := &provider.SourceProviderReconciler{
+		Client: c,
+		Scheme: newTestScheme(),
+		Cfg: config.Config{
+			AgentNamespace: agentNamespace,
+			MinSeverity:    domain.SeverityHigh,
+		},
+		Provider: p,
+		Log:      logger,
+	}
+
+	_, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var found bool
+	for _, entry := range logs.All() {
+		cm := entry.ContextMap()
+		if cm["event"] == "finding.suppressed.min_severity" && cm["audit"] == true {
+			found = true
+			if cm["severity"] != string(domain.SeverityLow) {
+				t.Errorf("expected severity=%q in log entry, got %v", domain.SeverityLow, cm["severity"])
+			}
+			if cm["minSeverity"] != string(domain.SeverityHigh) {
+				t.Errorf("expected minSeverity=%q in log entry, got %v", domain.SeverityHigh, cm["minSeverity"])
+			}
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected audit log entry with event=finding.suppressed.min_severity and audit=true, got entries: %v", logs.All())
 	}
 }

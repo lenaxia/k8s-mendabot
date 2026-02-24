@@ -51,6 +51,7 @@ func (p *statefulSetProvider) ExtractFinding(obj client.Object) (*domain.Finding
 	}
 
 	var errors []errorEntry
+	replicaFired := false
 
 	// Replica mismatch check.
 	// Only report when generation == observedGeneration (not currently scaling).
@@ -63,6 +64,7 @@ func (p *statefulSetProvider) ExtractFinding(obj client.Object) (*domain.Finding
 			text := fmt.Sprintf("statefulset %s: %d/%d replicas ready",
 				sts.Name, sts.Status.ReadyReplicas, specReplicas)
 			errors = append(errors, errorEntry{Text: text})
+			replicaFired = true
 		}
 	}
 
@@ -89,11 +91,34 @@ func (p *statefulSetProvider) ExtractFinding(obj client.Object) (*domain.Finding
 
 	parent := getParent(context.Background(), p.client, sts.ObjectMeta, "StatefulSet")
 
+	var specReplicas int32
+	if sts.Spec.Replicas != nil {
+		specReplicas = *sts.Spec.Replicas
+	}
+
 	return &domain.Finding{
 		Kind:         "StatefulSet",
 		Name:         sts.Name,
 		Namespace:    sts.Namespace,
 		ParentObject: parent,
 		Errors:       string(errorsJSON),
+		Severity:     computeStatefulSetSeverity(sts.Status.ReadyReplicas, specReplicas, replicaFired),
 	}, nil
+}
+
+// computeStatefulSetSeverity returns the highest severity for the given statefulset state.
+// Mirrors deployment severity logic.
+func computeStatefulSetSeverity(readyReplicas, specReplicas int32, replicaFired bool) domain.Severity {
+	sev := domain.SeverityMedium
+
+	if replicaFired && specReplicas > 0 {
+		if readyReplicas == 0 {
+			return domain.SeverityCritical
+		}
+		if readyReplicas < specReplicas/2 {
+			sev = domain.SeverityHigh
+		}
+	}
+
+	return sev
 }

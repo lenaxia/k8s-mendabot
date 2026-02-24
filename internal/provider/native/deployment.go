@@ -51,6 +51,7 @@ func (p *deploymentProvider) ExtractFinding(obj client.Object) (*domain.Finding,
 	}
 
 	var errors []errorEntry
+	replicaFired := false
 
 	// Replica mismatch check.
 	// Skip the check when status.replicas > spec.replicas — this is a scaling-down
@@ -61,6 +62,7 @@ func (p *deploymentProvider) ExtractFinding(obj client.Object) (*domain.Finding,
 			text := fmt.Sprintf("deployment %s: %d/%d replicas ready",
 				deploy.Name, deploy.Status.ReadyReplicas, specReplicas)
 			errors = append(errors, errorEntry{Text: text})
+			replicaFired = true
 		}
 	}
 
@@ -85,11 +87,34 @@ func (p *deploymentProvider) ExtractFinding(obj client.Object) (*domain.Finding,
 
 	parent := getParent(context.Background(), p.client, deploy.ObjectMeta, "Deployment")
 
+	var specReplicas int32
+	if deploy.Spec.Replicas != nil {
+		specReplicas = *deploy.Spec.Replicas
+	}
+
 	return &domain.Finding{
 		Kind:         "Deployment",
 		Name:         deploy.Name,
 		Namespace:    deploy.Namespace,
 		ParentObject: parent,
 		Errors:       string(errorsJSON),
+		Severity:     computeDeploymentSeverity(deploy.Status.ReadyReplicas, specReplicas, replicaFired),
 	}, nil
+}
+
+// computeDeploymentSeverity returns the highest severity for the given deployment state.
+// replicaFired indicates the replica mismatch check fired.
+func computeDeploymentSeverity(readyReplicas, specReplicas int32, replicaFired bool) domain.Severity {
+	sev := domain.SeverityMedium
+
+	if replicaFired && specReplicas > 0 {
+		if readyReplicas == 0 {
+			return domain.SeverityCritical
+		}
+		if readyReplicas < specReplicas/2 {
+			sev = domain.SeverityHigh
+		}
+	}
+
+	return sev
 }

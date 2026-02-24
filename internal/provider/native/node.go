@@ -106,7 +106,28 @@ func (n *nodeProvider) ExtractFinding(obj client.Object) (*domain.Finding, error
 		Namespace:    "",
 		ParentObject: parent,
 		Errors:       string(errorsJSON),
+		Severity:     computeNodeSeverity(node),
 	}, nil
+}
+
+// computeNodeSeverity returns the highest severity across all firing node conditions.
+func computeNodeSeverity(node *corev1.Node) domain.Severity {
+	current := domain.SeverityHigh
+
+	for _, cond := range node.Status.Conditions {
+		if _, ignored := ignoredNodeConditions[cond.Type]; ignored {
+			continue
+		}
+
+		switch cond.Type {
+		case corev1.NodeReady:
+			if cond.Status == corev1.ConditionFalse || cond.Status == corev1.ConditionUnknown {
+				return domain.SeverityCritical
+			}
+		}
+	}
+
+	return current
 }
 
 // buildNodeConditionText constructs the error message for a failing node condition.

@@ -90,7 +90,7 @@ func TestNodeProvider_HealthyNode(t *testing.T) {
 	}
 }
 
-// TestNodeProvider_NotReadyFalse: NodeReady=False → finding with condition error text.
+// TestNodeProvider_NotReadyFalse: NodeReady=False → finding with condition error text; severity = critical.
 func TestNodeProvider_NotReadyFalse(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
@@ -122,9 +122,12 @@ func TestNodeProvider_NotReadyFalse(t *testing.T) {
 	}
 	assertNodeErrorsJSON(t, finding.Errors)
 	assertNodeErrorTextContains(t, finding.Errors, "Ready")
+	if finding.Severity != domain.SeverityCritical {
+		t.Errorf("finding.Severity = %q, want %q", finding.Severity, domain.SeverityCritical)
+	}
 }
 
-// TestNodeProvider_NotReadyUnknown: NodeReady=Unknown → finding returned.
+// TestNodeProvider_NotReadyUnknown: NodeReady=Unknown → finding returned; severity = critical.
 func TestNodeProvider_NotReadyUnknown(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
@@ -148,9 +151,12 @@ func TestNodeProvider_NotReadyUnknown(t *testing.T) {
 	assertNodeErrorsJSON(t, finding.Errors)
 	assertNodeErrorTextContains(t, finding.Errors, "Ready")
 	assertNodeErrorTextContains(t, finding.Errors, "Unknown")
+	if finding.Severity != domain.SeverityCritical {
+		t.Errorf("finding.Severity = %q, want %q", finding.Severity, domain.SeverityCritical)
+	}
 }
 
-// TestNodeProvider_MemoryPressure: NodeMemoryPressure=True → finding.
+// TestNodeProvider_MemoryPressure: NodeMemoryPressure=True → finding; severity = high.
 func TestNodeProvider_MemoryPressure(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
@@ -175,6 +181,9 @@ func TestNodeProvider_MemoryPressure(t *testing.T) {
 	}
 	assertNodeErrorsJSON(t, finding.Errors)
 	assertNodeErrorTextContains(t, finding.Errors, "MemoryPressure")
+	if finding.Severity != domain.SeverityHigh {
+		t.Errorf("finding.Severity = %q, want %q", finding.Severity, domain.SeverityHigh)
+	}
 }
 
 // TestNodeProvider_DiskPressure: NodeDiskPressure=True → finding.
@@ -202,6 +211,9 @@ func TestNodeProvider_DiskPressure(t *testing.T) {
 	}
 	assertNodeErrorsJSON(t, finding.Errors)
 	assertNodeErrorTextContains(t, finding.Errors, "DiskPressure")
+	if finding.Severity != domain.SeverityHigh {
+		t.Errorf("expected severity high, got %q", finding.Severity)
+	}
 }
 
 // TestNodeProvider_PIDPressure: NodePIDPressure=True → finding.
@@ -229,6 +241,9 @@ func TestNodeProvider_PIDPressure(t *testing.T) {
 	}
 	assertNodeErrorsJSON(t, finding.Errors)
 	assertNodeErrorTextContains(t, finding.Errors, "PIDPressure")
+	if finding.Severity != domain.SeverityHigh {
+		t.Errorf("expected severity high, got %q", finding.Severity)
+	}
 }
 
 // TestNodeProvider_NetworkUnavailable: NodeNetworkUnavailable=True → finding.
@@ -254,6 +269,9 @@ func TestNodeProvider_NetworkUnavailable(t *testing.T) {
 	}
 	assertNodeErrorsJSON(t, finding.Errors)
 	assertNodeErrorTextContains(t, finding.Errors, "NetworkUnavailable")
+	if finding.Severity != domain.SeverityHigh {
+		t.Errorf("expected severity high, got %q", finding.Severity)
+	}
 }
 
 // TestNodeProvider_EtcdIsVoterIgnored: EtcdIsVoter=True (k3s condition) → (nil, nil).
@@ -280,7 +298,7 @@ func TestNodeProvider_EtcdIsVoterIgnored(t *testing.T) {
 }
 
 // TestNodeProvider_MultipleConditions: NodeReady=False AND MemoryPressure=True
-// → single finding with two error entries.
+// → single finding with two error entries; severity = critical (highest wins).
 func TestNodeProvider_MultipleConditions(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
@@ -319,6 +337,9 @@ func TestNodeProvider_MultipleConditions(t *testing.T) {
 	}
 	if len(entries) != 2 {
 		t.Errorf("expected 2 error entries, got %d: %s", len(entries), finding.Errors)
+	}
+	if finding.Severity != domain.SeverityCritical {
+		t.Errorf("finding.Severity = %q, want %q (critical should win over high)", finding.Severity, domain.SeverityCritical)
 	}
 }
 
@@ -453,6 +474,9 @@ func TestNodeProvider_NonStandardConditionTrue_Detected(t *testing.T) {
 	}
 	assertNodeErrorsJSON(t, finding.Errors)
 	assertNodeErrorTextContains(t, finding.Errors, "GPUFailure")
+	if finding.Severity != domain.SeverityHigh {
+		t.Errorf("expected severity high, got %q", finding.Severity)
+	}
 }
 
 // TestNodeProvider_ConditionMessageRedacted: node condition message containing password=secret123

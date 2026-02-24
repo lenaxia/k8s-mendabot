@@ -110,4 +110,8 @@ type Finding struct {
 	// Details is a human-readable explanation of the finding.
 	// May be empty.
 	Details string
+
+	// Severity is the impact tier of this finding.
+	// Zero value "" passes when MinSeverity=low (default pass-all threshold).
+	Severity Severity
 }

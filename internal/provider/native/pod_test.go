@@ -96,7 +96,7 @@ func TestWrongType(t *testing.T) {
 }
 
 // TestCrashLoopBackOffOOMKilled: container waiting CrashLoopBackOff with last terminated OOMKilled
-// → finding with OOMKilled and container name in error text.
+// → finding with OOMKilled and container name in error text; restart count ≤ 5 → high severity.
 func TestCrashLoopBackOffOOMKilled(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
@@ -112,7 +112,8 @@ func TestCrashLoopBackOffOOMKilled(t *testing.T) {
 			Phase: corev1.PodRunning,
 			ContainerStatuses: []corev1.ContainerStatus{
 				{
-					Name: "my-app",
+					Name:         "my-app",
+					RestartCount: 3,
 					State: corev1.ContainerState{
 						Waiting: &corev1.ContainerStateWaiting{
 							Reason: "CrashLoopBackOff",
@@ -148,10 +149,13 @@ func TestCrashLoopBackOffOOMKilled(t *testing.T) {
 	assertErrorsJSON(t, finding.Errors)
 	assertErrorTextContains(t, finding.Errors, "OOMKilled")
 	assertErrorTextContains(t, finding.Errors, "my-app")
+	if finding.Severity != domain.SeverityHigh {
+		t.Errorf("finding.Severity = %q, want %q", finding.Severity, domain.SeverityHigh)
+	}
 }
 
 // TestCrashLoopBackOffGeneric: container waiting CrashLoopBackOff, last terminated "Error"
-// → finding with container name.
+// restart count ≤ 5 → high severity.
 func TestCrashLoopBackOffGeneric(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
@@ -167,7 +171,8 @@ func TestCrashLoopBackOffGeneric(t *testing.T) {
 			Phase: corev1.PodRunning,
 			ContainerStatuses: []corev1.ContainerStatus{
 				{
-					Name: "my-app",
+					Name:         "my-app",
+					RestartCount: 4,
 					State: corev1.ContainerState{
 						Waiting: &corev1.ContainerStateWaiting{
 							Reason: "CrashLoopBackOff",
@@ -193,10 +198,13 @@ func TestCrashLoopBackOffGeneric(t *testing.T) {
 	}
 	assertErrorsJSON(t, finding.Errors)
 	assertErrorTextContains(t, finding.Errors, "my-app")
+	if finding.Severity != domain.SeverityHigh {
+		t.Errorf("finding.Severity = %q, want %q", finding.Severity, domain.SeverityHigh)
+	}
 }
 
 // TestImagePullBackOff: container waiting ImagePullBackOff with non-empty Message
-// → finding with the Message in error text.
+// → finding with the Message in error text; severity = high.
 func TestImagePullBackOff(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
@@ -234,9 +242,12 @@ func TestImagePullBackOff(t *testing.T) {
 	assertErrorsJSON(t, finding.Errors)
 	assertErrorTextContains(t, finding.Errors, "ImagePullBackOff")
 	assertErrorTextContains(t, finding.Errors, "Back-off pulling image")
+	if finding.Severity != domain.SeverityHigh {
+		t.Errorf("finding.Severity = %q, want %q", finding.Severity, domain.SeverityHigh)
+	}
 }
 
-// TestErrImagePull: container waiting ErrImagePull → finding with error text.
+// TestErrImagePull: container waiting ErrImagePull → finding with error text; severity = high.
 func TestErrImagePull(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
@@ -272,10 +283,13 @@ func TestErrImagePull(t *testing.T) {
 	}
 	assertErrorsJSON(t, finding.Errors)
 	assertErrorTextContains(t, finding.Errors, "ErrImagePull")
+	if finding.Severity != domain.SeverityHigh {
+		t.Errorf("finding.Severity = %q, want %q", finding.Severity, domain.SeverityHigh)
+	}
 }
 
 // TestCreateContainerConfigError: container waiting CreateContainerConfigError with message
-// → finding with the message in error text.
+// → finding with the message in error text; severity = medium (other waiting reason).
 func TestCreateContainerConfigError(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
@@ -313,10 +327,13 @@ func TestCreateContainerConfigError(t *testing.T) {
 	assertErrorsJSON(t, finding.Errors)
 	assertErrorTextContains(t, finding.Errors, "CreateContainerConfigError")
 	assertErrorTextContains(t, finding.Errors, "my-secret")
+	if finding.Severity != domain.SeverityMedium {
+		t.Errorf("finding.Severity = %q, want %q", finding.Severity, domain.SeverityMedium)
+	}
 }
 
 // TestNonZeroExitCode: terminated container with exit code 137, Waiting == nil
-// → finding with exit code in error text.
+// → finding with exit code in error text; severity = medium (non-zero exit, not OOMKilled as waiting).
 func TestNonZeroExitCode(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
@@ -353,10 +370,13 @@ func TestNonZeroExitCode(t *testing.T) {
 	}
 	assertErrorsJSON(t, finding.Errors)
 	assertErrorTextContains(t, finding.Errors, "137")
+	if finding.Severity != domain.SeverityMedium {
+		t.Errorf("finding.Severity = %q, want %q", finding.Severity, domain.SeverityMedium)
+	}
 }
 
 // TestUnschedulablePending: pod pending with PodScheduled=Unschedulable
-// → finding with scheduler message.
+// → finding with scheduler message; severity = high.
 func TestUnschedulablePending(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
@@ -391,6 +411,9 @@ func TestUnschedulablePending(t *testing.T) {
 	assertErrorsJSON(t, finding.Errors)
 	assertErrorTextContains(t, finding.Errors, "Unschedulable")
 	assertErrorTextContains(t, finding.Errors, "insufficient memory")
+	if finding.Severity != domain.SeverityHigh {
+		t.Errorf("finding.Severity = %q, want %q", finding.Severity, domain.SeverityHigh)
+	}
 }
 
 // TestNoOwnerRef: crashing pod with no ownerReferences → ParentObject == "Pod/<pod-name>".
@@ -902,6 +925,179 @@ func TestPodAnnotationSkipUntilFuture(t *testing.T) {
 	}
 	if finding != nil {
 		t.Errorf("expected nil finding when skip-until is in the future, got %+v", finding)
+	}
+}
+
+// TestCrashLoopBackOff_Critical: CrashLoopBackOff with restart count > 5 → severity = critical.
+func TestCrashLoopBackOff_Critical(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewPodProvider(c)
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "critical-pod",
+			Namespace: "default",
+			UID:       "critical-pod-uid",
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name:         "my-app",
+					RestartCount: 10,
+					State: corev1.ContainerState{
+						Waiting: &corev1.ContainerStateWaiting{
+							Reason: "CrashLoopBackOff",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	finding, err := p.ExtractFinding(pod)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding == nil {
+		t.Fatal("expected finding, got nil")
+	}
+	if finding.Severity != domain.SeverityCritical {
+		t.Errorf("finding.Severity = %q, want %q", finding.Severity, domain.SeverityCritical)
+	}
+}
+
+// TestCrashLoopBackOff_HighAtBoundary: CrashLoopBackOff with restart count exactly 5 → severity = high (not critical).
+func TestCrashLoopBackOff_HighAtBoundary(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewPodProvider(c)
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "boundary-pod",
+			Namespace: "default",
+			UID:       "boundary-pod-uid",
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name:         "my-app",
+					RestartCount: 5,
+					State: corev1.ContainerState{
+						Waiting: &corev1.ContainerStateWaiting{
+							Reason: "CrashLoopBackOff",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	finding, err := p.ExtractFinding(pod)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding == nil {
+		t.Fatal("expected finding, got nil")
+	}
+	if finding.Severity != domain.SeverityHigh {
+		t.Errorf("finding.Severity = %q, want %q", finding.Severity, domain.SeverityHigh)
+	}
+}
+
+// TestOOMKilledTerminated_High: container terminated with OOMKilled (not waiting/CrashLoop)
+// → severity = high (terminated OOMKilled maps to medium via non-zero exit, but we need to
+// clarify: OOMKilled is only high if it's the Terminated.Reason on a non-waiting container.
+// Per story: "Any container in OOMKilled (terminated reason) → high".
+// This covers Terminated state where Reason is OOMKilled and Waiting is nil.
+func TestOOMKilledTerminated_High(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewPodProvider(c)
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "oom-term-pod",
+			Namespace: "default",
+			UID:       "oom-term-pod-uid",
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name: "my-app",
+					State: corev1.ContainerState{
+						Terminated: &corev1.ContainerStateTerminated{
+							ExitCode: 137,
+							Reason:   "OOMKilled",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	finding, err := p.ExtractFinding(pod)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding == nil {
+		t.Fatal("expected finding, got nil")
+	}
+	if finding.Severity != domain.SeverityHigh {
+		t.Errorf("finding.Severity = %q, want %q", finding.Severity, domain.SeverityHigh)
+	}
+}
+
+// TestCrashLoopBackOff_CriticalWins_OverHigh: two containers: one CrashLoopBackOff > 5 restarts
+// (critical), one ImagePullBackOff (high) → severity = critical (highest wins).
+func TestCrashLoopBackOff_CriticalWins_OverHigh(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewPodProvider(c)
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "multi-sev-pod",
+			Namespace: "default",
+			UID:       "multi-sev-pod-uid",
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name:         "app-a",
+					RestartCount: 10,
+					State: corev1.ContainerState{
+						Waiting: &corev1.ContainerStateWaiting{
+							Reason: "CrashLoopBackOff",
+						},
+					},
+				},
+				{
+					Name: "app-b",
+					State: corev1.ContainerState{
+						Waiting: &corev1.ContainerStateWaiting{
+							Reason: "ImagePullBackOff",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	finding, err := p.ExtractFinding(pod)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding == nil {
+		t.Fatal("expected finding, got nil")
+	}
+	if finding.Severity != domain.SeverityCritical {
+		t.Errorf("finding.Severity = %q, want %q (critical should win over high)", finding.Severity, domain.SeverityCritical)
 	}
 }
 

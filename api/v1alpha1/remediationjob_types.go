@@ -133,6 +133,11 @@ type RemediationJobSpec struct {
 	// +kubebuilder:default=3
 	// +kubebuilder:validation:Minimum=1
 	MaxRetries int32 `json:"maxRetries,omitempty"`
+
+	// Severity is the impact tier of the finding that triggered this job.
+	// Values: critical, high, medium, low.
+	// +optional
+	Severity string `json:"severity,omitempty"`
 }
 
 // ResultRef is a back-reference to the source object that triggered a RemediationJob.

@@ -112,6 +112,7 @@ func (p *jobProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 		Namespace:    job.Namespace,
 		ParentObject: parent,
 		Errors:       string(errorsJSON),
+		Severity:     domain.SeverityMedium,
 	}
 
 	return finding, nil

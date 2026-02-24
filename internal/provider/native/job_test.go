@@ -103,7 +103,7 @@ func TestSucceededJob_ReturnsNil(t *testing.T) {
 	}
 }
 
-// TestFailedJobNoActive_Detected: failed > 0, active == 0, completionTime == nil → finding.
+// TestFailedJobNoActive_Detected: failed > 0, active == 0, completionTime == nil → finding; severity = medium.
 func TestFailedJobNoActive_Detected(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
@@ -128,6 +128,9 @@ func TestFailedJobNoActive_Detected(t *testing.T) {
 		t.Errorf("finding.Namespace = %q, want %q", finding.Namespace, "default")
 	}
 	assertErrorsJSON(t, finding.Errors)
+	if finding.Severity != domain.SeverityMedium {
+		t.Errorf("finding.Severity = %q, want %q", finding.Severity, domain.SeverityMedium)
+	}
 }
 
 // TestCronJobOwned_ReturnsNil: Job with ownerReference Kind=CronJob → (nil, nil), excluded.

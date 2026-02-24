@@ -85,6 +85,7 @@ spec:
                 minimum: 1
                 default: 3
                 description: "Maximum number of job failures before the RemediationJob is permanently tombstoned"
+              severity: {type: string}
           status:
             type: object
             properties:

@@ -63,7 +63,9 @@ func (p *podProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 	var errors []errorEntry
 
 	// Check container statuses and init container statuses for failures.
-	allStatuses := append(pod.Status.ContainerStatuses, pod.Status.InitContainerStatuses...)
+	allStatuses := make([]corev1.ContainerStatus, 0, len(pod.Status.ContainerStatuses)+len(pod.Status.InitContainerStatuses))
+	allStatuses = append(allStatuses, pod.Status.ContainerStatuses...)
+	allStatuses = append(allStatuses, pod.Status.InitContainerStatuses...)
 	for _, cs := range allStatuses {
 		// Waiting state: check for known failure reasons.
 		if cs.State.Waiting != nil {
@@ -123,7 +125,58 @@ func (p *podProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 		Namespace:    pod.Namespace,
 		ParentObject: parent,
 		Errors:       string(errorsJSON),
+		Severity:     computePodSeverity(pod),
 	}, nil
+}
+
+// computePodSeverity determines the highest severity across all container failure conditions.
+func computePodSeverity(pod *corev1.Pod) domain.Severity {
+	current := domain.SeverityMedium
+
+	allStatuses := make([]corev1.ContainerStatus, 0, len(pod.Status.ContainerStatuses)+len(pod.Status.InitContainerStatuses))
+	allStatuses = append(allStatuses, pod.Status.ContainerStatuses...)
+	allStatuses = append(allStatuses, pod.Status.InitContainerStatuses...)
+	for _, cs := range allStatuses {
+		if cs.State.Waiting != nil {
+			switch cs.State.Waiting.Reason {
+			case "CrashLoopBackOff":
+				if cs.RestartCount > 5 {
+					return domain.SeverityCritical
+				}
+				if domain.SeverityLevel(domain.SeverityHigh) > domain.SeverityLevel(current) {
+					current = domain.SeverityHigh
+				}
+			case "ImagePullBackOff", "ErrImagePull":
+				if domain.SeverityLevel(domain.SeverityHigh) > domain.SeverityLevel(current) {
+					current = domain.SeverityHigh
+				}
+			}
+			continue
+		}
+
+		if cs.State.Terminated != nil && cs.State.Terminated.ExitCode != 0 {
+			if cs.State.Terminated.Reason == "OOMKilled" {
+				if domain.SeverityLevel(domain.SeverityHigh) > domain.SeverityLevel(current) {
+					current = domain.SeverityHigh
+				}
+			}
+		}
+	}
+
+	// Unschedulable condition → high.
+	if pod.Status.Phase == corev1.PodPending {
+		for _, cond := range pod.Status.Conditions {
+			if cond.Type == corev1.PodScheduled &&
+				cond.Status == corev1.ConditionFalse &&
+				cond.Reason == "Unschedulable" {
+				if domain.SeverityLevel(domain.SeverityHigh) > domain.SeverityLevel(current) {
+					current = domain.SeverityHigh
+				}
+			}
+		}
+	}
+
+	return current
 }
 
 // buildCrashLoopText constructs the error message for a CrashLoopBackOff container.

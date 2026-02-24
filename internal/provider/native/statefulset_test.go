@@ -73,7 +73,8 @@ func TestHealthyStatefulSet_ReturnsNil(t *testing.T) {
 	}
 }
 
-// TestReplicasMismatch_NotScaling: spec=3, ready=1, generation==observedGeneration → finding.
+// TestReplicasMismatch_NotScaling: spec=3, ready=1, generation==observedGeneration → finding;
+// 3/2=1 (integer division), 1 < 1 is false → medium severity.
 func TestReplicasMismatch_NotScaling(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
@@ -113,6 +114,9 @@ func TestReplicasMismatch_NotScaling(t *testing.T) {
 	assertErrorsJSON(t, finding.Errors)
 	assertErrorTextContains(t, finding.Errors, "1")
 	assertErrorTextContains(t, finding.Errors, "3")
+	if finding.Severity != domain.SeverityMedium {
+		t.Errorf("finding.Severity = %q, want %q (1 of 3: 3/2=1, not less than half)", finding.Severity, domain.SeverityMedium)
+	}
 }
 
 // TestReplicasMismatch_Scaling_ReturnsNil: spec=3, ready=1, generation!=observedGeneration → (nil, nil).
@@ -145,7 +149,7 @@ func TestReplicasMismatch_Scaling_ReturnsNil(t *testing.T) {
 	}
 }
 
-// TestAvailableFalse_Detected: Available=False → finding even if replicas match.
+// TestAvailableFalse_Detected: Available=False → finding even if replicas match; severity = medium.
 func TestAvailableFalse_Detected(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
@@ -184,6 +188,9 @@ func TestAvailableFalse_Detected(t *testing.T) {
 	assertErrorsJSON(t, finding.Errors)
 	assertErrorTextContains(t, finding.Errors, "MinimumReplicasUnavailable")
 	assertErrorTextContains(t, finding.Errors, "StatefulSet does not have minimum availability.")
+	if finding.Severity != domain.SeverityMedium {
+		t.Errorf("finding.Severity = %q, want %q", finding.Severity, domain.SeverityMedium)
+	}
 }
 
 // TestNoAvailableCondition_ReturnsNil: no Available condition at all, replicas match → (nil, nil).
@@ -433,12 +440,108 @@ func TestStatefulSetBothConditions_TwoEntries(t *testing.T) {
 	if len(entries) != 2 {
 		t.Errorf("expected 2 error entries (replica mismatch + Available=False), got %d: %s", len(entries), finding.Errors)
 	}
+	if finding.Severity != domain.SeverityMedium {
+		t.Errorf("expected severity medium, got %q", finding.Severity)
+	}
 }
 
 // TestStatefulSetAnnotationEnabled_False: degraded statefulset (ReadyReplicas=0, Replicas=3)
 // with mendabot.io/enabled=false → (nil, nil).
 // Uses an unhealthy object to prove the gate fires on an object that would otherwise produce
 // a non-nil finding.
+
+// TestStatefulSetSeverity_Critical: spec=3, readyReplicas=0, generation==observedGeneration → critical.
+func TestStatefulSetSeverity_Critical(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewStatefulSetProvider(c)
+
+	sts := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "crit-sts",
+			Namespace:  "default",
+			Generation: 1,
+		},
+		Spec: appsv1.StatefulSetSpec{Replicas: int32Ptr(3)},
+		Status: appsv1.StatefulSetStatus{
+			ObservedGeneration: 1,
+			ReadyReplicas:      0,
+		},
+	}
+
+	finding, err := p.ExtractFinding(sts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding == nil {
+		t.Fatal("expected finding, got nil")
+	}
+	if finding.Severity != domain.SeverityCritical {
+		t.Errorf("finding.Severity = %q, want %q", finding.Severity, domain.SeverityCritical)
+	}
+}
+
+// TestStatefulSetSeverity_High: spec=4, readyReplicas=1 (< 4/2=2, less than half) → high.
+func TestStatefulSetSeverity_High(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewStatefulSetProvider(c)
+
+	sts := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "high-sts",
+			Namespace:  "default",
+			Generation: 1,
+		},
+		Spec: appsv1.StatefulSetSpec{Replicas: int32Ptr(4)},
+		Status: appsv1.StatefulSetStatus{
+			ObservedGeneration: 1,
+			ReadyReplicas:      1,
+		},
+	}
+
+	finding, err := p.ExtractFinding(sts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding == nil {
+		t.Fatal("expected finding, got nil")
+	}
+	if finding.Severity != domain.SeverityHigh {
+		t.Errorf("finding.Severity = %q, want %q", finding.Severity, domain.SeverityHigh)
+	}
+}
+
+// TestStatefulSetSeverity_Medium: spec=4, readyReplicas=3 (>= half, but < spec) → medium.
+func TestStatefulSetSeverity_Medium(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewStatefulSetProvider(c)
+
+	sts := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "med-sts",
+			Namespace:  "default",
+			Generation: 1,
+		},
+		Spec: appsv1.StatefulSetSpec{Replicas: int32Ptr(4)},
+		Status: appsv1.StatefulSetStatus{
+			ObservedGeneration: 1,
+			ReadyReplicas:      3,
+		},
+	}
+
+	finding, err := p.ExtractFinding(sts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding == nil {
+		t.Fatal("expected finding, got nil")
+	}
+	if finding.Severity != domain.SeverityMedium {
+		t.Errorf("finding.Severity = %q, want %q", finding.Severity, domain.SeverityMedium)
+	}
+}
 func TestStatefulSetAnnotationEnabled_False(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()

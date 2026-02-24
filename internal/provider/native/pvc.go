@@ -76,6 +76,7 @@ func (p *pvcProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 		Namespace:    pvc.Namespace,
 		ParentObject: parent,
 		Errors:       string(errorsJSON),
+		Severity:     domain.SeverityHigh,
 	}, nil
 }
 

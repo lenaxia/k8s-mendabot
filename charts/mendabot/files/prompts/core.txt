@@ -9,6 +9,7 @@ Resource:     ${FINDING_NAME}
 Namespace:    ${FINDING_NAMESPACE}
 Parent:       ${FINDING_PARENT}
 Fingerprint:  ${FINDING_FINGERPRINT}
+Severity:     ${FINDING_SEVERITY}
 
 Errors detected:
 ${FINDING_ERRORS}
@@ -28,6 +29,19 @@ ${FINDING_DETAILS}
   jq, yq, kubeconform, stern, sops, age.
 - talosctl requires a talosconfig to be mounted — if absent, skip Talos-specific steps.
 - sops/age require decryption key material to be mounted — if absent, skip encrypted files.
+
+=== SEVERITY CALIBRATION ===
+
+- critical: Immediate service impact. Investigate all plausible root causes.
+  Propose a specific, confident fix. Do not hedge unless evidence is genuinely ambiguous.
+- high: Significant degradation likely visible to users. Investigate thoroughly.
+  Propose a targeted fix with clear rationale. Note any assumptions.
+- medium: Partial degradation or elevated error rate. Propose a conservative,
+  minimal-change fix. Prefer smaller changes over broad refactors.
+- low: Minor or intermittent issue. Propose a fix only if one is clear with low
+  blast radius. If uncertain, document findings in the PR body and recommend human
+  review rather than making a change.
+- (empty or unrecognised): Treat as medium.
 
 === INVESTIGATION STEPS ===
 

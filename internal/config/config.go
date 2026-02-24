@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/lenaxia/k8s-mendabot/internal/domain"
 )
 
 // AgentType identifies which agent runner binary the watcher dispatches.
@@ -42,6 +44,10 @@ type Config struct {
 	// owned batch/v1 Job may fail before the RemediationJob is permanently
 	// tombstoned. Populated from MAX_INVESTIGATION_RETRIES env var; default 3.
 	MaxInvestigationRetries int32 // MAX_INVESTIGATION_RETRIES — default 3
+	// MinSeverity is the minimum severity level for which a RemediationJob is created.
+	// Findings below this threshold are silently dropped.
+	// Default: domain.SeverityLow (all findings pass).
+	MinSeverity domain.Severity // MIN_SEVERITY — default "low"
 }
 
 // FromEnv reads configuration from environment variables and returns a Config.
@@ -214,6 +220,17 @@ func FromEnv() (Config, error) {
 			return Config{}, fmt.Errorf("MAX_INVESTIGATION_RETRIES must be a positive integer, got %d", n)
 		}
 		cfg.MaxInvestigationRetries = int32(n)
+	}
+
+	rawMinSeverity := os.Getenv("MIN_SEVERITY")
+	if rawMinSeverity != "" {
+		if sv, ok := domain.ParseSeverity(rawMinSeverity); ok {
+			cfg.MinSeverity = sv
+		} else {
+			return Config{}, fmt.Errorf("invalid MIN_SEVERITY value %q: must be one of critical, high, medium, low", rawMinSeverity)
+		}
+	} else {
+		cfg.MinSeverity = domain.SeverityLow
 	}
 
 	return cfg, nil

@@ -161,6 +161,7 @@ func TestBuild_EnvVars_AllPresent(t *testing.T) {
 		"FINDING_ERRORS",
 		"FINDING_DETAILS",
 		"FINDING_FINGERPRINT",
+		"FINDING_SEVERITY",
 		"GITOPS_REPO",
 		"GITOPS_MANIFEST_ROOT",
 		"SINK_TYPE",
@@ -962,5 +963,47 @@ func TestBuild_DefaultAgentType_IsOpenCode(t *testing.T) {
 	}
 	if agentTypeVal != "opencode" {
 		t.Errorf("AGENT_TYPE = %q, want %q", agentTypeVal, "opencode")
+	}
+}
+
+func TestBuild_FindingSeverity_ValueInjected(t *testing.T) {
+	b, err := New(Config{AgentNamespace: "mendabot"})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	rjob := *testRJob
+	rjob.Spec.Severity = "critical"
+	job, err := b.Build(&rjob, nil)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	main := job.Spec.Template.Spec.Containers[0]
+	val, ok := getEnv(main, "FINDING_SEVERITY")
+	if !ok {
+		t.Fatal("FINDING_SEVERITY not found in main container env")
+	}
+	if val != "critical" {
+		t.Errorf("FINDING_SEVERITY = %q, want %q", val, "critical")
+	}
+}
+
+func TestBuild_FindingSeverity_EmptyStringLegacy(t *testing.T) {
+	b, err := New(Config{AgentNamespace: "mendabot"})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	rjob := *testRJob
+	rjob.Spec.Severity = ""
+	job, err := b.Build(&rjob, nil)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	main := job.Spec.Template.Spec.Containers[0]
+	val, ok := getEnv(main, "FINDING_SEVERITY")
+	if !ok {
+		t.Fatal("FINDING_SEVERITY must be present even when Severity is empty (legacy object)")
+	}
+	if val != "" {
+		t.Errorf("FINDING_SEVERITY = %q, want empty string for legacy object", val)
 	}
 }

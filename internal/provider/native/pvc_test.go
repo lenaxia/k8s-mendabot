@@ -98,7 +98,7 @@ func TestPendingPVC_NoEvents_ReturnsNil(t *testing.T) {
 }
 
 // TestPendingPVC_WithProvisioningFailed_ReturnsFinding:
-// Phase=Pending, ProvisioningFailed event → finding with event message as error text.
+// Phase=Pending, ProvisioningFailed event → finding with event message as error text; severity = high.
 func TestPendingPVC_WithProvisioningFailed_ReturnsFinding(t *testing.T) {
 	s := newTestScheme()
 	pvc := makePVC("my-pvc", "default", corev1.ClaimPending)
@@ -129,6 +129,9 @@ func TestPendingPVC_WithProvisioningFailed_ReturnsFinding(t *testing.T) {
 	}
 	assertErrorsJSON(t, finding.Errors)
 	assertErrorTextContains(t, finding.Errors, "no storage class found")
+	if finding.Severity != domain.SeverityHigh {
+		t.Errorf("finding.Severity = %q, want %q", finding.Severity, domain.SeverityHigh)
+	}
 }
 
 // TestPendingPVC_WithOtherEvent_ReturnsNil:
