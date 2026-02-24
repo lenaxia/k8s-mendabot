@@ -9,14 +9,14 @@ deployment.
 
 ## Folder Contents
 
-| File | Purpose |
-|------|---------|
+| File / Folder | Purpose |
+|---------------|---------|
 | [README.md](README.md) | This file — overview and quick-start |
 | [THREAT_MODEL.md](THREAT_MODEL.md) | Authoritative threat model for mendabot |
 | [PROCESS.md](PROCESS.md) | Step-by-step repeatable review process |
 | [CHECKLIST.md](CHECKLIST.md) | Tick-off checklist — one copy per review run |
-| [REPORT_TEMPLATE.md](REPORT_TEMPLATE.md) | Template for the output report |
-| `YYYY-MM-DD_Security_Report.md` | Completed reports (one per review run) |
+| [REPORT_TEMPLATE/](REPORT_TEMPLATE/) | Template folder — copy to start a new report |
+| `YYYY-MM-DD_security_report/` | Completed report folders (one per review run) |
 
 ## When to Run a Security Review
 
@@ -34,22 +34,23 @@ Run a full security review:
 
 1. Read [THREAT_MODEL.md](THREAT_MODEL.md) to understand what you are defending
 2. Follow [PROCESS.md](PROCESS.md) exactly — do not skip phases
-3. Use [CHECKLIST.md](CHECKLIST.md) to track progress (copy it, do not edit the master)
-4. Record every finding, evidence, and outcome in a new report file:
+3. Copy the template folder to start a new report:
+   ```bash
+   cp -r docs/SECURITY/REPORT_TEMPLATE docs/SECURITY/YYYY-MM-DD_security_report
    ```
-   docs/SECURITY/YYYY-MM-DD_Security_Report.md
-   ```
-   Use [REPORT_TEMPLATE.md](REPORT_TEMPLATE.md) as the starting point
-5. Commit the completed report
+4. Work through each phase of PROCESS.md, writing output into the corresponding
+   file inside the report folder as you go
+5. Use the copied `checklist.md` inside the report folder to track progress
+6. Commit the completed report folder when the review is closed
 
 ## Report Naming
 
 ```
-YYYY-MM-DD_Security_Report.md
+docs/SECURITY/YYYY-MM-DD_security_report/
 ```
 
-Use the date the review was completed, not started. If the review spans multiple
-days, use the completion date.
+Use the date the review was **completed**, not started. If the review spans multiple
+days, use the completion date. Use lowercase with underscores — no spaces.
 
 ## Rules
 

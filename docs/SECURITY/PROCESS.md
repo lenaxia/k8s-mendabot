@@ -16,14 +16,49 @@ Before starting:
 1. Read [THREAT_MODEL.md](THREAT_MODEL.md) in full
 2. Read `README-LLM.md` for architectural context
 3. Read `docs/DESIGN/HLD.md` §8 (RBAC), §9 (GitHub Auth), §11 (Security Constraints)
-4. Have a copy of [CHECKLIST.md](CHECKLIST.md) open alongside this document
-5. Create the report file: `docs/SECURITY/YYYY-MM-DD_Security_Report.md` from
-   [REPORT_TEMPLATE.md](REPORT_TEMPLATE.md)
+4. Create the report folder by copying the template:
+   ```bash
+   cp -r docs/SECURITY/REPORT_TEMPLATE docs/SECURITY/YYYY-MM-DD_security_report
+   ```
+   All output files live inside this folder — one file per phase, plus a summary,
+   a completed checklist, and a `raw/` subfolder for tool output.
+5. Work through each phase below. At the start of each phase, open the corresponding
+   output file in the report folder and write into it as you go.
 6. Ideally: have a running test cluster (kind or k3s with Cilium or Calico)
+
+**Report folder structure (what you will fill in):**
+
+```
+YYYY-MM-DD_security_report/
+├── README.md                  ← executive summary + finding index (fill in last)
+├── checklist.md               ← copy of CHECKLIST.md — tick off as you go
+├── findings.md                ← all findings across all phases
+├── phase01_static.md          ← Phase 1 output
+├── phase02_architecture.md    ← Phase 2 output
+├── phase03_redaction.md       ← Phase 3 output
+├── phase04_rbac.md            ← Phase 4 output
+├── phase05_network.md         ← Phase 5 output
+├── phase06_privkey.md         ← Phase 6 output
+├── phase07_audit.md           ← Phase 7 output
+├── phase08_supply_chain.md    ← Phase 8 output
+├── phase09_operational.md     ← Phase 9 output
+├── phase10_regression.md      ← Phase 10 output
+└── raw/                       ← raw tool output (govulncheck.txt, gosec.json, trivy.txt, etc.)
+```
+
+---
+
+> **Output discipline:** Every phase below maps to one file in the report folder.
+> Open that file before starting the phase. Paste commands, outputs, analysis, and
+> findings directly into it as you work — do not batch up notes for later. Raw tool
+> output (JSON, text) goes into `raw/`. Any finding goes into both the phase file
+> (for context) and `findings.md` (for the consolidated index).
 
 ---
 
 ## Phase 1: Static Code Analysis
+
+> **Output file:** `phase01_static.md` and `raw/govulncheck.txt`, `raw/gosec.json`, `raw/staticcheck.txt`
 
 ### 1.1 Automated scanners
 
@@ -93,6 +128,8 @@ grep -r --include='*.go' --include='*.yaml' --include='*.sh' \
 ---
 
 ## Phase 2: Architecture and Design Review
+
+> **Output file:** `phase02_architecture.md`
 
 ### 2.1 Data flow trace
 
@@ -267,6 +304,8 @@ For each workflow, check:
 
 ## Phase 3: Redaction and Injection Control Depth Testing
 
+> **Output file:** `phase03_redaction.md`
+
 ### 3.1 Redaction coverage test
 
 **Unit test verification:**
@@ -401,6 +440,8 @@ kubectl get remediationjob -n mendabot -o jsonpath='{.items[?(@.spec.finding.nam
 
 ## Phase 4: RBAC Enforcement Testing (requires cluster)
 
+> **Output file:** `phase04_rbac.md`
+
 ### 4.1 Default cluster scope — Secret read test
 
 ```bash
@@ -481,6 +522,8 @@ kubectl auth can-i delete remediationjob -n kube-system \
 
 ## Phase 5: Network Egress Testing (requires cluster with CNI)
 
+> **Output file:** `phase05_network.md`
+
 ### 5.1 NetworkPolicy enforcement prerequisite check
 
 ```bash
@@ -542,6 +585,8 @@ kubectl exec -n mendabot "$AGENT_POD" -- \
 
 ## Phase 6: GitHub App Private Key Isolation Test
 
+> **Output file:** `phase06_privkey.md`
+
 ### 6.1 Code verification (can be done without cluster)
 
 ```bash
@@ -576,6 +621,8 @@ kubectl exec -n mendabot "$AGENT_POD" -c mendabot-agent -- ls /workspace/
 ---
 
 ## Phase 7: Audit Log Verification
+
+> **Output file:** `phase07_audit.md`
 
 ### 7.1 Audit event completeness
 
@@ -623,6 +670,8 @@ For each audit event that fires, verify:
 ---
 
 ## Phase 8: Supply Chain Integrity
+
+> **Output file:** `phase08_supply_chain.md` and `raw/trivy-agent.txt`, `raw/trivy-watcher.txt`
 
 ### 8.1 Docker image binary checksums
 
@@ -680,6 +729,8 @@ trivy image --severity HIGH,CRITICAL mendabot-agent:review-scan
 
 ## Phase 9: Operational Security Review
 
+> **Output file:** `phase09_operational.md`
+
 ### 9.1 Secret placeholder audit
 
 ```bash
@@ -733,6 +784,8 @@ Verify:
 
 ## Phase 10: Regression Check Against Known Findings
 
+> **Output file:** `phase10_regression.md`
+
 For every finding from all previous security reports:
 
 1. Locate the finding in the previous report
@@ -749,6 +802,8 @@ For every accepted residual risk in [THREAT_MODEL.md](THREAT_MODEL.md):
 ---
 
 ## Phase 11: Findings Triage and Report Completion
+
+> **Output file:** `findings.md` (consolidate all phase findings), then `README.md` (executive summary).
 
 For every finding recorded during the review:
 
