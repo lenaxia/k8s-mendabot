@@ -105,3 +105,4 @@ else.
 | [0070](0070_2026-02-24_third-pass-validation-gap-fixes.md) | 2026-02-24 | Third pass validation gap fixes | Complete |
 | [0071](0071_2026-02-23_epic08-pluggable-agent-complete.md) | 2026-02-23 | Epic 08 pluggable agent complete | Complete |
 | [0072](0072_2026-02-24_epic23-story01-audit-log-gaps.md) | 2026-02-24 | Epic 23 story01 audit log gaps | Complete |
+| [0073](0073_2026-02-24_epic23-validation-gap-fixes.md) | 2026-02-24 | Epic 23 validation gap fixes | Complete |
