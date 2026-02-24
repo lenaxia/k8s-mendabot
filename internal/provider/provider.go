@@ -170,13 +170,29 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, fmt.Errorf("fingerprint too short: got %d chars, need at least 12", len(fp))
 	}
 
+	if r.Log != nil {
+		r.Log.Info("finding detected",
+			zap.Bool("audit", true),
+			zap.String("event", "finding.detected"),
+			zap.String("provider", r.Provider.ProviderName()),
+			zap.String("kind", finding.Kind),
+			zap.String("namespace", finding.Namespace),
+			zap.String("name", finding.Name),
+			zap.String("fingerprint", fp[:12]),
+		)
+	}
+
 	priorityCritical := obj.GetAnnotations()[domain.AnnotationPriority] == "critical"
 	if !priorityCritical && r.Cfg.StabilisationWindow != 0 {
 		if first, seen := r.firstSeen.Get(fp); !seen {
 			r.firstSeen.Set(fp)
 			if r.Log != nil {
-				r.Log.Info("stabilisation window: first seen, deferring RemediationJob creation",
+				r.Log.Info("finding suppressed",
+					zap.Bool("audit", true),
+					zap.String("event", "finding.suppressed.stabilisation_window"),
+					zap.String("provider", r.Provider.ProviderName()),
 					zap.String("fingerprint", fp[:12]),
+					zap.String("reason", "first_seen"),
 					zap.Duration("window", r.Cfg.StabilisationWindow),
 				)
 			}
@@ -186,8 +202,12 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			if elapsed < r.Cfg.StabilisationWindow {
 				remaining := r.Cfg.StabilisationWindow - elapsed
 				if r.Log != nil {
-					r.Log.Info("stabilisation window: holding, not yet elapsed",
+					r.Log.Info("finding suppressed",
+						zap.Bool("audit", true),
+						zap.String("event", "finding.suppressed.stabilisation_window"),
+						zap.String("provider", r.Provider.ProviderName()),
 						zap.String("fingerprint", fp[:12]),
+						zap.String("reason", "window_open"),
 						zap.Duration("remaining", remaining),
 					)
 				}
@@ -228,7 +248,10 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			}
 		default:
 			if r.Log != nil {
-				r.Log.Debug("dedup: suppressing re-dispatch, existing RemediationJob in active or terminal phase",
+				r.Log.Info("finding suppressed",
+					zap.Bool("audit", true),
+					zap.String("event", "finding.suppressed.duplicate"),
+					zap.String("provider", r.Provider.ProviderName()),
 					zap.String("fingerprint", fp[:12]),
 					zap.String("remediationJob", rjob.Name),
 					zap.String("phase", string(rjob.Status.Phase)),
@@ -246,6 +269,7 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			if r.Log != nil {
 				r.Log.Error("readiness check failed, suppressing RemediationJob creation",
 					zap.Bool("audit", true),
+					zap.String("event", "readiness.check_failed"),
 					zap.Error(err),
 					zap.String("checker", r.ReadinessChecker.Name()),
 					zap.String("fingerprint", fp[:12]),
