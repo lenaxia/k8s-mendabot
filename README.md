@@ -269,6 +269,19 @@ stringData:
 > config layer and overrides the secret. All standard OpenCode schema keys are
 > valid (`model`, `provider`, `$schema`, etc.).
 
+**Other providers**
+
+OpenCode supports 75+ providers. Any provider with an OpenAI-compatible API
+(Ollama, LM Studio, llama.cpp, Azure OpenAI, Groq, Together AI, OpenRouter,
+DeepSeek, and many more) works with the custom-provider pattern shown above.
+For built-in providers (Anthropic, Amazon Bedrock, Google Vertex AI, GitHub
+Copilot, etc.) the config structure differs slightly — consult the full
+provider directory in the OpenCode docs:
+
+- **Provider directory** — [opencode.ai/docs/providers](https://opencode.ai/docs/providers/)
+- **Built-in providers** (Anthropic, Bedrock, Vertex, Groq, …) — config examples for each
+- **Custom provider pattern** — [opencode.ai/docs/providers#custom-provider](https://opencode.ai/docs/providers/#custom-provider)
+
 ### 2. Install with Helm
 
 ```sh
