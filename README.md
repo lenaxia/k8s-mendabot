@@ -463,3 +463,26 @@ To bypass in an emergency: `git commit --no-verify`
 ## License
 
 Apache 2.0
+
+---
+
+## Disclaimer
+
+This project is heavily AI-assisted — the majority of code, documentation, and design
+artifacts were produced with AI tooling (primarily [OpenCode](https://opencode.ai)).
+
+That said, development follows structured SDLC practices throughout:
+
+- **Backlog-driven** — all features and epics are tracked in [`docs/BACKLOG/`](docs/BACKLOG/),
+  with explicit story breakdowns, acceptance criteria, and value/complexity ratings before
+  implementation begins.
+- **Security-reviewed** — [Epic 12](docs/BACKLOG/epic12-security-review/README.md) ran a
+  structured security audit against mendabot's full attack surface: secret redaction,
+  prompt injection detection, network policy, RBAC scoping, structured audit logging, and
+  a formal penetration test plan with documented findings. All HIGH/CRITICAL findings were
+  remediated before the epic was closed.
+- **Documented** — every significant session is recorded in [`docs/WORKLOGS/`](docs/WORKLOGS/),
+  capturing design decisions, implementation notes, and the rationale behind changes as they
+  happen.
+
+AI accelerates the work; the process keeps it accountable.
