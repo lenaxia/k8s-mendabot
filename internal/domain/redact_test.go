@@ -194,6 +194,26 @@ func TestRedactSecrets(t *testing.T) {
 			input: "refresh_token=ghr_16C7e42F292c6912E7710c838347Ae178B4a",
 			want:  "refresh_token=[REDACTED]",
 		},
+		// github_pat_ is GitHub's fine-grained PAT format. The gh[a-z]_ pattern
+		// does not match it (prefix is too long). It IS caught by the token=
+		// named-key pattern when a key is present, and its 59-char bech32 suffix
+		// is caught by the base64 pattern (≥40 chars). A bare appearance without
+		// any named key and with a short suffix would be missed — documented as
+		// residual risk in P-010.
+		{
+			name:  "github_pat_ fine-grained PAT via token= key",
+			input: "GITHUB_TOKEN=github_pat_11ABCDEFG0abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWX",
+			want:  "GITHUB_TOKEN=[REDACTED]",
+		},
+		{
+			name:  "github_pat_ fine-grained PAT suffix caught by base64 pattern",
+			input: "github_pat_11ABCDEFG0abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWX",
+			// The gh[a-z]_ pattern does not match (prefix too long). The underscore
+			// breaks the base64 run, so only the alphanumeric suffix (≥40 chars) is
+			// caught by the base64 pattern — the literal "github_pat_" prefix remains.
+			// The secret payload is still redacted; this documents the residual prefix leak.
+			want: "github_pat_[REDACTED-BASE64]",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

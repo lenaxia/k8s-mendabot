@@ -2,9 +2,16 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 )
+
+// failWriter is an io.Writer that always returns an error, used to test the
+// write-failure path in run().
+type failWriter struct{ err error }
+
+func (f failWriter) Write(_ []byte) (int, error) { return 0, f.err }
 
 func TestRun(t *testing.T) {
 	tests := []struct {
@@ -127,5 +134,14 @@ func TestRun(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestRunWriteFailure(t *testing.T) {
+	// Verify that a write error (e.g. broken pipe) is propagated by run().
+	sentinel := errors.New("write error: broken pipe")
+	err := run(strings.NewReader("password=hunter2"), failWriter{err: sentinel})
+	if !errors.Is(err, sentinel) {
+		t.Errorf("run() error = %v, want %v", err, sentinel)
 	}
 }
