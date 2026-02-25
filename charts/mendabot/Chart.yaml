@@ -1,9 +1,9 @@
 apiVersion: v2
 name: mendabot
-description: Kubernetes-native SRE remediation bot
+description: Kubernetes-native SRE remediation bot — watches cluster failures, spawns an LLM agent, and opens GitOps pull requests with proposed fixes.
 type: application
-version: 0.3.10
-appVersion: v0.3.10
+version: 0.3.12
+appVersion: v0.3.12
 kubeVersion: ">=1.28.0-0"
 keywords:
   - kubernetes
@@ -11,9 +11,30 @@ keywords:
   - remediation
   - gitops
   - ai
+  - llm
+  - opencode
 home: https://github.com/lenaxia/k8s-mendabot
 sources:
   - https://github.com/lenaxia/k8s-mendabot
 maintainers:
   - name: lenaxia
     url: https://github.com/lenaxia
+annotations:
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/signKey: |
+    fingerprint: ""
+    url: https://github.com/lenaxia.gpg
+  artifacthub.io/changes: |
+    - kind: security
+      description: "Tool call output redaction wrappers (epic25) — all kubectl/helm/flux/gh output piped through domain.RedactSecrets before reaching LLM API (P-010 HIGH remediated)"
+    - kind: security
+      description: "Agent ClusterRole wildcard replaced with explicit resource enumeration, removing nodes/proxy access (P-004 HIGH remediated)"
+    - kind: security
+      description: "DetectInjection added to RemediationJobController dispatch path (P-008 MEDIUM remediated)"
+    - kind: security
+      description: "PEM key header and X-API-Key redaction patterns added"
+    - kind: fixed
+      description: "FINDING_FINGERPRINT truncated to 12 chars to prevent base64 redaction false positive"
+  artifacthub.io/containsSecurityUpdates: "true"
+  artifacthub.io/recommendations: |
+    - url: https://artifacthub.io/packages/helm/cert-manager/cert-manager

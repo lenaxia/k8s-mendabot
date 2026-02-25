@@ -1,0 +1,40 @@
+# CODEOWNERS
+# Each line maps a path pattern to the GitHub user(s) who own that area.
+# Owners are automatically requested for review on PRs that touch their paths.
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything not matched below
+*                                           @lenaxia
+
+# Security-sensitive paths — always require maintainer review
+docs/SECURITY/                              @lenaxia
+internal/domain/redact.go                  @lenaxia
+internal/domain/injection.go               @lenaxia
+docker/scripts/redact-wrappers/            @lenaxia
+cmd/redact/                                @lenaxia
+
+# RBAC manifests — any change here must be reviewed against the threat model
+deploy/kustomize/clusterrole-*.yaml        @lenaxia
+deploy/kustomize/role-*.yaml               @lenaxia
+deploy/overlays/security/                  @lenaxia
+charts/mendabot/templates/clusterrole-*.yaml @lenaxia
+charts/mendabot/templates/role-*.yaml      @lenaxia
+
+# Agent image and entrypoint — supply chain and isolation
+docker/Dockerfile.agent                    @lenaxia
+docker/scripts/                            @lenaxia
+
+# Helm chart
+charts/                                    @lenaxia
+
+# CRD API types — breaking changes affect all users
+api/                                       @lenaxia
+testdata/crds/                             @lenaxia
+
+# CI/CD workflows
+.github/workflows/                         @lenaxia
+
+# Governance docs
+SECURITY.md                                @lenaxia
+GOVERNANCE.md                              @lenaxia
+CONTRIBUTING.md                            @lenaxia

@@ -1,0 +1,40 @@
+---
+# Example: manually create a RemediationJob to trigger an agent investigation.
+#
+# Use cases:
+#   - Testing that your mendabot installation is working end-to-end
+#   - Re-triggering an investigation after a PermanentlyFailed tombstone
+#   - Investigating a resource that mendabot hasn't detected automatically
+#
+# Prerequisites:
+#   - mendabot is installed and the watcher is running
+#   - The github-app and llm-credentials-<agentType> Secrets are in place
+#
+# Usage:
+#   kubectl apply -f remediationjob-manual.yaml
+#   kubectl get remediationjob -n mendabot manual-investigation -w
+#   kubectl logs -n mendabot -l job-name=<agent-job-name> --follow
+#
+# Fingerprint must be unique per RemediationJob. Use a real SHA256 or generate one:
+#   echo -n "manual-$(date +%s)" | sha256sum | cut -d' ' -f1
+apiVersion: remediation.mendabot.io/v1alpha1
+kind: RemediationJob
+metadata:
+  name: manual-investigation
+  namespace: mendabot
+  labels:
+    # fingerprint label must match spec.fingerprint (first 12 chars of hex)
+    remediation.mendabot.io/fingerprint: "a1b2c3d4e5f6"
+spec:
+  # Unique 64-char hex fingerprint. Generate with sha256sum.
+  fingerprint: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
+  sourceType: manual
+  severity: high
+  maxRetries: 1
+  finding:
+    kind: Deployment
+    name: my-broken-deployment
+    namespace: production
+    parentObject: my-broken-deployment
+    errors: "Deployment has 0/3 replicas available. Pods are stuck in CrashLoopBackOff."
+    fingerprint: "a1b2c3d4e5f6"

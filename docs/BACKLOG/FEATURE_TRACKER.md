@@ -1,6 +1,6 @@
 # mendabot Feature Tracker
 
-**Last Updated:** 2026-02-22
+**Last Updated:** 2026-02-25
 **Purpose:** Product-level backlog for features beyond the current epic roadmap. Covers
 accuracy improvements, reliability hardening, usability, impact quality, security, and
 new signal sources. Accuracy and precision are the highest priority axis — false positives
@@ -45,12 +45,12 @@ a feature is approved for implementation:
 
 | ID | Feature | Value | Complexity | Status |
 |----|---------|-------|------------|--------|
-| FT-A1 | Namespace-scoped provider filtering | ★★★ | ● | Planned (epic15) |
-| FT-A2 | Resource annotation opt-in/opt-out | ★★★ | ● | Planned (epic16) |
-| FT-A3 | Severity tiers on findings | ★★ | ● | Planned (epic24) |
-| FT-A4 | Cascading failure root-cause detection | ★★★ | ●●● | Planned (epic11) |
+| FT-A1 | Namespace-scoped provider filtering | ★★★ | ● | Complete (epic15) |
+| FT-A2 | Resource annotation opt-in/opt-out | ★★★ | ● | Complete (epic16) |
+| FT-A3 | Severity tiers on findings | ★★ | ● | Complete (epic24) |
+| FT-A4 | Cascading failure root-cause detection | ★★★ | ●●● | Complete (epic11) |
 | FT-A5 | Recurrence memory — reuse prior fix context | ★★★ | ●● | Evaluated |
-| FT-A6 | Multi-signal correlation (related findings) | ★★★ | ●●● | Planned (epic13) |
+| FT-A6 | Multi-signal correlation (related findings) | ★★★ | ●●● | Deferred (epic13) |
 | FT-A7 | GitOps drift detection source provider | ★★★ | ●● | Evaluated |
 | FT-A8 | False-positive feedback annotation | ★★★ | ●● | Evaluated |
 | FT-A9 | Mandatory pre-PR manifest validation | ★★★ | ● | Planned (epic18) |
@@ -345,7 +345,7 @@ extra scrutiny.
 
 | ID | Feature | Value | Complexity | Status |
 |----|---------|-------|------------|--------|
-| FT-R1 | Dead-letter queue for permanently-failed jobs | ★★★ | ● | Planned (epic17) |
+| FT-R1 | Dead-letter queue for permanently-failed jobs | ★★★ | ● | Complete (epic17) |
 | FT-R2 | Watcher leader election | ★★ | ● | Evaluated |
 | FT-R3 | GitHub App token expiry guard | ★★ | ● | Planned (epic22) |
 | FT-R4 | Durable stabilisation window (restart-safe) | ★★ | ●● | Evaluated |
@@ -532,8 +532,8 @@ that burns LLM quota and fills the namespace with failed Jobs.
 | ID | Feature | Value | Complexity | Status |
 |----|---------|-------|------------|--------|
 | FT-U1 | CRD schema generation with controller-gen | ★★★ | ●● | Evaluated |
-| FT-U2 | Prometheus metrics for watcher | ★★★ | ●● | Evaluated |
-| FT-U3 | Kubernetes Events on RemediationJob | ★★ | ● | Planned (epic21) |
+| FT-U2 | Prometheus metrics for watcher | ★★★ | ●● | Complete (epic11) |
+| FT-U3 | Kubernetes Events on RemediationJob | ★★ | ● | Complete (epic21) |
 | FT-U4 | Prompt version annotation on RemediationJob | ★★ | ● | Evaluated |
 | FT-U5 | Slack / webhook notification on PR open | ★★ | ●● | Evaluated |
 | FT-U6 | kubectl plugin (`kubectl mendabot`) | ★ | ●●● | Deferred |
@@ -706,7 +706,7 @@ live PR creation.
 | FT-I5 | Automated regression test suggestion | ★★ | ●● | Evaluated |
 | FT-I6 | Multi-cluster support | ★★★ | ●●● | Deferred |
 | FT-I7 | Jira / Linear ticket creation (investigation sink) | ★★ | ●● | Idea |
-| FT-I8 | GitOps tooling abstraction (Flux, ArgoCD, Helm-only) | ★★★ | ●● | Planned (epic24) |
+| FT-I8 | GitOps tooling abstraction (Flux, ArgoCD, Helm-only) | ★★★ | ●● | Evaluated |
 
 ---
 
@@ -880,11 +880,11 @@ configuration changes.
 
 | ID | Feature | Value | Complexity | Status |
 |----|---------|-------|------------|--------|
-| FT-S1 | Secret value redaction in Finding.Errors | ★★★ | ●● | Planned (epic19 — gap check vs epic12) |
-| FT-S2 | Network policy for agent Jobs | ★★ | ● | Evaluated |
-| FT-S3 | Structured audit log for all remediation decisions | ★★ | ● | Planned (epic23 — gap check vs epic12) |
-| FT-S4 | Agent RBAC scoping by namespace | ★★ | ●● | Evaluated |
-| FT-S5 | Prompt injection detection and sanitisation | ★★★ | ●●● | Evaluated |
+| FT-S1 | Secret value redaction in Finding.Errors | ★★★ | ●● | Complete (epic12 + epic19 + epic25) |
+| FT-S2 | Network policy for agent Jobs | ★★ | ● | Complete (epic12) |
+| FT-S3 | Structured audit log for all remediation decisions | ★★ | ● | Complete (epic23) |
+| FT-S4 | Agent RBAC scoping by namespace | ★★ | ●● | Complete (epic12) |
+| FT-S5 | Prompt injection detection and sanitisation | ★★★ | ●●● | Complete (epic12) |
 
 ---
 

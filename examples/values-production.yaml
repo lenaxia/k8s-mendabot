@@ -1,0 +1,55 @@
+# mendabot — production-hardened values
+# Recommended settings for a production cluster.
+# Adjust namespace lists and severity threshold to your environment.
+#
+# Install:
+#   kubectl create namespace mendabot
+#   # Create required secrets first — see NOTES.txt in the chart
+#   helm install mendabot charts/mendabot/ -n mendabot -f values-production.yaml
+
+gitops:
+  repo: "myorg/my-gitops-repo"
+  manifestRoot: "kubernetes"
+
+agentType: opencode
+
+watcher:
+  # Only dispatch for high-signal findings. Set to "medium" if you want
+  # to also catch degraded-but-available deployments and medium-severity jobs.
+  minSeverity: high
+
+  # Ignore system namespaces — they self-heal and generate noise.
+  excludeNamespaces: "kube-system,kube-public,kube-node-lease,cert-manager,monitoring,flux-system,cilium"
+
+  # Restrict the agent's cluster read access to workload namespaces only.
+  # Reduces blast radius if the agent is compromised via prompt injection.
+  agentRBACScope: namespace
+  agentWatchNamespaces: "production,staging"
+
+  # Tune stabilisation: wait longer before dispatching to filter transient blips.
+  stabilisationWindowSeconds: 300
+
+  # Limit concurrent investigations to avoid overwhelming the LLM API.
+  maxConcurrentJobs: 2
+
+  # Suppress detected injections rather than logging and continuing dispatch.
+  injectionDetectionAction: suppress
+
+  # How many times to retry a failing RemediationJob before permanently failing it.
+  maxInvestigationRetries: "2"
+
+  # TTL for completed RemediationJob objects: 3 days.
+  remediationJobTTLSeconds: 259200
+
+# Restrict agent Job network egress to the cluster API, GitHub, and the LLM endpoint.
+# Requires a NetworkPolicy-capable CNI (Cilium, Calico, etc.).
+networkPolicy:
+  enabled: true
+
+# Pin image tags explicitly rather than relying on chart appVersion.
+# This prevents unexpected image pulls during helm upgrade.
+image:
+  tag: "v0.3.12"
+agent:
+  image:
+    tag: "v0.3.12"

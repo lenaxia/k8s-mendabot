@@ -1,0 +1,21 @@
+# mendabot — minimal values
+# The absolute minimum required to run mendabot.
+# Copy this file and fill in the three required fields.
+#
+# Install:
+#   kubectl create namespace mendabot
+#   # Create required secrets first — see NOTES.txt in the chart
+#   helm install mendabot charts/mendabot/ -n mendabot -f values-minimal.yaml
+
+gitops:
+  repo: "myorg/my-gitops-repo"        # required: GitHub org/repo
+  manifestRoot: "kubernetes"           # required: path within repo to manifests
+
+agentType: opencode
+
+# All other values use safe defaults:
+#   stabilisationWindow: 120s
+#   maxConcurrentJobs:   3
+#   agentRBACScope:      cluster
+#   networkPolicy:       disabled
+#   minSeverity:         low (all findings dispatched)

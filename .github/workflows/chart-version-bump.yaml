@@ -1,0 +1,75 @@
+name: Bump Chart Version
+
+# Triggered when a release tag (v*) is pushed.
+# Updates Chart.yaml version and appVersion to match the new tag,
+# then commits the change directly to main.
+#
+# Chart versioning policy:
+#   appVersion — always matches the git release tag (e.g. v0.3.13)
+#   version    — chart semver without the 'v' prefix (e.g. 0.3.13)
+#
+# Both fields are bumped together on every release because a new app version
+# changes which image the chart deploys — that is a chart-level change.
+# Pure chart-only changes (template fixes, values changes without an app
+# release) are bumped manually.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write  # required to push the version-bump commit
+
+jobs:
+  bump-chart-version:
+    name: Bump Chart.yaml
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: main
+          # Use a PAT or the default GITHUB_TOKEN. GITHUB_TOKEN pushes bypass
+          # branch protection only if "Allow GitHub Actions to create and
+          # approve pull requests" is enabled in repo settings. If your branch
+          # protection requires a PAT, set a RELEASE_PAT secret and use:
+          #   token: ${{ secrets.RELEASE_PAT }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          # TAG is e.g. "v0.3.13" — strip leading 'v' for chart version field
+          TAG="${GITHUB_REF_NAME}"
+          CHART_VERSION="${TAG#v}"
+          echo "tag=${TAG}"           >> "$GITHUB_OUTPUT"
+          echo "chart_version=${CHART_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Update Chart.yaml
+        run: |
+          CHART="charts/mendabot/Chart.yaml"
+          TAG="${{ steps.version.outputs.tag }}"
+          CV="${{ steps.version.outputs.chart_version }}"
+
+          # Use sed for in-place substitution (yq not available in base runner)
+          sed -i "s/^version:.*/version: ${CV}/"         "$CHART"
+          sed -i "s/^appVersion:.*/appVersion: ${TAG}/"  "$CHART"
+
+          echo "--- Updated Chart.yaml ---"
+          grep -E '^(version|appVersion):' "$CHART"
+
+      - name: Commit and push
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add charts/mendabot/Chart.yaml
+          git diff --cached --exit-code && echo "No changes to commit." && exit 0
+
+          git commit -m "chore(chart): bump chart version to ${TAG} [skip ci]"
+          git push origin main
