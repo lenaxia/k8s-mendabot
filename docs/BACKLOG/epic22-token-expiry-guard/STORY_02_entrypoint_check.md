@@ -1,4 +1,4 @@
-# Story 02: agent-entrypoint.sh — Pre-flight Expiry Check
+# Story 02: entrypoint-common.sh — Pre-flight Expiry Check
 
 **Epic:** epic22-token-expiry-guard (FT-R3)
 **Status:** Not Started
@@ -8,17 +8,26 @@
 
 ## Context
 
-`agent-entrypoint.sh` is the main container's entrypoint. Today it reads the token written
-by the init container at line 93:
+`entrypoint-common.sh` is the shared setup script sourced by every per-agent entrypoint
+(`entrypoint-opencode.sh`, `entrypoint-claude.sh`). It handles env validation, kubeconfig
+construction, `gh` authentication, and prompt rendering. It lives at
+`docker/scripts/entrypoint-common.sh`.
+
+Today the GitHub authentication block (lines 75–82) reads the token written by the init
+container and authenticates `gh`:
 
 ```bash
 gh auth login --with-token < /workspace/github-token
+if ! gh auth status > /dev/null 2>&1; then
+    echo "ERROR: gh authentication failed — check /workspace/github-token" >&2
+    exit 1
+fi
 ```
 
 If the init container was slow and the token is already old by the time the main container
 starts (e.g. pod was pending in a queue), `gh` authentication will appear to succeed but
 any subsequent `gh pr list` or `git push` will receive a GitHub 401. The agent then runs
-for up to the full `activeDeadlineSeconds` (900 s per `job.go:258`) before the job times
+for up to the full `activeDeadlineSeconds` (900 s per `job.go:261`) before the job times
 out, burning LLM tokens with no chance of success.
 
 STORY_01 adds `/workspace/github-token-expiry` (a Unix timestamp). This story adds a
@@ -27,11 +36,16 @@ within 60 seconds of expiry, before any `gh` auth or LLM work begins.
 
 ---
 
-## What does the entrypoint do today?
+## What does the common entrypoint do today?
 
-Relevant section of `docker/scripts/agent-entrypoint.sh` (lines 90–97):
+Relevant section of `docker/scripts/entrypoint-common.sh` (lines 71–82):
 
 ```bash
+kubectl config use-context in-cluster \
+    --kubeconfig=/home/agent/.kube/config
+
+export KUBECONFIG=/home/agent/.kube/config
+
 # Authenticate gh CLI using the token written by the init container.
 # Validate that authentication succeeds — a bad token would otherwise only be
 # discovered mid-investigation when gh pr list fails.
@@ -42,25 +56,22 @@ if ! gh auth status > /dev/null 2>&1; then
 fi
 ```
 
-The `gh auth login` at line 93 is the **first line that does real work** — everything
-before it (lines 1–88) is env validation and kubeconfig construction that does not touch
-GitHub.
+The `gh auth login` at line 78 is the **first line that does real work** with GitHub —
+everything before it (lines 1–73) is env validation and kubeconfig construction that does
+not touch GitHub.
 
 ---
 
 ## What needs to change
 
-Insert a pre-flight block **immediately before** the `gh auth login` call (before line 93).
-The insertion point is after the kubeconfig section ends (line 88) and before the comment
-on line 90.
+Insert a pre-flight block **immediately before** the `gh auth login` call (before line 78,
+after `export KUBECONFIG` at line 73).
 
 ### Exact change — diff format
 
 ```diff
- # Authenticate gh CLI using the token written by the init container.
- # Validate that authentication succeeds — a bad token would otherwise only be
- # discovered mid-investigation when gh pr list fails.
-+
+ export KUBECONFIG=/home/agent/.kube/config
+ 
 +# Pre-flight: check that the GitHub App token has not expired (or is not about
 +# to expire within the next 60 seconds).  The expiry file is written by the init
 +# container via get-github-app-token.sh.  If the file is absent (e.g. an older
@@ -80,13 +91,19 @@ on line 90.
 +    echo "WARNING: /workspace/github-token-expiry not found — skipping expiry pre-flight check." >&2
 +fi
 +
+ # Authenticate gh CLI using the token written by the init container.
+ # Validate that authentication succeeds — a bad token would otherwise only be
+ # discovered mid-investigation when gh pr list fails.
  gh auth login --with-token < /workspace/github-token
 ```
 
-### Full modified section (lines 88–121 after the change)
+### Full modified section (lines 71–108 after the change)
 
 ```bash
-fi
+kubectl config use-context in-cluster \
+    --kubeconfig=/home/agent/.kube/config
+
+export KUBECONFIG=/home/agent/.kube/config
 
 # Pre-flight: check that the GitHub App token has not expired (or is not about
 # to expire within the next 60 seconds).  The expiry file is written by the init
@@ -116,28 +133,28 @@ if ! gh auth status > /dev/null 2>&1; then
     exit 1
 fi
 
-# Substitute environment variables into the prompt template.
-# envsubst only replaces ${VAR} patterns it knows about. To avoid corrupting
-# content in FINDING_ERRORS or FINDING_DETAILS that may contain literal $ signs
-# (e.g. from Helm templates or shell variables in log output), we restrict
-# envsubst to only the known variable names.
-VARS='${FINDING_KIND}${FINDING_NAME}${FINDING_NAMESPACE}${FINDING_PARENT}${FINDING_FINGERPRINT}${FINDING_ERRORS}${FINDING_DETAILS}${GITOPS_REPO}${GITOPS_MANIFEST_ROOT}${IS_SELF_REMEDIATION}${CHAIN_DEPTH}${TARGET_REPO_OVERRIDE}'
-envsubst "$VARS" < /prompt/prompt.txt > /tmp/rendered-prompt.txt
+# Concatenate prompts into a single rendered file.
+# Order: agent preamble first, then core instructions.
+# /prompt/agent.txt — agent-runner-specific preamble (tool availability, config notes)
+# /prompt/core.txt  — shared investigation instructions (appended after preamble)
+CORE_PROMPT=/prompt/core.txt
+AGENT_PROMPT=/prompt/agent.txt
 
-# Log self-remediation context if applicable
-if [ "$IS_SELF_REMEDIATION" = "true" ]; then
-    echo "=== SELF-REMEDIATION MODE ==="
-    echo "Chain depth: $CHAIN_DEPTH"
-    echo "Target repo override: ${TARGET_REPO_OVERRIDE:-<none>}"
-    if [ "$CHAIN_DEPTH" -gt 2 ]; then
-        echo "WARNING: Deep cascade detected (depth > 2). Proceeding with caution."
-    fi
+if [ ! -f "$CORE_PROMPT" ]; then
+    echo "ERROR: core prompt file not found at $CORE_PROMPT" >&2
+    exit 1
 fi
 
-# Run opencode with the rendered prompt. The prompt is passed as a single
-# quoted string argument — word-splitting is not a concern because the shell
-# expands "$(cat ...)" as one argument to `opencode run`.
-exec opencode run "$(cat /tmp/rendered-prompt.txt)"
+COMBINED_PROMPT=$(cat "$CORE_PROMPT")
+if [ -f "$AGENT_PROMPT" ] && [ -s "$AGENT_PROMPT" ]; then
+    COMBINED_PROMPT="$(cat "$AGENT_PROMPT")
+
+${COMBINED_PROMPT}"
+fi
+
+# Substitute environment variables into the combined prompt template.
+VARS='${FINDING_KIND}${FINDING_NAME}${FINDING_NAMESPACE}${FINDING_PARENT}${FINDING_FINGERPRINT}${FINDING_ERRORS}${FINDING_DETAILS}${FINDING_SEVERITY}${GITOPS_REPO}${GITOPS_MANIFEST_ROOT}'
+printf '%s' "$COMBINED_PROMPT" | envsubst "$VARS" > /tmp/rendered-prompt.txt
 ```
 
 ---
@@ -146,10 +163,10 @@ exec opencode run "$(cat /tmp/rendered-prompt.txt)"
 
 | Where | Line reference (before this change) |
 |-------|-------------------------------------|
-| After kubeconfig block closes (`fi`, line 88) | `agent-entrypoint.sh:88` |
-| Before the `# Authenticate gh CLI` comment | `agent-entrypoint.sh:90` |
+| After `export KUBECONFIG=...` (line 73) | `entrypoint-common.sh:73` |
+| Before the `# Authenticate gh CLI` comment | `entrypoint-common.sh:75` |
 
-The block is inserted between the closing `fi` of the kubeconfig section and the existing
+The block is inserted between the `export KUBECONFIG` line and the existing
 authentication comment. No other lines move.
 
 ---
@@ -201,7 +218,7 @@ follow still catches an invalid token — behaviour is identical to pre-epic22.
 ## Why `exit 1` causes the Job to fail
 
 The `batch/v1 Job` is created with `restartPolicy: Never` and `backoffLimit: 1`
-(`job.go:257`). When the main container exits with a non-zero code:
+(`job.go:260` and `job.go:266`). When the main container exits with a non-zero code:
 
 1. Kubernetes marks the pod as `Failed`.
 2. The Job controller checks `backoffLimit`. With `backoffLimit: 1` the Job retries once;
@@ -215,7 +232,7 @@ The `batch/v1 Job` is created with `restartPolicy: Never` and `backoffLimit: 1`
 
 | Tool | Already present? | Dockerfile source |
 |------|------------------|-------------------|
-| `date +%s` | Yes | `bash` / coreutils (Debian bookworm-slim, line 27) |
+| `date +%s` | Yes | `bash` / coreutils (Debian bookworm-slim) |
 | `cat` | Yes | coreutils |
 | `[ -f ... ]` | Yes | bash built-in |
 | arithmetic `$(( ))` | Yes | bash built-in |
@@ -234,5 +251,6 @@ No Dockerfile changes are needed.
       unchanged.
 - [ ] `exit 1` causes the `batch/v1 Job` to enter `Failed` state (verified by checking
       job status after the container exits).
-- [ ] No LLM API calls are made when the guard fires (the `exec opencode run` line is
-      never reached).
+- [ ] No LLM API calls are made when the guard fires (the `exec opencode run` line in
+      `entrypoint-opencode.sh` is never reached because `entrypoint-common.sh` exits
+      before returning to the caller).

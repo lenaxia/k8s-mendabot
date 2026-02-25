@@ -68,10 +68,12 @@ curl -sf \
 **Key facts:**
 - `NOW` is already available at line 8 — no additional `date` call needed.
 - The final `jq -r '.token'` at line 37 pipes the GitHub API response and prints the token
-  string to stdout. The caller in `job.go` captures this via `TOKEN=$(get-github-app-token.sh)`.
+  string to stdout. The caller in `job.go` captures this via `TOKEN=$(get-github-app-token.sh)`
+  (inside the `initScript` constant at `job.go:47–58`, specifically line 50).
 - No file is written anywhere inside this script today.
-- The `/workspace` volume (an `emptyDir`) is mounted at `/workspace` for the init container
-  (see `internal/jobbuilder/job.go` lines 95–99). It is writable when this script runs.
+- The `/workspace` volume (an `emptyDir`) is declared at `internal/jobbuilder/job.go:188–193`
+  and mounted at `/workspace` for the init container at `job.go:111–116`. It is writable
+  when this script runs.
 
 ---
 
@@ -176,8 +178,8 @@ printf '%s\n' "$(printf '%s' "$RESPONSE" | jq -r '.token')"
 | `/workspace/github-token-expiry` | Unix timestamp (integer, no newline) | `1740350700` |
 
 The `/workspace` path is the `emptyDir` volume named `shared-workspace` declared in
-`internal/jobbuilder/job.go:199–204` and mounted at `/workspace` for the init container
-at `job.go:96–99`.
+`internal/jobbuilder/job.go:188–193` and mounted at `/workspace` for the init container
+at `job.go:111–116`.
 
 ---
 
@@ -204,4 +206,4 @@ No Dockerfile changes are needed.
 - [ ] If the curl call fails (non-zero exit), the script exits non-zero and neither file is
       written (because `set -euo pipefail` aborts before the `printf` lines).
 - [ ] The script continues to print exactly the token string to stdout so the existing
-      caller `TOKEN=$(get-github-app-token.sh)` in `job.go:37` is unaffected.
+      caller `TOKEN=$(get-github-app-token.sh)` in `job.go:50` is unaffected.
