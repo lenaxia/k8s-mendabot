@@ -117,32 +117,13 @@ exposed to the main agent container.
 | Pull requests | Write | Create and comment on pull requests |
 | Issues | Write | Reference issues in PR descriptions |
 
-The `github-app` Secret must contain three keys:
-
-```yaml
-data:
-  app-id: <GitHub App ID>           # numeric ID shown on the App settings page
-  installation-id: <Installation ID> # numeric ID from the installation URL (see below)
-  private-key: <PEM-encoded RSA private key>
-```
-
-The **App ID** is shown on `https://github.com/settings/apps/<your-app-name>`.
-
-The **Installation ID** is the numeric suffix in the URL when you view your app's
-installation: `https://github.com/organizations/<org>/settings/installations/<id>`
-(personal accounts: `https://github.com/settings/installations/<id>`).
-It is also returned by `GET https://api.github.com/app/installations` authenticated
-with the App JWT.
-
-The private key is used only in the agent Job's init container to exchange a
-short-lived installation token (1-hour TTL). It is never injected into the main
-agent container.
-
 ### 1. Create required Secrets
 
 ```sh
 kubectl create namespace mendabot
 ```
+
+The `github-app` Secret must contain three keys:
 
 ```yaml
 apiVersion: v1
@@ -156,6 +137,18 @@ data:
   private-key: |
     <PEM-encoded RSA private key>
 ```
+
+The **App ID** is shown on `https://github.com/settings/apps/<your-app-name>`.
+
+The **Installation ID** is the numeric suffix in the URL when you view your app's
+installation: `https://github.com/organizations/<org>/settings/installations/<id>`
+(personal accounts: `https://github.com/settings/installations/<id>`).
+It is also returned by `GET https://api.github.com/app/installations` authenticated
+with the App JWT.
+
+The private key is used only in the agent Job's init container to exchange a
+short-lived installation token (1-hour TTL). It is never injected into the main
+agent container.
 
 The `llm-credentials-opencode` secret holds the full
 [OpenCode config](https://opencode.ai/docs) as its `provider-config` key.
