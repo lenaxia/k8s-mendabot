@@ -1,0 +1,33 @@
+# Trivy ignore file — CVEs in upstream pre-built binaries that cannot be
+# remediated by bumping tool versions because upstream projects have not yet
+# released builds compiled with Go 1.25.7 / Go 1.24.13+.
+#
+# Affected binaries (agent image): helm, kubectl, kubeconform, kustomize,
+# stern, flux, talosctl, sops, yq.
+#
+# These are NOT suppressions for code we own. The mendabot-watcher and
+# mendabot-agent (age/age-keygen) binaries are compiled with Go 1.25.7 and
+# are clean.
+#
+# Expiry: 2026-06-01 — re-evaluate at that date. If upstream tools still
+# have not released Go 1.25.7 builds, extend the expiry and document why.
+
+# CRITICAL — crypto/tls session resumption (needs Go 1.24.13 or 1.25.7)
+CVE-2025-68121 exp:2026-06-01
+
+# HIGH — stdlib CVEs requiring Go 1.24.4+
+CVE-2025-22874 exp:2026-06-01
+
+# HIGH — stdlib CVEs requiring Go 1.23.12+ / 1.24.6+
+CVE-2025-47907 exp:2026-06-01
+
+# HIGH — stdlib CVEs requiring Go 1.24.8+ / 1.25.2+
+CVE-2025-58183 exp:2026-06-01
+
+# HIGH — stdlib CVEs requiring Go 1.24.11+ / 1.25.5+
+CVE-2025-61729 exp:2026-06-01
+
+# HIGH — stdlib CVEs requiring Go 1.24.12+ / 1.25.6+
+CVE-2025-61726 exp:2026-06-01
+CVE-2025-61728 exp:2026-06-01
+CVE-2025-61730 exp:2026-06-01
