@@ -96,6 +96,8 @@ read to the namespaces you specify.
 lines with `audit: true`, queryable from any log aggregation system (Loki,
 Elasticsearch, Datadog) for post-incident forensics.
 
+**[Trivy CVE scanning](https://github.com/lenaxia/k8s-mendabot/actions)** — both `mendabot-watcher` and `mendabot-agent` images are scanned on every release with [Trivy](https://trivy.dev) (`CRITICAL` and `HIGH`, ignore-unfixed). The build fails if any fixable vulnerability is detected. Unfixable CVEs in upstream pre-built binaries (tools not yet released with the required Go version) are tracked in [`.trivyignore`](.trivyignore) with mandatory expiry dates for re-evaluation.
+
 **[Short-lived GitHub credentials](docs/WORKLOGS/0014_2026-02-20_epic03-agent-image-complete.md)** — the agent never holds a long-lived PAT. A GitHub
 App installation token (1-hour TTL) is exchanged in the init container and never
 exposed to the main agent container.
@@ -442,18 +444,18 @@ start of the day *after* the specified date.
 | Tool | Version | Purpose |
 |---|---|---|
 | `opencode` | `1.2.10` | AI agent driver |
-| `kubectl` | `1.32.3` | Cluster inspection (read-only) |
-| `helm` | `3.17.2` | Chart metadata, template rendering |
-| `flux` | `2.5.1` | Flux status, trace, diff |
-| `kustomize` | `5.6.0` | Render and validate Kustomize overlays |
+| `kubectl` | `1.35.1` | Cluster inspection (read-only) |
+| `helm` | `3.20.0` | Chart metadata, template rendering |
+| `flux` | `2.8.0` | Flux status, trace, diff |
+| `kustomize` | `5.8.1` | Render and validate Kustomize overlays |
 | `gh` | latest stable | PR creation, listing, commenting |
 | `kubeconform` | `0.7.0` | Kubernetes manifest schema validation |
-| `yq` | `4.45.1` | YAML processing |
+| `yq` | `4.52.4` | YAML processing |
 | `jq` | apt | JSON processing |
-| `stern` | `1.31.0` | Multi-pod log tailing |
-| `sops` | `3.9.4` | Decrypt SOPS-encrypted secrets |
+| `stern` | `1.33.1` | Multi-pod log tailing |
+| `sops` | `3.12.1` | Decrypt SOPS-encrypted secrets |
 | `age` | `1.3.1` | Decrypt age-encrypted files |
-| `talosctl` | `1.9.4` | Talos node inspection (requires `talosconfig` mount) |
+| `talosctl` | `1.12.4` | Talos node inspection (requires `talosconfig` mount) |
 
 All binaries are fetched from official releases with SHA256 checksum verification.
 The agent runs as non-root (`uid=1000`).
@@ -491,7 +493,7 @@ full product backlog with value/complexity ratings and implementation notes.
 
 ### Prerequisites
 
-- Go 1.23+
+- Go 1.24+
 - [`golangci-lint`](https://golangci-lint.run/usage/install/) — extended linter suite
 - [`gitleaks`](https://github.com/zricethezav/gitleaks) — secrets scanner
 
