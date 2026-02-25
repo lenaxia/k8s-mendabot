@@ -85,7 +85,7 @@ help:
 
 ## generate: run controller-gen to regenerate CRD manifests from kubebuilder markers
 generate:
-	@which controller-gen > /dev/null 2>&1 || go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.20.1
+	@which controller-gen > /dev/null 2>&1 || go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.19.0
 	controller-gen crd:generateEmbeddedObjectMeta=true paths=./api/... output:crd:artifacts:config=charts/mendabot/crds
 	cp charts/mendabot/crds/remediation.mendabot.io_remediationjobs.yaml testdata/crds/remediationjob_crd.yaml
 
