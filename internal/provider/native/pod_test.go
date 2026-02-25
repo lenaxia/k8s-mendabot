@@ -1101,6 +1101,39 @@ func TestCrashLoopBackOff_CriticalWins_OverHigh(t *testing.T) {
 	}
 }
 
+// TestComputePodSeverity_CrashLoopBackOff_OOMKilled_LastTermination: computePodSeverity for a pod
+// in CrashLoopBackOff (State.Waiting) with RestartCount=3 and LastTerminationState.Terminated.Reason="OOMKilled"
+// → severity = high. This verifies the OOMKilled check in the CrashLoopBackOff branch, which is
+// otherwise unreachable via cs.State.Terminated (since State.Waiting is set, not State.Terminated).
+func TestComputePodSeverity_CrashLoopBackOff_OOMKilled_LastTermination(t *testing.T) {
+	pod := &corev1.Pod{
+		Status: corev1.PodStatus{
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name:         "my-app",
+					RestartCount: 3,
+					State: corev1.ContainerState{
+						Waiting: &corev1.ContainerStateWaiting{
+							Reason: "CrashLoopBackOff",
+						},
+					},
+					LastTerminationState: corev1.ContainerState{
+						Terminated: &corev1.ContainerStateTerminated{
+							Reason:   "OOMKilled",
+							ExitCode: 137,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	got := computePodSeverity(pod)
+	if got != domain.SeverityHigh {
+		t.Errorf("computePodSeverity() = %q, want %q", got, domain.SeverityHigh)
+	}
+}
+
 // assertErrorsJSON verifies that the errors string is valid JSON with at least one entry.
 func assertErrorsJSON(t *testing.T, errors string) {
 	t.Helper()

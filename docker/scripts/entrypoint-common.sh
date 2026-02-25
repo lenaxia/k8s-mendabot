@@ -15,6 +15,7 @@ set -euo pipefail
 # Optional variables — default to safe empty values.
 FINDING_DETAILS="${FINDING_DETAILS:-}"
 FINDING_PARENT="${FINDING_PARENT:-<none>}"
+: "${FINDING_SEVERITY:-}"
 
 # Build a kubeconfig from in-cluster credentials.
 #

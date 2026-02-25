@@ -143,6 +143,12 @@ func computePodSeverity(pod *corev1.Pod) domain.Severity {
 				if cs.RestartCount > 5 {
 					return domain.SeverityCritical
 				}
+				if cs.LastTerminationState.Terminated != nil && cs.LastTerminationState.Terminated.Reason == "OOMKilled" {
+					if domain.SeverityLevel(domain.SeverityHigh) > domain.SeverityLevel(current) {
+						current = domain.SeverityHigh
+					}
+					continue
+				}
 				if domain.SeverityLevel(domain.SeverityHigh) > domain.SeverityLevel(current) {
 					current = domain.SeverityHigh
 				}

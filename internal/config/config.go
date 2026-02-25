@@ -223,6 +223,7 @@ func FromEnv() (Config, error) {
 	}
 
 	rawMinSeverity := os.Getenv("MIN_SEVERITY")
+	// An explicitly empty value is treated as absent — defaults to SeverityLow.
 	if rawMinSeverity != "" {
 		if sv, ok := domain.ParseSeverity(rawMinSeverity); ok {
 			cfg.MinSeverity = sv
