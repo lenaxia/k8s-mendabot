@@ -37,12 +37,10 @@ touch Kubernetes Secrets in the GitOps repo; exactly one outcome per invocation.
 ## Features
 
 **[OpenCode agentic workflow](docs/WORKLOGS/0071_2026-02-23_epic08-pluggable-agent-complete.md)** — investigations are driven by [OpenCode](https://opencode.ai)
-running inside your cluster. Works with any OpenAI-compatible LLM endpoint. Additional
-agent backends are planned.
+running inside your cluster. Works with any OpenAI-compatible LLM endpoint. Additional agent backends are planned.
 
 **[Detection](docs/WORKLOGS/0033_2026-02-22_epic09-native-provider-complete.md)** — watches Pods, Deployments, StatefulSets, PVCs, Nodes, and Jobs natively.
-Covers `CrashLoopBackOff`, `ImagePullBackOff`, `OOMKilled`, degraded Deployments,
-unschedulable pods, failed Jobs, PVC provisioning failures, and unhealthy Nodes.
+Covers `CrashLoopBackOff`, `ImagePullBackOff`, `OOMKilled`, degraded Deployments, unschedulable pods, failed Jobs, PVC provisioning failures, and unhealthy Nodes.
 
 **[Deduplication](docs/WORKLOGS/0011_2026-02-20_epic01-controller-core-logic.md)** — findings are deduplicated by parent resource fingerprint
 (`sha256(namespace + kind + parentObject + sorted errors)`). Repeated pod restarts from
@@ -144,12 +142,19 @@ agent container.
 
 ```sh
 kubectl create namespace mendabot
+```
 
-kubectl create secret generic github-app \
-  --namespace mendabot \
-  --from-literal=app-id=<your-app-id> \
-  --from-literal=installation-id=<your-installation-id> \
-  --from-file=private-key=<path-to-private-key.pem>
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: github-app
+  namespace: mendabot
+data:
+  app-id: <GitHub App ID>           # numeric ID shown on the App settings page
+  installation-id: <Installation ID> # numeric ID from the installation URL (see below)
+  private-key: |
+    <PEM-encoded RSA private key>
 ```
 
 The `llm-credentials-opencode` secret holds the full
@@ -157,27 +162,9 @@ The `llm-credentials-opencode` secret holds the full
 The correct schema has `model` as a **top-level** key (format: `"<provider-id>/<model-id>"`);
 `options` belongs **inside** `provider.<name>`, not at the root.
 
+Opencode is the only agentic provider available at the moment, more options will be coming later.
+
 **Native OpenAI (`api.openai.com`)**
-
-```sh
-cat > /tmp/opencode-config.json << 'EOF'
-{
-  "$schema": "https://opencode.ai/config.json",
-  "provider": {
-    "openai": {
-      "apiKey": "sk-<your-openai-api-key>"
-    }
-  },
-  "model": "openai/gpt-4o"
-}
-EOF
-
-kubectl create secret generic llm-credentials-opencode \
-  --namespace mendabot \
-  --from-file=provider-config=/tmp/opencode-config.json
-```
-
-Or as a manifest:
 
 ```yaml
 apiVersion: v1
@@ -204,36 +191,6 @@ For any endpoint that is not `api.openai.com`, or that uses a model name not
 registered in the built-in OpenAI provider, you must define a custom provider
 with `"npm": "@ai-sdk/openai-compatible"`. You cannot reuse the built-in
 `openai` provider for a different base URL.
-
-```sh
-cat > /tmp/opencode-config.json << 'EOF'
-{
-  "$schema": "https://opencode.ai/config.json",
-  "provider": {
-    "myprovider": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "My Provider",
-      "options": {
-        "baseURL": "https://my-llm-endpoint/v1",
-        "apiKey": "sk-<your-api-key>"
-      },
-      "models": {
-        "my-model-id": {
-          "name": "My Model Name"
-        }
-      }
-    }
-  },
-  "model": "myprovider/my-model-id"
-}
-EOF
-
-kubectl create secret generic llm-credentials-opencode \
-  --namespace mendabot \
-  --from-file=provider-config=/tmp/opencode-config.json
-```
-
-Or as a manifest:
 
 ```yaml
 apiVersion: v1
