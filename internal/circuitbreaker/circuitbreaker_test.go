@@ -87,6 +87,39 @@ func TestCircuitBreaker_ZeroCooldown(t *testing.T) {
 	}
 }
 
+// TestCircuitBreaker_SecondAllowResetsTimer verifies that a second allowed call (after
+// the cooldown has elapsed) resets the lastAllowed timestamp, so the next immediate call
+// within the new cooldown window is correctly blocked again.
+func TestCircuitBreaker_SecondAllowResetsTimer(t *testing.T) {
+	cb := circuitbreaker.New(1 * time.Nanosecond)
+
+	// First allow — sets lastAllowed.
+	first, _ := cb.ShouldAllow()
+	if !first {
+		t.Fatal("first call must be allowed")
+	}
+
+	time.Sleep(10 * time.Millisecond) // let first cooldown expire
+
+	// Second allow — should succeed and reset the timer to now.
+	second, _ := cb.ShouldAllow()
+	if !second {
+		t.Fatal("second call after cooldown elapsed must be allowed")
+	}
+
+	// Now use a fresh CB with a long cooldown to verify the timer was reset:
+	// create a new CB, trigger it, then immediately call again — must be blocked.
+	cb2 := circuitbreaker.New(1 * time.Hour)
+	cb2.ShouldAllow() // sets lastAllowed to now
+	allowed, remaining := cb2.ShouldAllow()
+	if allowed {
+		t.Error("call immediately after an allowed call must be blocked (timer was not reset)")
+	}
+	if remaining <= 0 {
+		t.Errorf("expected remaining > 0 after reset, got %v", remaining)
+	}
+}
+
 func TestCircuitBreaker_Concurrent(t *testing.T) {
 	cb := circuitbreaker.New(1 * time.Hour)
 

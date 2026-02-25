@@ -2820,6 +2820,10 @@ func TestReconciler_SelfRemediation_NormalFinding_PassesThrough(t *testing.T) {
 		finding:    makeSelfRemediationFinding(0), // depth 0 = normal
 	}
 	r := newSelfRemediationReconciler(p, c, 2, nil)
+	r.Cfg.GitOpsRepo = "org/repo"
+	r.Cfg.GitOpsManifestRoot = "deploy"
+	r.Cfg.AgentImage = "mendabot-agent:test"
+	r.Cfg.AgentSA = "mendabot-agent"
 
 	res, err := r.Reconcile(context.Background(), ctrl.Request{
 		NamespacedName: types.NamespacedName{Name: obj.Name, Namespace: obj.Namespace},
@@ -2830,6 +2834,14 @@ func TestReconciler_SelfRemediation_NormalFinding_PassesThrough(t *testing.T) {
 	// Normal finding should proceed past the depth gate — no requeue from gate
 	if res.RequeueAfter != 0 {
 		t.Errorf("normal finding should not be requeued by depth gate, got RequeueAfter=%v", res.RequeueAfter)
+	}
+	// Depth 0 is a normal finding: gate must not block it, RJob must be created.
+	var rjobListNormal v1alpha1.RemediationJobList
+	if listErr := c.List(context.Background(), &rjobListNormal, client.InNamespace(agentNamespace)); listErr != nil {
+		t.Fatalf("list: %v", listErr)
+	}
+	if len(rjobListNormal.Items) == 0 {
+		t.Error("expected RemediationJob created for depth=0 (normal) finding, got none")
 	}
 }
 
@@ -3035,5 +3047,98 @@ func TestReconciler_SelfRemediation_CBNil_DepthPositive_PassesThrough(t *testing
 	}
 	if len(rjobList.Items) == 0 {
 		t.Error("expected RemediationJob created when CB is nil and depth within limit, got none")
+	}
+}
+
+// TestAuditLog_SelfRemediation_DepthExceeded verifies that when a finding is suppressed
+// by the depth gate, an audit log entry with event "self_remediation.depth_exceeded" is
+// emitted at Warn level with all expected structured fields.
+func TestAuditLog_SelfRemediation_DepthExceeded(t *testing.T) {
+	obj := makeWatchedObject("pod-test", agentNamespace)
+	c := newTestClient(obj)
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    makeSelfRemediationFinding(3), // exceeds maxDepth=2
+	}
+	logger, logs := newObserverLogger() // captures Warn+
+	r := newSelfRemediationReconciler(p, c, 2, nil)
+	r.Log = logger
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: types.NamespacedName{Name: obj.Name, Namespace: obj.Namespace},
+	}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var found bool
+	for _, entry := range logs.All() {
+		cm := entry.ContextMap()
+		if cm["event"] == "self_remediation.depth_exceeded" && cm["audit"] == true {
+			found = true
+			if cm["chainDepth"] != int64(3) {
+				t.Errorf("expected chainDepth=3 in log, got %v", cm["chainDepth"])
+			}
+			if cm["maxDepth"] != int64(2) {
+				t.Errorf("expected maxDepth=2 in log, got %v", cm["maxDepth"])
+			}
+			if cm["provider"] != "native" {
+				t.Errorf("expected provider=native in log, got %v", cm["provider"])
+			}
+			if cm["kind"] != "Job" {
+				t.Errorf("expected kind=Job in log, got %v", cm["kind"])
+			}
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected audit log entry with event=self_remediation.depth_exceeded, got entries: %v", logs.All())
+	}
+}
+
+// TestAuditLog_SelfRemediation_CircuitBreaker verifies that when a finding is suppressed
+// by the circuit breaker, an audit log entry with event "self_remediation.circuit_breaker"
+// is emitted at Info level with all expected structured fields.
+func TestAuditLog_SelfRemediation_CircuitBreaker(t *testing.T) {
+	obj := makeWatchedObject("pod-test", agentNamespace)
+	c := newTestClient(obj)
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    makeSelfRemediationFinding(1),
+	}
+	cb := &fakeGater{allowed: false, remaining: 5 * time.Minute}
+	logger, logs := newObserverInfoLogger() // captures Info+
+	r := newSelfRemediationReconciler(p, c, 2, cb)
+	r.Log = logger
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: types.NamespacedName{Name: obj.Name, Namespace: obj.Namespace},
+	}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var found bool
+	for _, entry := range logs.All() {
+		cm := entry.ContextMap()
+		if cm["event"] == "self_remediation.circuit_breaker" && cm["audit"] == true {
+			found = true
+			if cm["chainDepth"] != int64(1) {
+				t.Errorf("expected chainDepth=1 in log, got %v", cm["chainDepth"])
+			}
+			if cm["remaining"] != 5*time.Minute {
+				t.Errorf("expected remaining=5m in log, got %v", cm["remaining"])
+			}
+			if cm["provider"] != "native" {
+				t.Errorf("expected provider=native in log, got %v", cm["provider"])
+			}
+			if cm["kind"] != "Job" {
+				t.Errorf("expected kind=Job in log, got %v", cm["kind"])
+			}
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected audit log entry with event=self_remediation.circuit_breaker, got entries: %v", logs.All())
 	}
 }

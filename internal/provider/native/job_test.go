@@ -532,6 +532,37 @@ func TestJobChainDepth_MendabotNoOwnerRef(t *testing.T) {
 	}
 }
 
+// TestJobChainDepth_MendabotMalformedOwnerRef: mendabot job with Kind=RemediationJob but
+// empty Name → client.Get called with empty name returns NotFound → ChainDepth = 1 (safe fallback).
+func TestJobChainDepth_MendabotMalformedOwnerRef(t *testing.T) {
+	s := newTestScheme()
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	p := NewJobProvider(c)
+
+	job := newExhaustedJob("mendabot-agent-abc123456789", "mendabot-system", 2)
+	job.Labels = map[string]string{"app.kubernetes.io/managed-by": "mendabot-watcher"}
+	// ownerReference has the right Kind but an empty Name — simulates a malformed ref.
+	job.OwnerReferences = []metav1.OwnerReference{
+		{
+			APIVersion: "remediation.mendabot.io/v1alpha1",
+			Kind:       "RemediationJob",
+			Name:       "", // empty — malformed
+			UID:        "some-uid",
+		},
+	}
+
+	finding, err := p.ExtractFinding(job)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if finding == nil {
+		t.Fatal("expected non-nil finding for malformed ownerRef mendabot job")
+	}
+	if finding.ChainDepth != 1 {
+		t.Errorf("ChainDepth = %d, want 1 (safe fallback for malformed ownerRef)", finding.ChainDepth)
+	}
+}
+
 // TestJobChainDepth_MendabotStillActive: mendabot job, Active=1, Failed=0 → (nil, nil).
 func TestJobChainDepth_MendabotStillActive(t *testing.T) {
 	s := newTestScheme()
