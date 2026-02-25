@@ -132,7 +132,7 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 			{Name: "FINDING_PARENT", Value: rjob.Spec.Finding.ParentObject},
 			{Name: "FINDING_ERRORS", Value: rjob.Spec.Finding.Errors},
 			{Name: "FINDING_DETAILS", Value: rjob.Spec.Finding.Details},
-			{Name: "FINDING_FINGERPRINT", Value: rjob.Spec.Fingerprint},
+			{Name: "FINDING_FINGERPRINT", Value: rjob.Spec.Fingerprint[:12]},
 			{Name: "FINDING_SEVERITY", Value: rjob.Spec.Severity},
 			{Name: "GITOPS_REPO", Value: rjob.Spec.GitOpsRepo},
 			{Name: "GITOPS_MANIFEST_ROOT", Value: rjob.Spec.GitOpsManifestRoot},

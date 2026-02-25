@@ -177,6 +177,11 @@ func TestBuild_EnvVars_AllPresent(t *testing.T) {
 	if val, ok := getEnv(main, "FINDING_SEVERITY"); !ok || val != "high" {
 		t.Errorf("FINDING_SEVERITY = %q (ok=%v), want %q", val, ok, "high")
 	}
+	// FINDING_FINGERPRINT must be the 12-char short form so it stays below the
+	// 40-char base64 redaction threshold and is not redacted in gh output.
+	if val, ok := getEnv(main, "FINDING_FINGERPRINT"); !ok || val != "abcdef012345" {
+		t.Errorf("FINDING_FINGERPRINT = %q (ok=%v), want %q", val, ok, "abcdef012345")
+	}
 }
 
 func TestBuild_EnvVars_FindingNameNoNamespacePrefix(t *testing.T) {
