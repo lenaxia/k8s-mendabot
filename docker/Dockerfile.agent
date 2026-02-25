@@ -1,10 +1,18 @@
 # ── age build stage — compiles age/age-keygen with Go 1.25.7 to eliminate stdlib CVEs ──
+# Use go build -o to an explicit /out dir so the binary lands in a fixed path
+# regardless of cross-compilation (go install puts cross-compiled binaries in
+# $GOPATH/bin/${GOOS}_${GOARCH}/ which breaks COPY --from on multi-arch builds).
 FROM golang:1.25.7-bookworm@sha256:0b5f101af6e4f905da4e1c5885a76b1e7a9fbc97b1a41d971dbcab7be16e70a1 AS age-builder
 ARG AGE_VERSION=1.3.1
 ARG TARGETARCH=amd64
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
-    go install -trimpath filippo.io/age/cmd/age@v${AGE_VERSION} \
-    && go install -trimpath filippo.io/age/cmd/age-keygen@v${AGE_VERSION}
+RUN mkdir -p /out \
+    && cd /tmp \
+    && go mod init age-build \
+    && go get filippo.io/age@v${AGE_VERSION} \
+    && CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
+       go build -trimpath -o /out/age filippo.io/age/cmd/age \
+    && CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
+       go build -trimpath -o /out/age-keygen filippo.io/age/cmd/age-keygen
 
 # ── Runtime image ─────────────────────────────────────────────────────────────
 FROM debian:bookworm-slim@sha256:6458e6ce2b6448e31bfdced4be7d8aa88d389e6694ab09f5a718a694abe147f4
@@ -121,8 +129,8 @@ RUN curl -fsSL --retry 3 --retry-delay 5 "https://github.com/stern/stern/release
     && rm /tmp/stern.tar.gz
 
 # age — compiled from source with Go 1.25.7 to eliminate stdlib CVEs in upstream pre-built binaries
-COPY --from=age-builder /go/bin/age /usr/local/bin/age
-COPY --from=age-builder /go/bin/age-keygen /usr/local/bin/age-keygen
+COPY --from=age-builder /out/age /usr/local/bin/age
+COPY --from=age-builder /out/age-keygen /usr/local/bin/age-keygen
 
 # sops — sops releases use .checksums.txt (lowercase, with dot) (add retries)
 RUN curl -fsSL --retry 3 --retry-delay 5 "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.${TARGETARCH}" \
