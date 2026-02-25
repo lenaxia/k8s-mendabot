@@ -180,6 +180,10 @@ Any caveats, follow-up items, or things a human reviewer should check.
 
 These are non-negotiable. Violating any of them is an error.
 
+FINDING_SEVERITY=${FINDING_SEVERITY}
+A critical severity finding requires maximum investigation depth and a confident fix.
+A low severity finding warrants a conservative, minimal-change proposal.
+
 1. NEVER commit directly to main — always use the fix/mendabot-${FINDING_FINGERPRINT} branch
 2. NEVER create, read, modify, or reference Kubernetes Secrets in the GitOps repo
 3. Exactly ONE of these two outcomes must occur per invocation:

@@ -140,14 +140,14 @@ STORY_06 depends on STORY_05 (env var must exist before the prompt can reference
 
 ## Definition of Done
 
-- [ ] `domain.Severity` typed constant defined; `SeverityLevel` comparison helper implemented
-- [ ] `domain.Finding.Severity` field present and populated by all six providers
-- [ ] `RemediationJobSpec.Severity string` field present in Go types and CRD schema
-- [ ] `testdata/crds/remediationjob_crd.yaml` updated with `severity: {type: string}` in spec properties
-- [ ] Each provider assigns severity per the Provider Severity Table above
-- [ ] `config.Config.MinSeverity` populated from `MIN_SEVERITY` env var; defaults to `low`
-- [ ] `SourceProviderReconciler` drops findings below `MinSeverity` before fingerprinting
-- [ ] `JobBuilder` injects `FINDING_SEVERITY` into the agent Job's env
-- [ ] Prompt configmap updated to reference `FINDING_SEVERITY` in context and hard rules
-- [ ] All unit tests pass with `-race`
-- [ ] Worklog written
+- [x] `domain.Severity` typed constant defined; `SeverityLevel` comparison helper implemented
+- [x] `domain.Finding.Severity` field present and populated by all six providers
+- [x] `RemediationJobSpec.Severity string` field present in Go types and CRD schema
+- [x] `testdata/crds/remediationjob_crd.yaml` updated with `severity: {type: string}` in spec properties
+- [x] Each provider assigns severity per the Provider Severity Table above
+- [x] `config.Config.MinSeverity` populated from `MIN_SEVERITY` env var; defaults to `low`
+- [x] `SourceProviderReconciler` drops findings below `MinSeverity` before fingerprinting
+- [x] `JobBuilder` injects `FINDING_SEVERITY` into the agent Job's env
+- [x] Prompt configmap updated to reference `FINDING_SEVERITY` in context and hard rules
+- [x] All unit tests pass with `-race`
+- [x] Worklog written
