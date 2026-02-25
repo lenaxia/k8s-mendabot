@@ -123,7 +123,7 @@ exposed to the main agent container.
 kubectl create namespace mendabot
 ```
 
-#### a. github-app
+#### github-app
 
 The `github-app` Secret must contain three keys:
 
@@ -134,13 +134,13 @@ metadata:
   name: github-app
   namespace: mendabot
 data:
-  app-id: <GitHub App ID>           # numeric ID shown on the App settings page
+  app-id: 2917483           # numeric ID shown on the App settings page
   installation-id: <Installation ID> # numeric ID from the installation URL (see below)
   private-key: |
     <PEM-encoded RSA private key>
 ```
 
-The **App ID** is shown on `https://github.com/settings/apps/<your-app-name>`.
+The **App ID** is shown on `https://github.com/settings/apps/k8s-mendabot`.
 
 The **Installation ID** is the numeric suffix in the URL when you view your app's
 installation: `https://github.com/organizations/<org>/settings/installations/<id>`
@@ -152,7 +152,7 @@ The private key is used only in the agent Job's init container to exchange a
 short-lived installation token (1-hour TTL). It is never injected into the main
 agent container.
 
-#### b. llm-credentials-opencode
+#### llm-credentials-opencode
 
 The `llm-credentials-opencode` secret holds the full
 [OpenCode config](https://opencode.ai/docs) as its `provider-config` key.
