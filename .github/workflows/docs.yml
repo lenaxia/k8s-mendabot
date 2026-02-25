@@ -1,0 +1,100 @@
+name: Docs — check generated files are up to date
+
+on:
+  pull_request:
+    paths:
+      - 'api/**'
+      - 'charts/mendabot/values.yaml'
+      - 'charts/mendabot/README.md.gotmpl'
+      - 'charts/mendabot/Chart.yaml'
+      - 'docs/crd-ref-docs-config.yaml'
+      - 'Makefile'
+  push:
+    branches: [main]
+    paths:
+      - 'api/**'
+      - 'charts/mendabot/values.yaml'
+      - 'charts/mendabot/README.md.gotmpl'
+      - 'charts/mendabot/Chart.yaml'
+      - 'docs/crd-ref-docs-config.yaml'
+      - 'Makefile'
+
+permissions:
+  contents: read
+
+jobs:
+  docs-check:
+    name: Check generated docs
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@a5f9b05d2d216f63e13859e0d847461041025775 # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # ── helm-docs ────────────────────────────────────────────────────────────
+      - name: Install helm-docs v1.14.2
+        run: |
+          set -euo pipefail
+          VERSION=v1.14.2
+          ARCHIVE=helm-docs_1.14.2_Linux_x86_64.tar.gz
+          curl -fsSL "https://github.com/norwoodj/helm-docs/releases/download/${VERSION}/${ARCHIVE}" \
+            -o /tmp/helm-docs.tar.gz
+          # Verify checksum from official release
+          EXPECTED=$(curl -fsSL "https://github.com/norwoodj/helm-docs/releases/download/${VERSION}/helm-docs_1.14.2_checksums.txt" \
+            | grep "${ARCHIVE}" | awk '{print $1}')
+          ACTUAL=$(sha256sum /tmp/helm-docs.tar.gz | awk '{print $1}')
+          if [ "$EXPECTED" != "$ACTUAL" ]; then
+            echo "helm-docs checksum mismatch: expected $EXPECTED, got $ACTUAL"
+            exit 1
+          fi
+          tar -xzf /tmp/helm-docs.tar.gz -C /tmp helm-docs
+          sudo mv /tmp/helm-docs /usr/local/bin/helm-docs
+          helm-docs --version
+
+      # ── crd-ref-docs ─────────────────────────────────────────────────────────
+      - name: Install crd-ref-docs v0.3.0
+        run: |
+          set -euo pipefail
+          VERSION=v0.3.0
+          ARCHIVE=crd-ref-docs_0.3.0_Linux_x86_64.tar.gz
+          curl -fsSL "https://github.com/elastic/crd-ref-docs/releases/download/${VERSION}/${ARCHIVE}" \
+            -o /tmp/crd-ref-docs.tar.gz
+          EXPECTED=$(curl -fsSL "https://github.com/elastic/crd-ref-docs/releases/download/${VERSION}/checksums.txt" \
+            | grep "${ARCHIVE}" | awk '{print $1}')
+          ACTUAL=$(sha256sum /tmp/crd-ref-docs.tar.gz | awk '{print $1}')
+          if [ "$EXPECTED" != "$ACTUAL" ]; then
+            echo "crd-ref-docs checksum mismatch: expected $EXPECTED, got $ACTUAL"
+            exit 1
+          fi
+          tar -xzf /tmp/crd-ref-docs.tar.gz -C /tmp crd-ref-docs
+          sudo install -m 0755 /tmp/crd-ref-docs /usr/local/bin/crd-ref-docs
+          crd-ref-docs --version
+
+      # ── controller-gen ───────────────────────────────────────────────────────
+      - name: Install controller-gen v0.20.1
+        run: |
+          go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.20.1
+
+      # ── regenerate and diff ──────────────────────────────────────────────────
+      - name: Regenerate all docs
+        run: make docs generate
+
+      - name: Fail if generated files are stale
+        run: |
+          git diff --exit-code \
+            charts/mendabot/README.md \
+            docs/api-reference.md \
+            charts/mendabot/crds/ \
+            testdata/crds/ \
+            || (echo "" && \
+                echo "ERROR: generated docs are out of date." && \
+                echo "Run 'make docs generate' locally and commit the updated files." && \
+                exit 1)

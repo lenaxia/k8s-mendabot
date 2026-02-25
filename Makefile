@@ -8,6 +8,7 @@ KIND_CLUSTER  ?= mendabot-dev
 .PHONY: build test lint lint-full lint-security lint-security-report \
         lint-secrets install-hooks \
         scan-watcher scan-agent \
+        generate docs-helm docs-crd docs-check \
         dev-cluster dev-cluster-destroy help
 
 ## build: compile watcher binary
@@ -81,3 +82,34 @@ dev-cluster-destroy:
 ## help: list available targets
 help:
 	@grep -E '^## ' Makefile | sed 's/## /  /'
+
+## generate: run controller-gen to regenerate CRD manifests from kubebuilder markers
+generate:
+	@which controller-gen > /dev/null 2>&1 || go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.20.1
+	controller-gen crd:generateEmbeddedObjectMeta=true paths=./api/... output:crd:artifacts:config=charts/mendabot/crds
+	cp charts/mendabot/crds/remediation.mendabot.io_remediationjobs.yaml testdata/crds/remediationjob_crd.yaml
+
+## docs-helm: regenerate charts/mendabot/README.md from values.yaml and README.md.gotmpl
+docs-helm:
+	helm-docs --chart-search-root charts/ --template-files README.md.gotmpl
+
+## docs-crd: generate docs/api-reference.md from Go types in api/v1alpha1/
+docs-crd:
+	crd-ref-docs \
+		--source-path api/v1alpha1 \
+		--config docs/crd-ref-docs-config.yaml \
+		--renderer=markdown \
+		--output-path docs/api-reference.md
+
+## docs: regenerate all auto-generated documentation
+docs: docs-helm docs-crd
+
+## docs-check: fail if any generated docs are out of date (used in CI)
+docs-check:
+	@$(MAKE) docs generate
+	@git diff --exit-code \
+		charts/mendabot/README.md \
+		docs/api-reference.md \
+		charts/mendabot/crds/ \
+		testdata/crds/ \
+		|| (echo "\nERROR: generated docs are out of date. Run 'make docs generate' locally and commit the results." && exit 1)

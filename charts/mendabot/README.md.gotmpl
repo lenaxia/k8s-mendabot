@@ -1,0 +1,75 @@
+{{ template "chart.header" . }}
+
+{{ template "chart.deprecationWarning" . }}
+
+{{ template "chart.badgesSection" . }}
+
+{{ template "chart.description" . }}
+
+## TL;DR
+
+```sh
+helm install mendabot charts/mendabot/ \
+  --namespace mendabot \
+  --set gitops.repo=myorg/my-gitops-repo \
+  --set gitops.manifestRoot=kubernetes
+```
+
+## Prerequisites
+
+- Kubernetes >= 1.28
+- Helm >= 3.14
+- A GitHub App with Contents (write), Pull Requests (write), and Issues (write) permissions installed on your GitOps repository
+- An OpenAI-compatible LLM API key
+
+## Installing the Chart
+
+Create the required Secrets before installing:
+
+```sh
+kubectl create namespace mendabot
+
+# GitHub App credentials
+kubectl create secret generic github-app \
+  --namespace mendabot \
+  --from-literal=app-id=<APP_ID> \
+  --from-literal=installation-id=<INSTALLATION_ID> \
+  --from-literal=private-key="$(cat /path/to/private-key.pem)"
+
+# LLM credentials (OpenAI example)
+kubectl create secret generic llm-credentials-opencode \
+  --namespace mendabot \
+  --from-literal=provider-config='{"$schema":"https://opencode.ai/config.json","provider":{"openai":{"apiKey":"sk-..."}},"model":"openai/gpt-4o"}'
+```
+
+Then install:
+
+```sh
+helm install mendabot charts/mendabot/ \
+  --namespace mendabot \
+  --set gitops.repo=myorg/my-gitops-repo \
+  --set gitops.manifestRoot=kubernetes
+```
+
+## Upgrading
+
+```sh
+helm upgrade mendabot charts/mendabot/ --namespace mendabot
+```
+
+## Uninstalling
+
+```sh
+helm uninstall mendabot --namespace mendabot
+kubectl delete crd remediationjobs.remediation.mendabot.io
+```
+
+## Configuration
+
+{{ template "chart.valuesSection" . }}
+
+## Source Code
+
+{{ template "chart.sourcesSection" . }}
+
+{{ template "chart.maintainersSection" . }}

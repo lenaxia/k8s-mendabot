@@ -1,139 +1,97 @@
 # mendabot Helm chart values
 # All fields are optional except gitops.repo and gitops.manifestRoot.
-# See README.md for a full configuration reference.
 
-# Watcher image configuration
+# -- Watcher image repository
 image:
+  # -- Watcher image repository
   repository: ghcr.io/lenaxia/mendabot-watcher
-  # tag defaults to Chart.appVersion when empty
+  # -- Watcher image tag. Defaults to `Chart.appVersion` when empty.
   tag: ""
+  # -- Image pull policy
   pullPolicy: IfNotPresent
 
-# Agent image configuration.
-# Tag defaults to Chart.appVersion when empty.
-# Watcher and agent images are always released together — do not pin them to
-# different versions.
+# @section Agent image
 agent:
   image:
+    # -- Agent image repository. Watcher and agent images are always released together — do not pin them to different versions.
     repository: ghcr.io/lenaxia/mendabot-agent
+    # -- Agent image tag. Defaults to `Chart.appVersion` when empty.
     tag: ""
 
-# GitOps repository configuration (both fields are required)
+# @section GitOps repository
 gitops:
-  # GitHub repository in org/repo format (e.g. "myorg/my-gitops-repo")
+  # -- GitHub repository in `org/repo` format (e.g. `"myorg/my-gitops-repo"`). **Required.**
   repo: ""
-  # Path within the repository containing Kubernetes manifests
+  # -- Path within the repository containing Kubernetes manifests. **Required.**
   manifestRoot: ""
 
-# Watcher operational tuning
+# @section Watcher operational tuning
 watcher:
-  # Seconds to wait after first detecting a failure before creating a RemediationJob.
-  # Set to 0 to disable the stabilisation window and create jobs immediately.
+  # -- Seconds to wait after first detecting a failure before creating a RemediationJob. Set to `0` to dispatch immediately.
   stabilisationWindowSeconds: 120
-  # Maximum number of agent Jobs running concurrently.
+  # -- Maximum number of agent Jobs running concurrently.
   maxConcurrentJobs: 3
-  # Time-to-live for completed RemediationJob objects (seconds). Default: 7 days.
+  # -- Time-to-live for completed RemediationJob objects in seconds. Default is 7 days.
   remediationJobTTLSeconds: 604800
-  # Sink type for PR creation. Currently only "github" is supported.
+  # -- Sink type for PR creation. Currently only `"github"` is supported.
   sinkType: github
-  # Zap log level: debug, info, warn, error
+  # -- Zap log level. One of `debug`, `info`, `warn`, `error`.
   logLevel: info
-  # LLM readiness gate. Set to "openai" to enable the gate; leave empty to disable.
-  # When enabled, RemediationJob creation is blocked until the llm-credentials-<agentType>
-  # Secret exists with the required keys. Accepted values: "openai", "" (disabled).
+  # -- LLM readiness gate. Set to `"openai"` to block RemediationJob creation until the `llm-credentials-<agentType>` Secret exists. Leave empty to disable.
   llmProvider: "openai"
-  # Injection detection action: "log" (default) or "suppress".
-  # Controls what happens when a finding is detected during an active remediation.
+  # -- Action when a prompt injection heuristic fires. One of `"log"` (default) or `"suppress"` (silently drops the finding).
   injectionDetectionAction: "log"
-  # Maximum number of investigation retries per RemediationJob before permanently failing.
+  # -- Maximum number of investigation retries per RemediationJob before permanently failing.
   maxInvestigationRetries: "3"
-  # RBAC scope for cluster watching: "cluster" (default) or "namespace".
-  # When set to "namespace", agentWatchNamespaces must also be set.
+  # -- RBAC scope for the agent Job. One of `"cluster"` (default) or `"namespace"`. When `"namespace"`, `agentWatchNamespaces` must also be set.
   agentRBACScope: "cluster"
-  # Comma-separated list of namespaces for the agent RBAC scope. Required when agentRBACScope=namespace.
-  # Example: "production,staging"
+  # -- Comma-separated list of namespaces for namespace-scoped agent RBAC. Required when `agentRBACScope=namespace`. Example: `"production,staging"`.
   agentWatchNamespaces: ""
-  # Comma-separated list of namespaces the watcher should monitor for failures.
-  # Empty (default) means watch all namespaces.
-  # Example: "production,staging"
+  # -- Comma-separated list of namespaces the watcher monitors for failures. Empty means all namespaces.
   watchNamespaces: ""
-  # Comma-separated list of namespaces the watcher should ignore.
-  # Empty (default) means exclude no namespaces.
-  # Example: "kube-system,monitoring"
+  # -- Comma-separated list of namespaces the watcher ignores. Empty means no exclusions. Example: `"kube-system,monitoring"`.
   excludeNamespaces: ""
 
-# Agent runner type. Controls which AI agent binary runs inside the Job.
-# Supported values: "opencode", "claude" (claude is a stub — not yet functional)
-# Default: "opencode"
-#
-# Each agent type requires a corresponding Secret named "llm-credentials-<agentType>"
-# with keys:
-#   provider-config — full agent-runner config JSON (opaque blob; never interpreted by mendabot)
-#                     includes the model name, endpoint URL, and all provider-specific config
-#
-# See NOTES.txt for the exact kubectl create secret commands per agent type.
+# -- Agent runner type. Controls which AI agent binary runs inside the Job. Supported values: `"opencode"` (functional), `"claude"` (stub — not yet functional). Each type requires a corresponding Secret named `llm-credentials-<agentType>`. See `NOTES.txt` for the exact `kubectl create secret` commands.
 agentType: opencode
 
-# Pre-existing Secrets that must be created before helm install.
-# The chart never creates Secret content.
-#
-# IMPORTANT: The Secret name is derived from agentType at runtime:
-#   "llm-credentials-<agentType>"  (e.g. "llm-credentials-opencode")
-# This name is a compile-time constant in internal/jobbuilder/job.go.
-# Any operator that changes agentType without creating the corresponding Secret
-# will see CreateContainerConfigError on every agent Job.
-#
-#   Secret "github-app"                — keys: app-id, installation-id, private-key
-#   Secret "llm-credentials-opencode"  — keys: provider-config
-#   Secret "llm-credentials-claude"    — keys: provider-config
-#
-# See NOTES.txt for the exact kubectl create secret commands.
-secrets: {}  # placeholder — no configurable fields; names are derived from agentType in job.go
+# -- Pre-existing Secrets that must be created before `helm install`. The chart never creates Secret content. Secret names are derived from `agentType` at runtime: `llm-credentials-<agentType>`. Required Secrets: `github-app` (keys: `app-id`, `installation-id`, `private-key`), `llm-credentials-opencode` (key: `provider-config`).
+secrets: {}
 
-# Prompt configuration
+# @section Prompt overrides
 prompt:
-  # Full core prompt content override. When non-empty, replaces the built-in core prompt.
+  # -- Full core prompt content override. When non-empty, replaces the built-in core prompt mounted from the ConfigMap.
   coreOverride: ""
-  # Full agent-specific prompt content override. When non-empty, replaces the built-in
-  # agent prompt for the selected agentType.
+  # -- Full agent-specific prompt content override. When non-empty, replaces the built-in agent prompt for the selected `agentType`.
   agentOverride: ""
 
-# Network policy for agent Jobs.
-# When enabled, restricts agent Job pod egress to DNS, the Kubernetes API server,
-# and HTTPS (port 443) for GitHub and the LLM endpoint.
-# Requires a CNI that enforces NetworkPolicy (Cilium, Calico, etc.).
+# @section Network policy
 networkPolicy:
+  # -- Enable NetworkPolicy to restrict agent Job egress to the cluster API server, GitHub (`443/tcp`), and the LLM endpoint. Requires a CNI that enforces NetworkPolicy (Cilium, Calico, etc.).
   enabled: false
-  # Port used by the Kubernetes API server. Standard is 6443; some distributions use 443.
+  # -- Port used by the Kubernetes API server. Standard is `6443`; some distributions use `443`.
   apiServerPort: 6443
-  # Optional additional egress rules appended verbatim to the NetworkPolicy spec.
-  # Use to restrict the LLM endpoint to a known CIDR, for example:
-  # additionalEgressRules:
-  # - to:
-  #   - ipBlock:
-  #       cidr: 203.0.113.0/24
-  #   ports:
-  #   - port: 443
-  #     protocol: TCP
+  # -- Optional additional egress rules appended verbatim to the NetworkPolicy spec. Use to restrict the LLM endpoint to a known CIDR.
   additionalEgressRules: []
 
-# RBAC resource creation. Set to false if you manage RBAC externally.
+# @section RBAC
 rbac:
+  # -- Create RBAC resources. Set to `false` if you manage RBAC externally.
   create: true
 
-# Create the Release.Namespace if it does not exist.
-# Default false — most operators pre-create namespaces.
+# -- Create `Release.Namespace` if it does not exist. Most operators pre-create namespaces; default is `false`.
 createNamespace: false
 
-# Prometheus metrics configuration
+# @section Metrics
 metrics:
-  # Expose a metrics Service on port 8080. Required for ServiceMonitor.
+  # -- Expose a metrics Service on port `8080`. Required for ServiceMonitor.
   enabled: false
   serviceMonitor:
-    # Create a ServiceMonitor CR for Prometheus Operator.
-    # Requires metrics.enabled: true and Prometheus Operator installed.
+    # -- Create a Prometheus Operator `ServiceMonitor` CR. Requires `metrics.enabled: true` and Prometheus Operator installed.
     enabled: false
+    # -- Prometheus scrape interval.
     interval: 30s
+    # -- Prometheus scrape timeout.
     scrapeTimeout: 10s
-    # Additional labels to add to the ServiceMonitor (e.g. for Prometheus selector)
+    # -- Additional labels to add to the ServiceMonitor (e.g. for a Prometheus label selector).
     labels: {}

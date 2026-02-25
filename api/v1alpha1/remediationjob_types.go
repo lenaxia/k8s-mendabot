@@ -1,6 +1,6 @@
 package v1alpha1
 
-//go:generate go run sigs.k8s.io/controller-tools/cmd/controller-gen@latest crd paths=./... output:crd:artifacts:config=../../charts/mendabot/crds
+//go:generate make -C ../.. generate
 
 import (
 	"fmt"
