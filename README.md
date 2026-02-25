@@ -123,6 +123,8 @@ exposed to the main agent container.
 kubectl create namespace mendabot
 ```
 
+#### a. github-app
+
 The `github-app` Secret must contain three keys:
 
 ```yaml
@@ -149,6 +151,8 @@ with the App JWT.
 The private key is used only in the agent Job's init container to exchange a
 short-lived installation token (1-hour TTL). It is never injected into the main
 agent container.
+
+#### b. llm-credentials-opencode
 
 The `llm-credentials-opencode` secret holds the full
 [OpenCode config](https://opencode.ai/docs) as its `provider-config` key.
