@@ -1,8 +1,8 @@
 # mendabot
 
-![Version: 0.3.10](https://img.shields.io/badge/Version-0.3.10-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v0.3.10](https://img.shields.io/badge/AppVersion-v0.3.10-informational?style=flat-square)
+![Version: 0.3.13](https://img.shields.io/badge/Version-0.3.13-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v0.3.13](https://img.shields.io/badge/AppVersion-v0.3.13-informational?style=flat-square)
 
-Kubernetes-native SRE remediation bot
+Kubernetes-native SRE remediation bot — watches cluster failures, spawns an LLM agent, and opens GitOps pull requests with proposed fixes.
 
 ## TL;DR
 
