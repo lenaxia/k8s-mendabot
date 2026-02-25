@@ -189,8 +189,8 @@ The circuit breaker must be constructed **after the manager is created**
 (`mgr, err := ctrl.NewManager(...)` at `cmd/watcher/main.go:97`) because it
 needs `mgr.GetClient()`. Placing it before the manager is a compile error.
 
-Insert the circuit breaker construction **between the readiness checker block
-(ends ~line 142) and the `enabledProviders` slice definition (~line 155)**:
+Insert the circuit breaker construction **between line 142 (`combinedChecker :=
+readiness.All(...)`) and line 155 (`nativeClient := mgr.GetClient()`)**:
 
 ```go
 var cb circuitbreaker.Gater
@@ -208,15 +208,27 @@ Add the import `"github.com/lenaxia/k8s-mendabot/internal/circuitbreaker"`.
 
 ## Placement of the gate in `Reconcile`
 
-The gate must come **after** the injection-detection checks and **before** the
-fingerprint computation. Placing it after injection detection ensures we do not
-call the circuit breaker on injected content. Placing it before fingerprint
-computation and the deduplication list query avoids unnecessary API calls for
-findings we will discard anyway.
+The gate must come **after** namespace filtering and severity filtering, and
+**before** the fingerprint computation. This ensures:
+- A self-remediation finding suppressed by namespace/severity rules never
+  reaches the circuit breaker (no wasted state writes).
+- The circuit breaker is only consulted for findings that would otherwise
+  proceed to create a `RemediationJob`.
 
-The exact insertion point in `internal/provider/provider.go` is after line 167
-(the closing `}` of the second `domain.DetectInjection(finding.Details)` block)
-and before line 169 (`fp, err := domain.FindingFingerprint(finding)`).
+The exact insertion point in `internal/provider/provider.go` is **after line
+238** (the closing `}` of the severity threshold block) and **before line 240**
+(`fp, err := domain.FindingFingerprint(finding)`).
+
+For reference, the surrounding structure at the time of implementation:
+```
+line 167: }  ← closing } of DetectInjection(finding.Details) outer block
+...
+line 219: }  ← namespace filter block ends
+...
+line 238: }  ← severity check block ends
+line 239:    ← INSERT DEPTH GATE HERE
+line 240: fp, err := domain.FindingFingerprint(finding)
+```
 
 ---
 

@@ -63,7 +63,9 @@ jobProvider.ExtractFinding()           [STORY_02]
   │
   ▼
 SourceProviderReconciler.Reconcile()   [STORY_03]
-  - if ChainDepth > cfg.SelfRemediationMaxDepth → return (done)
+  - namespace + severity filters (existing gates)
+  - if ChainDepth > 0 AND maxDepth == 0 → suppressed (self-remediation disabled)
+  - if ChainDepth > 0 AND ChainDepth > maxDepth → suppressed (depth exceeded)
   - if ChainDepth > 0 → call circuitBreaker.ShouldAllow()
       → if blocked → return RequeueAfter(remaining)
   - creates RemediationJob{..., Spec.Finding.ChainDepth: N}

@@ -85,6 +85,7 @@ package circuitbreaker
 
 import (
     "context"
+    "fmt"
     "sync"
     "time"
 
@@ -146,12 +147,22 @@ func (cb *CircuitBreaker) ShouldAllow(ctx context.Context) (bool, time.Duration,
         }
     }
 
-    cb.lastAllowed = time.Now()
-    if err := cb.saveState(ctx); err != nil {
+    now := time.Now()
+    if err := cb.saveState(ctx, now); err != nil {
         return false, 0, err
     }
+    cb.lastAllowed = now  // only update in-memory state after successful persist
     return true, 0, nil
 }
+```
+
+Note: `saveState` is updated to accept the timestamp as a parameter rather
+than reading `cb.lastAllowed`, so the two are set atomically only on success.
+Update `saveState`'s signature accordingly:
+```go
+func (cb *CircuitBreaker) saveState(ctx context.Context, t time.Time) error {
+    ts := t.UTC().Format(time.RFC3339)
+    // ... rest of saveState unchanged
 ```
 
 **`loadState`** — reads `mendabot-circuit-breaker` ConfigMap; on `IsNotFound`,
@@ -159,14 +170,45 @@ leaves `lastAllowed` as zero and returns nil. On any other error, returns the
 error. Parses `data["last-self-remediation"]` as RFC3339 into `cb.lastAllowed`.
 If the key is absent or empty, leaves `lastAllowed` as zero.
 
+```go
+func (cb *CircuitBreaker) loadState(ctx context.Context) error {
+    var cm corev1.ConfigMap
+    if err := cb.client.Get(ctx, client.ObjectKey{Namespace: cb.namespace, Name: configMapName}, &cm); err != nil {
+        if apierrors.IsNotFound(err) {
+            return nil
+        }
+        return fmt.Errorf("circuitbreaker: load state: %w", err)
+    }
+    ts, ok := cm.Data[timestampKey]
+    if !ok || ts == "" {
+        return nil
+    }
+    t, err := time.Parse(time.RFC3339, ts)
+    if err != nil {
+        return fmt.Errorf("circuitbreaker: parse timestamp %q: %w", ts, err)
+    }
+    cb.lastAllowed = t
+    return nil
+}
+```
+
 **`saveState`** — `client.Patch` cannot create a non-existent object, so use
 a two-path approach: attempt `client.Create`; if the ConfigMap already exists
 (`IsAlreadyExists`), fetch the current version with `client.Get` and call
 `client.Update` with the updated timestamp. Do not use `client.Patch` here.
 
+**Known limitation:** There is a narrow TOCTOU window between the `Get` in the
+`IsAlreadyExists` path and the subsequent `Update` — if the ConfigMap is deleted
+by an external actor in that window, `Update` returns Not Found and `saveState`
+returns an error. This is acceptable: the error propagates to `ShouldAllow`,
+which returns it to `Reconcile`, which requeues. On the next reconcile,
+`initialized` is still `true` and `lastAllowed` is still the old value (because
+`cb.lastAllowed` is only written after a successful `saveState`), so the
+operation is retried cleanly.
+
 ```go
-func (cb *CircuitBreaker) saveState(ctx context.Context) error {
-    ts := cb.lastAllowed.UTC().Format(time.RFC3339)
+func (cb *CircuitBreaker) saveState(ctx context.Context, t time.Time) error {
+    ts := t.UTC().Format(time.RFC3339)
     cm := &corev1.ConfigMap{
         ObjectMeta: metav1.ObjectMeta{
             Name:      configMapName,
@@ -279,14 +321,37 @@ fakeClient := fake.NewClientBuilder().
 | First call, CM with recent timestamp | CM timestamp = 1 min ago, cooldown = 5 min | blocked; remaining ≈ 4 min |
 | Second call within cooldown | Call once (allowed), call again immediately with cooldown = 1h | blocked |
 | CM does not exist, Create error | Interceptor injects Create error | error returned |
-| CM exists, Get error on update path | Interceptor injects Get error after AlreadyExists | error returned |
-| CM exists, Update error | Interceptor injects Update error | error returned |
+| CM exists, Get error on update path | Stateful interceptor: Create returns AlreadyExists, Get returns error (requires a call-count closure — see note below) | error returned |
+| CM exists, Update error | Stateful interceptor: Create returns AlreadyExists, Get succeeds, Update returns error | error returned |
 | loadState parse error | CM with `last-self-remediation: "not-a-timestamp"` | error returned |
 | Concurrent calls | Two goroutines; cooldown = 1h | no data race; exactly one allowed |
 
 The concurrent-call test requires `-race` to be meaningful. The "second call
 within cooldown" test must not use `time.Sleep` — set cooldown to 1 hour and
 call twice in immediate succession.
+
+**Note on stateful interceptors:** The "CM exists, Get error on update path"
+and "CM exists, Update error" test cases require the interceptor to behave
+differently on the first `Create` call (return `AlreadyExists`) versus the
+subsequent `Get` or `Update` call. Implement using a closure over a call
+counter:
+
+```go
+createCalled := 0
+fakeClient := fake.NewClientBuilder().
+    WithScheme(scheme).
+    WithObjects(existingCM).
+    WithInterceptorFuncs(interceptor.Funcs{
+        Create: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
+            createCalled++
+            return apierrors.NewAlreadyExists(schema.GroupResource{Resource: "configmaps"}, configMapName)
+        },
+        Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+            return fmt.Errorf("injected get error")
+        },
+    }).
+    Build()
+```
 
 ---
 

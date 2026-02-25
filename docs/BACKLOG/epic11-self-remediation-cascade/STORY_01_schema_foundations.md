@@ -45,9 +45,18 @@ Without these additions no other story in this epic can be implemented.
   `../../testdata/crds` (resolving to `testdata/crds/` at repo root). This is
   also the path used by `internal/provider/suite_test.go`.
 - [ ] `SourceProviderReconciler` in `internal/provider/provider.go` maps the
-  new field when building `RemediationJobSpec.Finding`:
+  new field when building `RemediationJobSpec.Finding`. The `FindingSpec`
+  struct literal is at lines 403–410; add `ChainDepth` after `Details`:
   ```go
-  ChainDepth: int32(finding.ChainDepth),
+  Finding: v1alpha1.FindingSpec{
+      Kind:         finding.Kind,
+      Name:         finding.Name,
+      Namespace:    finding.Namespace,
+      ParentObject: finding.ParentObject,
+      Errors:       finding.Errors,
+      Details:      finding.Details,
+      ChainDepth:   int32(finding.ChainDepth),  // ← add this line
+  },
   ```
   This is the only change required in `provider.go` for this story.
 - [ ] All existing tests still pass (`go test -timeout 30s -race ./...`).
@@ -75,16 +84,20 @@ Without these additions no other story in this epic can be implemented.
 
 ## Testing Requirements
 
-**Unit tests** (`internal/domain/provider_test.go` or nearest appropriate file):
+**Unit tests** (`internal/domain/provider_test.go` — this file exists at repo
+root `internal/domain/provider_test.go`):
 - `FindingFingerprint` is unaffected by `ChainDepth` (depth is not part of the
   deduplication key — two findings that differ only in chain depth must produce
   the same fingerprint).
 
 **Integration tests** (`internal/controller/`):
 - Existing controller integration tests must still pass with no changes.
-- Add one case: create a `RemediationJob` with `ChainDepth: 2` and verify the
-  field survives a round-trip through the envtest API server (confirming the CRD
-  schema accepts it).
+- Add one new test function that creates a `RemediationJob` with
+  `Spec.Finding.ChainDepth: 2` via the envtest API server (`k8sClient.Create`)
+  and reads it back (`k8sClient.Get`), asserting the field value is preserved.
+  There is no existing field round-trip test to copy from; write it from scratch
+  following the `k8sClient.Create` / `k8sClient.Get` pattern used in the
+  existing suite.
 
 ---
 
