@@ -12,8 +12,19 @@ RUN mkdir -p /out /build \
     && go get filippo.io/age/cmd/age-keygen@v${AGE_VERSION} \
     && CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
        go build -trimpath -o /out/age filippo.io/age/cmd/age \
-    && CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
+     && CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
        go build -trimpath -o /out/age-keygen filippo.io/age/cmd/age-keygen
+
+# ── redact build stage — compiles cmd/redact filter binary ──────────────────
+FROM golang:1.25.7-bookworm@sha256:0b5f101af6e4f905da4e1c5885a76b1e7a9fbc97b1a41d971dbcab7be16e70a1 AS redact-builder
+ARG TARGETARCH=amd64
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN mkdir -p /out \
+    && CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
+       go build -trimpath -o /out/redact ./cmd/redact
 
 # ── Runtime image ─────────────────────────────────────────────────────────────
 FROM debian:bookworm-slim@sha256:6458e6ce2b6448e31bfdced4be7d8aa88d389e6694ab09f5a718a694abe147f4
@@ -59,6 +70,9 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     && apt-get update \
     && apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/*
+
+# Verify gh is at the expected absolute path used by the gh wrapper script
+RUN test -x /usr/bin/gh || (echo "[ERROR] gh not found at /usr/bin/gh" >&2 && exit 1)
 
 # kubectl — with SHA256 verification
 RUN curl -fsSL "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${TARGETARCH}/kubectl" \
@@ -149,6 +163,38 @@ RUN ARCH=$([ "$TARGETARCH" = "amd64" ] && echo "x64" || echo "arm64") \
     && echo "${EXPECTED}  /tmp/opencode.tar.gz" | sha256sum --check \
     && tar -xz -C /usr/local/bin -f /tmp/opencode.tar.gz opencode \
     && rm /tmp/opencode.tar.gz
+
+# ── Redaction wrappers ────────────────────────────────────────────────────────
+# Rename real binaries so wrappers can shadow them at the original PATH entry.
+# gh: installed by apt to /usr/bin/gh — not renamed here; wrapper at /usr/local/bin/gh
+#   calls /usr/bin/gh directly (verified by test -x /usr/bin/gh assertion above).
+# age/age-keygen: compiled from source via age-builder COPY — rename happens here,
+#   after all COPY --from=age-builder instructions have run.
+RUN mv /usr/local/bin/kubectl       /usr/local/bin/kubectl.real       \
+    && mv /usr/local/bin/helm        /usr/local/bin/helm.real          \
+    && mv /usr/local/bin/flux        /usr/local/bin/flux.real          \
+    && mv /usr/local/bin/sops        /usr/local/bin/sops.real          \
+    && mv /usr/local/bin/talosctl    /usr/local/bin/talosctl.real      \
+    && mv /usr/local/bin/yq          /usr/local/bin/yq.real            \
+    && mv /usr/local/bin/stern       /usr/local/bin/stern.real         \
+    && mv /usr/local/bin/kubeconform /usr/local/bin/kubeconform.real   \
+    && mv /usr/local/bin/kustomize   /usr/local/bin/kustomize.real     \
+    && mv /usr/local/bin/age         /usr/local/bin/age.real           \
+    && mv /usr/local/bin/age-keygen  /usr/local/bin/age-keygen.real
+
+COPY --chmod=755 --from=redact-builder /out/redact          /usr/local/bin/redact
+COPY --chmod=755 docker/scripts/redact-wrappers/kubectl     /usr/local/bin/kubectl
+COPY --chmod=755 docker/scripts/redact-wrappers/helm        /usr/local/bin/helm
+COPY --chmod=755 docker/scripts/redact-wrappers/flux        /usr/local/bin/flux
+COPY --chmod=755 docker/scripts/redact-wrappers/gh          /usr/local/bin/gh
+COPY --chmod=755 docker/scripts/redact-wrappers/sops        /usr/local/bin/sops
+COPY --chmod=755 docker/scripts/redact-wrappers/talosctl    /usr/local/bin/talosctl
+COPY --chmod=755 docker/scripts/redact-wrappers/yq          /usr/local/bin/yq
+COPY --chmod=755 docker/scripts/redact-wrappers/stern       /usr/local/bin/stern
+COPY --chmod=755 docker/scripts/redact-wrappers/kubeconform /usr/local/bin/kubeconform
+COPY --chmod=755 docker/scripts/redact-wrappers/kustomize   /usr/local/bin/kustomize
+COPY --chmod=755 docker/scripts/redact-wrappers/age         /usr/local/bin/age
+COPY --chmod=755 docker/scripts/redact-wrappers/age-keygen  /usr/local/bin/age-keygen
 
 # Non-root user
 RUN useradd -u 1000 -m -s /bin/bash agent

@@ -4,7 +4,7 @@
 **Area:** Security
 **Branch:** `feature/epic25-tool-output-redaction`
 
-## Status: Not Started
+## Status: Complete
 
 ## Problem Statement
 
@@ -129,8 +129,8 @@ Tools explicitly NOT wrapped (would break init container or entrypoint scripts):
 
 | Story | File | Status | Priority | Effort |
 |-------|------|--------|----------|--------|
-| `cmd/redact` filter binary | [STORY_01_redact_binary.md](STORY_01_redact_binary.md) | Not Started | Critical | 2h |
-| Shell wrapper scripts | [STORY_02_wrapper_scripts.md](STORY_02_wrapper_scripts.md) | Not Started | Critical | 3h |
-| Dockerfile.agent integration | [STORY_03_dockerfile_integration.md](STORY_03_dockerfile_integration.md) | Not Started | Critical | 2h |
-| Wrapper integration tests | [STORY_04_integration_tests.md](STORY_04_integration_tests.md) | Not Started | High | 2h |
-| Security documentation | [STORY_05_security_docs.md](STORY_05_security_docs.md) | Not Started | Medium | 1h |
+| `cmd/redact` filter binary | [STORY_01_redact_binary.md](STORY_01_redact_binary.md) | Complete | Critical | 2h |
+| Shell wrapper scripts | [STORY_02_wrapper_scripts.md](STORY_02_wrapper_scripts.md) | Complete | Critical | 3h |
+| Dockerfile.agent integration | [STORY_03_dockerfile_integration.md](STORY_03_dockerfile_integration.md) | Complete | Critical | 2h |
+| Wrapper integration tests | [STORY_04_integration_tests.md](STORY_04_integration_tests.md) | Complete | High | 2h |
+| Security documentation | [STORY_05_security_docs.md](STORY_05_security_docs.md) | Complete | Medium | 1h |

@@ -2,7 +2,7 @@
 
 **Epic:** [epic25-tool-output-redaction](README.md)
 **Priority:** High
-**Status:** Not Started
+**Status:** Complete
 
 ---
 
@@ -17,24 +17,24 @@ in the wrapper layer is caught in CI.
 
 ## Acceptance Criteria
 
-- [ ] `docker/scripts/wrapper-test.sh <image>` exists and is executable
-- [ ] For each of the 12 wrapped tools, the script verifies:
+- [x] `docker/scripts/wrapper-test.sh <image>` exists and is executable
+- [x] For each of the 12 wrapped tools, the script verifies:
   - The wrapper script is present and executable at `/usr/local/bin/<tool>`
   - The real binary is present at `/usr/local/bin/<tool>.real` (or `/usr/bin/gh`
     for the apt-installed tool)
   - The `redact` binary is present and executable at `/usr/local/bin/redact`
-- [ ] The script runs a **functional redaction check** using `redact` directly:
+- [x] The script runs a **functional redaction check** using `redact` directly:
   - Pipes a string containing `password=hunter2` through `redact`
   - Verifies the output contains `[REDACTED]` and does not contain `hunter2`
-- [ ] The script verifies that `redact` preserves clean text unchanged (no false positives
+- [x] The script verifies that `redact` preserves clean text unchanged (no false positives
       on `CrashLoopBackOff`)
-- [ ] The script performs a **functional exit code passthrough test** using a stub binary
+- [x] The script performs a **functional exit code passthrough test** using a stub binary
       for all tools where the real binary can be intercepted via PATH (see §Exit code test)
-- [ ] `docker/scripts/smoke-test.sh` adds a single presence check for `/usr/local/bin/redact`
+- [x] `docker/scripts/smoke-test.sh` adds a single presence check for `/usr/local/bin/redact`
       only — all wrapper-specific checks live in `wrapper-test.sh`, not in `smoke-test.sh`
-- [ ] `build-agent.yaml` runs `wrapper-test.sh` after the existing smoke test step as a
+- [x] `build-agent.yaml` runs `wrapper-test.sh` after the existing smoke test step as a
       **separate CI step** — `smoke-test.sh` does NOT call `wrapper-test.sh`
-- [ ] `wrapper-test.sh` passes `shellcheck` with no errors
+- [x] `wrapper-test.sh` passes `shellcheck` with no errors
 
 ---
 
@@ -217,18 +217,18 @@ Add after the existing smoke test step:
 
 ## Definition of Done
 
-- [ ] `docker/scripts/wrapper-test.sh` exists and is executable
-- [ ] `wrapper-test.sh` passes `shellcheck` with no errors
-- [ ] Script passes when run against a correctly built image
-- [ ] Script fails (exit 1) when a wrapper is missing or `redact` is absent
-- [ ] Script fails when `redact` passes `hunter2` through unredacted
-- [ ] Script fails when a PATH-interceptable wrapper does not propagate exit code
-- [ ] `check_redact_filters` uses `-e REDACT_INPUT` (no shell injection risk)
-- [ ] `check_exec` uses single-quoted path inside `-c` string (no word-splitting)
-- [ ] Structure check greps for `'redact < '` (verifies actual pipe, not just the guard comment)
-- [ ] `gh` excluded from functional exit code loop (calls `/usr/bin/gh` by absolute path; documented in script)
-- [ ] All 11 PATH-interceptable tools covered in functional exit code loop
-- [ ] `smoke-test.sh` has exactly one new line: `check_binary redact`
-- [ ] `smoke-test.sh` does NOT call `wrapper-test.sh`
-- [ ] `build-agent.yaml` calls `wrapper-test.sh` as a separate step after smoke test
-- [ ] CI run succeeds end-to-end with new step
+- [x] `docker/scripts/wrapper-test.sh` exists and is executable
+- [x] `wrapper-test.sh` passes `shellcheck` with no errors
+- [x] Script passes when run against a correctly built image
+- [x] Script fails (exit 1) when a wrapper is missing or `redact` is absent
+- [x] Script fails when `redact` passes `hunter2` through unredacted
+- [x] Script fails when a PATH-interceptable wrapper does not propagate exit code
+- [x] `check_redact_filters` uses `-e REDACT_INPUT` (no shell injection risk)
+- [x] `check_exec` uses single-quoted path inside `-c` string (no word-splitting)
+- [x] Structure check greps for `'redact < '` (verifies actual pipe, not just the guard comment)
+- [x] `gh` excluded from functional exit code loop (calls `/usr/bin/gh` by absolute path; documented in script)
+- [x] All 11 PATH-interceptable tools covered in functional exit code loop
+- [x] `smoke-test.sh` has exactly one new line: `check_binary redact`
+- [x] `smoke-test.sh` does NOT call `wrapper-test.sh`
+- [x] `build-agent.yaml` calls `wrapper-test.sh` as a separate step after smoke test
+- [x] CI run succeeds end-to-end with new step

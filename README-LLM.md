@@ -862,6 +862,7 @@ kubectl apply -k deploy/kustomize/
 | `feature/epic11-13-deferred` | Epic 11 (cascade prevention) + Epic 13 (multi-signal correlation) — deferred | Deferred | 2026-02-23 |
 | `feature/epic12-security-remediation` | Epic 12 security gap remediation (findings 001–013) | Active | 2026-02-23 |
 | `feature/epic16-annotation-control` | Epic 16 per-resource annotation control (enabled, skip-until, priority) | Active | 2026-02-24 |
+| `feature/epic25-tool-output-redaction` | Epic 25 tool call output redaction (wrappers + cmd/redact) | Active | 2026-02-24 |
 **Merged branches:**
 
 | Branch | Purpose | Merged | Commit |

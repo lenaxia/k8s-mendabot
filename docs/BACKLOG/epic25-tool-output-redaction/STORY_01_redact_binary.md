@@ -2,7 +2,7 @@
 
 **Epic:** [epic25-tool-output-redaction](README.md)
 **Priority:** Critical
-**Status:** Not Started
+**Status:** Complete
 
 ---
 
@@ -29,13 +29,13 @@ source-level redaction and the tool-output redaction.
 
 ## Acceptance Criteria
 
-- [ ] `cmd/redact/main.go` exists; reads all of stdin, applies `domain.RedactSecrets`,
+- [x] `cmd/redact/main.go` exists; reads all of stdin, applies `domain.RedactSecrets`,
       writes to stdout; exits 0 on success, exits 1 only on I/O error (stdin read failure
       or stdout write failure)
-- [ ] `cmd/redact/main_test.go` covers all cases listed in §Test Cases below (TDD)
-- [ ] `go test -timeout 30s -race ./cmd/redact/...` passes
-- [ ] `go build ./cmd/redact` succeeds
-- [ ] Binary is a standalone static binary (CGO_ENABLED=0) suitable for COPY in Dockerfile
+- [x] `cmd/redact/main_test.go` covers all cases listed in §Test Cases below (TDD)
+- [x] `go test -timeout 30s -race ./cmd/redact/...` passes
+- [x] `go build ./cmd/redact` succeeds
+- [x] Binary is a standalone static binary (CGO_ENABLED=0) suitable for COPY in Dockerfile
 
 ---
 
@@ -110,8 +110,8 @@ process spawning, no `os.Exit` risk. Table-driven.
 
 ## Definition of Done
 
-- [ ] `cmd/redact/main.go` written **after** `cmd/redact/main_test.go` (TDD)
-- [ ] All test cases pass
-- [ ] `go test -timeout 30s -race ./cmd/redact/...` passes
-- [ ] `go build ./cmd/redact` succeeds
-- [ ] `go vet ./cmd/redact/...` reports no issues
+- [x] `cmd/redact/main.go` written **after** `cmd/redact/main_test.go` (TDD)
+- [x] All test cases pass
+- [x] `go test -timeout 30s -race ./cmd/redact/...` passes
+- [x] `go build ./cmd/redact` succeeds
+- [x] `go vet ./cmd/redact/...` reports no issues

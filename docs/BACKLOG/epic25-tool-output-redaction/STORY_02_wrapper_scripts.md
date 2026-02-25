@@ -2,7 +2,7 @@
 
 **Epic:** [epic25-tool-output-redaction](README.md)
 **Priority:** Critical
-**Status:** Not Started
+**Status:** Complete
 
 ---
 
@@ -43,18 +43,18 @@ that exit code.
 
 ## Acceptance Criteria
 
-- [ ] `docker/scripts/redact-wrappers/` directory contains one script per wrapped tool
-- [ ] Scripts: `kubectl`, `helm`, `flux`, `gh`, `sops`, `talosctl`, `yq`, `stern`,
+- [x] `docker/scripts/redact-wrappers/` directory contains one script per wrapped tool
+- [x] Scripts: `kubectl`, `helm`, `flux`, `gh`, `sops`, `talosctl`, `yq`, `stern`,
       `kubeconform`, `kustomize`, `age`, `age-keygen`
-- [ ] Each wrapper: calls real binary, captures combined stdout+stderr, pipes through
+- [x] Each wrapper: calls real binary, captures combined stdout+stderr, pipes through
       `redact`, preserves exit code, uses `trap` for temp file cleanup
-- [ ] Wrapper hard-fails with exit 1 + stderr message if `redact` binary is not found
+- [x] Wrapper hard-fails with exit 1 + stderr message if `redact` binary is not found
       in `PATH` (see §Hard-fail on missing redact below)
-- [ ] Wrapper hard-fails with exit 1 + stderr message if `mktemp` fails
-- [ ] `gh` wrapper calls `/usr/bin/gh` by absolute path (not `.real`)
-- [ ] All other wrappers call `<binary-name>.real` (resolved via PATH, lands in
+- [x] Wrapper hard-fails with exit 1 + stderr message if `mktemp` fails
+- [x] `gh` wrapper calls `/usr/bin/gh` by absolute path (not `.real`)
+- [x] All other wrappers call `<binary-name>.real` (resolved via PATH, lands in
       `/usr/local/bin/<tool>.real` after Dockerfile rename)
-- [ ] All wrapper scripts pass `shellcheck` with no errors
+- [x] All wrapper scripts pass `shellcheck` with no errors
 
 ---
 
@@ -149,11 +149,11 @@ private key to stdout. Both are direct credential-exposure vectors equivalent to
 
 ## Definition of Done
 
-- [ ] All 12 wrapper scripts exist in `docker/scripts/redact-wrappers/`
-- [ ] Each script is executable (`chmod +x` in Dockerfile — see STORY_03)
-- [ ] Each script contains the hard-fail guard (`command -v redact` check at top)
-- [ ] Each script contains the `mktemp` failure guard (`|| { ... exit 1; }`)
-- [ ] `shellcheck docker/scripts/redact-wrappers/*` passes with no errors
-- [ ] Manual review: `gh` wrapper calls `/usr/bin/gh`, all others call `<tool>.real`
-- [ ] Manual review: all wrappers use `trap` for cleanup
-- [ ] Manual review: no `set -e` in any wrapper (exit code preservation)
+- [x] All 12 wrapper scripts exist in `docker/scripts/redact-wrappers/`
+- [x] Each script is executable (`chmod +x` in Dockerfile — see STORY_03)
+- [x] Each script contains the hard-fail guard (`command -v redact` check at top)
+- [x] Each script contains the `mktemp` failure guard (`|| { ... exit 1; }`)
+- [x] `shellcheck docker/scripts/redact-wrappers/*` passes with no errors
+- [x] Manual review: `gh` wrapper calls `/usr/bin/gh`, all others call `<tool>.real`
+- [x] Manual review: all wrappers use `trap` for cleanup
+- [x] Manual review: no `set -e` in any wrapper (exit code preservation)

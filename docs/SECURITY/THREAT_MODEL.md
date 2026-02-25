@@ -134,9 +134,10 @@ techniques may bypass the heuristic detection patterns.
 
 ### AV-02: Credential Exposure via Error Text (HIGH risk)
 
-**Entry point:** Same as AV-01 — error messages from pods, deployments, nodes.
+**Entry point:** Same as AV-01 — error messages from pods, deployments, nodes. Also:
+tool call output returned verbatim by OpenCode's bash tool to the LLM context.
 
-**Data flow:**
+**Data flow (source path):**
 ```
 pod fails with message containing "DATABASE_URL=postgres://user:pass@host/db"
 → PodProvider extracts message → domain.RedactSecrets()
@@ -147,10 +148,23 @@ pod fails with message containing "DATABASE_URL=postgres://user:pass@host/db"
 → sent to LLM API (external service)
 ```
 
-**Controls in place:** `domain.RedactSecrets` with 6 regex patterns.
+**Data flow (tool call output path — epic25):**
+```
+agent calls kubectl get secret <name> -o yaml via OpenCode bash tool
+→ child_process.spawn() captures full stdout+stderr
+→ output returned verbatim to LLM context
+→ LLM context sent to external LLM API
+```
 
-**Residual risk:** Regex has false negatives for novel credential formats (e.g., env
-vars not matching the `key=value` pattern, base64 strings under 40 chars, JWT-like tokens).
+**Controls in place:**
+- Source path: `domain.RedactSecrets` with regex patterns
+- Tool call output path (epic25): PATH-shadowing shell wrappers for all 12 cluster/GitOps
+  tools pipe output through `cmd/redact` binary (imports `domain.RedactSecrets` directly)
+  before returning to caller; wrappers hard-fail if `redact` is absent
+
+**Residual risk:** Regex has false negatives for novel credential formats. Tool call output
+wrappers do not cover curl/jq/openssl (would break init container token exchange), git
+(would break diff-based PR workflows), or short secret values < 30 raw bytes.
 
 ---
 

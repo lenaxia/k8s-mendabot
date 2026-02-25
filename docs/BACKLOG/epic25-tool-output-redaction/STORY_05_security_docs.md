@@ -2,16 +2,16 @@
 
 **Epic:** [epic25-tool-output-redaction](README.md)
 **Priority:** Medium
-**Status:** Not Started
+**Status:** Complete
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] New finding `2026-02-24-P-010` added to `docs/SECURITY/2026-02-24_pentest_report/findings.md`
-- [ ] Phase 03 addendum added to `docs/SECURITY/2026-02-24_pentest_report/phase03_redaction.md`
-- [ ] Phase 03 addendum added to `docs/SECURITY/2026-02-24_security_report/phase03_redaction.md`
-- [ ] `docs/SECURITY/THREAT_MODEL.md` updated with the tool-call output attack vector
+- [x] New finding `2026-02-24-P-010` added to `docs/SECURITY/2026-02-24_pentest_report/findings.md`
+- [x] Phase 03 addendum added to `docs/SECURITY/2026-02-24_pentest_report/phase03_redaction.md`
+- [x] Phase 03 addendum added to `docs/SECURITY/2026-02-24_security_report/phase03_redaction.md`
+- [x] `docs/SECURITY/THREAT_MODEL.md` updated with the tool-call output attack vector
 
 ---
 

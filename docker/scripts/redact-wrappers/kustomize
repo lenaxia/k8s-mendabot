@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# kustomize wrapper — pipes output through redact before returning to caller.
+# Does NOT use set -e: the real binary may exit non-zero legitimately.
+
+if ! command -v redact > /dev/null 2>&1; then
+    echo "[ERROR] redact binary not found in PATH — aborting to prevent unredacted output" >&2
+    exit 1
+fi
+
+_tmpfile=$(mktemp) || { echo "[ERROR] mktemp failed — aborting" >&2; exit 1; }
+trap 'rm -f "$_tmpfile"' EXIT
+
+kustomize.real "$@" > "$_tmpfile" 2>&1
+_rc=$?
+
+redact < "$_tmpfile"
+exit $_rc

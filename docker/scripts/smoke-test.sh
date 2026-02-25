@@ -49,6 +49,7 @@ check_binary kustomize
 check_binary kubeconform
 check_binary yq
 check_binary jq
+check_binary redact
 
 echo ""
 echo "Smoke test complete: ${pass} passed, ${fail} failed."

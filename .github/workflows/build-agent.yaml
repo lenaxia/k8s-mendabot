@@ -69,3 +69,8 @@ jobs:
       - name: Smoke test
         run: |
           chmod +x docker/scripts/smoke-test.sh && docker/scripts/smoke-test.sh ghcr.io/lenaxia/mendabot-agent:sha-${{ steps.sha.outputs.short }}
+
+      - name: Wrapper test
+        run: |
+          chmod +x docker/scripts/wrapper-test.sh
+          docker/scripts/wrapper-test.sh ghcr.io/lenaxia/mendabot-agent:sha-${{ steps.sha.outputs.short }}

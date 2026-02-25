@@ -159,3 +159,35 @@ No injection-like content. Normal operation confirmed.
 **Total new findings:** 3 (P-006, P-007, P-008)
 **Carry-over confirmed:** 003 (unschedulable truncation)
 **Findings added to findings.md:** 2026-02-24-P-006, 2026-02-24-P-007, 2026-02-24-P-008
+
+---
+
+# Phase 03 Security Addendum: Tool Call Output Redaction
+
+**Date:** 2026-02-24
+**Epic:** epic25-tool-output-redaction
+**Status:** Remediated
+
+## Scope
+
+This addendum covers the tool call output redaction layer added in epic25. It is the
+third phase of security hardening (after phase 01: source-level redaction in native
+providers, and phase 02: injection detection in controller dispatch).
+
+## Attack Vector
+
+OpenCode's bash tool captures full stdout+stderr from every tool invocation and returns
+it verbatim to the LLM context (and subsequently to the external LLM API). This means
+any `kubectl get secret`, `helm get values`, or similar command exposes raw credential
+data to the external API.
+
+## Mitigation
+
+PATH-shadowing wrappers intercept all 12 cluster/GitOps tools before their output reaches
+the LLM. Each wrapper calls the real binary (renamed to `<tool>.real`), captures combined
+stdout+stderr, passes it through the `redact` binary (which imports `domain.RedactSecrets`),
+and writes filtered output to stdout. The real binary's exit code is preserved.
+
+## Known Residual Risks
+
+See P-010 in findings.md for full residual risk documentation.

@@ -2,7 +2,7 @@
 
 **Epic:** [epic25-tool-output-redaction](README.md)
 **Priority:** Critical
-**Status:** Not Started
+**Status:** Complete
 **Depends on:** STORY_01 (`cmd/redact/main.go` must exist before `go build ./cmd/redact`
 can succeed), STORY_02 (wrapper scripts must exist before `COPY docker/scripts/redact-wrappers/...`)
 
@@ -164,19 +164,19 @@ verification.
 
 ## Definition of Done
 
-- [ ] `redact-builder` stage added with same Go image digest as existing `age-builder`
+- [x] `redact-builder` stage added with same Go image digest as existing `age-builder`
       (`sha256:0b5f101af6e4f905da4e1c5885a76b1e7a9fbc97b1a41d971dbcab7be16e70a1`)
-- [ ] `redact-builder` stage inserted **after** `age-builder` and **before** the
+- [x] `redact-builder` stage inserted **after** `age-builder` and **before** the
       `# ── Runtime image ──` comment / `FROM debian:bookworm-slim` line
-- [ ] `RUN test -x /usr/bin/gh` assertion added after `gh` apt install block
-- [ ] Rename+copy block inserted **after** `&& rm /tmp/opencode.tar.gz` and
+- [x] `RUN test -x /usr/bin/gh` assertion added after `gh` apt install block
+- [x] Rename+copy block inserted **after** `&& rm /tmp/opencode.tar.gz` and
       **before** `# Non-root user` / `RUN useradd ...`
-- [ ] All 11 `.real` renames in one `RUN` layer: kubectl, helm, flux, sops,
+- [x] All 11 `.real` renames in one `RUN` layer: kubectl, helm, flux, sops,
       talosctl, yq, stern, kubeconform, kustomize, age, age-keygen
-- [ ] `COPY --chmod=755 --from=redact-builder` copies `redact` to `/usr/local/bin/redact`
-- [ ] All 12 wrapper scripts copied with `--chmod=755` to `/usr/local/bin/`
+- [x] `COPY --chmod=755 --from=redact-builder` copies `redact` to `/usr/local/bin/redact`
+- [x] All 12 wrapper scripts copied with `--chmod=755` to `/usr/local/bin/`
       (11 above + gh; gh wrapper calls `/usr/bin/gh` by absolute path)
-- [ ] No separate `RUN chmod +x` layer needed (`--chmod=755` on COPY handles it)
-- [ ] `docker build -f docker/Dockerfile.agent .` succeeds (no build errors)
-- [ ] `docker run --rm <image> kubectl version --client` outputs redacted/clean text
+- [x] No separate `RUN chmod +x` layer needed (`--chmod=755` on COPY handles it)
+- [x] `docker build -f docker/Dockerfile.agent .` succeeds (no build errors)
+- [x] `docker run --rm <image> kubectl version --client` outputs redacted/clean text
       (not the raw binary path error — confirms wrapper is called, not original binary)
