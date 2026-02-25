@@ -49,6 +49,13 @@ unschedulable pods, failed Jobs, PVC provisioning failures, and unhealthy Nodes.
 the same Deployment produce one investigation. State is stored in `RemediationJob` CRD
 objects — survives watcher restarts, no external store required.
 
+**[Severity tiers](docs/WORKLOGS/0075_2026-02-24_epic24-severity-tiers-complete.md)** — every finding is classified as `critical`, `high`, `medium`, or `low`
+based on the detected condition (e.g. CrashLoopBackOff >5 restarts → critical; OOMKilled → high;
+degraded-but-available Deployment → medium). A `MIN_SEVERITY` env var on the watcher Deployment
+suppresses findings below the configured threshold. The agent receives the severity at runtime
+and calibrates its investigation depth accordingly — maximum thoroughness for critical, conservative
+minimal-change proposals for low.
+
 **[Stabilisation window](docs/WORKLOGS/0030_2026-02-22_epic09-story12-stabilisation-window.md)** — a configurable hold period (default: 120s) suppresses
 transient blips before an investigation is dispatched.
 
@@ -174,6 +181,7 @@ All `values.yaml` keys and their defaults:
 | `gitops.manifestRoot` | **required** | Path within repo to manifests root |
 | `watcher.stabilisationWindowSeconds` | `120` | Seconds a finding must persist before dispatching |
 | `watcher.maxConcurrentJobs` | `3` | Maximum simultaneous agent Jobs |
+| `watcher.minSeverity` | `low` | Minimum severity to dispatch: `critical`, `high`, `medium`, or `low` |
 | `watcher.remediationJobTTLSeconds` | `604800` | TTL for completed RemediationJob objects (7 days) |
 | `watcher.sinkType` | `github` | Sink type for PR creation |
 | `watcher.logLevel` | `info` | Log level: debug, info, warn, error |
@@ -199,6 +207,9 @@ The watcher validates configuration at startup with clear error messages.
 - `MAX_CONCURRENT_JOBS`: must be > 0
 - `REMEDIATION_JOB_TTL_SECONDS`: must be > 0
 - `STABILISATION_WINDOW_SECONDS`: must be ≥ 0
+
+**Enum validations:**
+- `MIN_SEVERITY`: must be one of `critical`, `high`, `medium`, `low` (absent defaults to `low`)
 
 **Format validations:**
 - `GITOPS_REPO`: must be in `owner/repo` format
