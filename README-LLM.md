@@ -862,8 +862,6 @@ kubectl apply -k deploy/kustomize/
 | `feature/epic11-13-deferred` | Epic 11 (cascade prevention) + Epic 13 (multi-signal correlation) — deferred | Deferred | 2026-02-23 |
 | `feature/epic12-security-remediation` | Epic 12 security gap remediation (findings 001–013) | Active | 2026-02-23 |
 | `feature/epic16-annotation-control` | Epic 16 per-resource annotation control (enabled, skip-until, priority) | Active | 2026-02-24 |
-| `feature/epic24-severity-tiers` | Epic 24: Severity tiers on findings (Severity type, provider classification, MIN_SEVERITY filter, prompt calibration) | Active | 2026-02-24 |
-
 **Merged branches:**
 
 | Branch | Purpose | Merged | Commit |
@@ -874,6 +872,7 @@ kubectl apply -k deploy/kustomize/
 | `feature/epic15-namespace-filtering` | Epic 15 namespace filtering (WATCH_NAMESPACES, EXCLUDE_NAMESPACES) | 2026-02-24 | 127c08e |
 | `feature/epic21-kubernetes-events` | Epic 21: Kubernetes Events on RemediationJob (FT-U3) | 2026-02-24 | 021ac37 |
 | `feature/epic16-namespace-annotation` | Epic 16 STORY_04: namespace-level annotation gate (enabled, skip-until on Namespace objects) | 2026-02-24 | 2553638 |
+| `feature/epic24-severity-tiers` | Epic 24: Severity tiers on findings (Severity type, provider classification, MIN_SEVERITY filter, prompt calibration) | 2026-02-25 | a4d719c |
 
 **Branch naming:**
 - Feature: `feature/short-description`
