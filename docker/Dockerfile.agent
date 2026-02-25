@@ -1,3 +1,12 @@
+# ── age build stage — compiles age/age-keygen with Go 1.25.7 to eliminate stdlib CVEs ──
+FROM golang:1.25.7-bookworm@sha256:0b5f101af6e4f905da4e1c5885a76b1e7a9fbc97b1a41d971dbcab7be16e70a1 AS age-builder
+ARG AGE_VERSION=1.3.1
+ARG TARGETARCH=amd64
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
+    go install -trimpath filippo.io/age/cmd/age@v${AGE_VERSION} \
+    && go install -trimpath filippo.io/age/cmd/age-keygen@v${AGE_VERSION}
+
+# ── Runtime image ─────────────────────────────────────────────────────────────
 FROM debian:bookworm-slim@sha256:6458e6ce2b6448e31bfdced4be7d8aa88d389e6694ab09f5a718a694abe147f4
 
 # Tool versions — bump these to upgrade
@@ -9,13 +18,10 @@ ARG KUSTOMIZE_VERSION=5.6.0
 ARG YQ_VERSION=4.45.1
 ARG KUBECONFORM_VERSION=0.7.0
 ARG STERN_VERSION=1.31.0
-ARG AGE_VERSION=1.3.1
 ARG SOPS_VERSION=3.9.4
 ARG OPENCODE_VERSION=1.2.10
 ARG YQ_SHA256_AMD64=654d2943ca1d3be2024089eb4f270f4070f491a0610481d128509b2834870049
 ARG YQ_SHA256_ARM64=ceea73d4c86f2e5c91926ee0639157121f5360da42beeb8357783d79c2cc6a1d
-ARG AGE_SHA256_AMD64=bdc69c09cbdd6cf8b1f333d372a1f58247b3a33146406333e30c0f26e8f51377
-ARG AGE_SHA256_ARM64=c6878a324421b69e3e20b00ba17c04bc5c6dab0030cfe55bf8f68fa8d9e9093a
 ARG OPENCODE_SHA256_AMD64=ebcc24012e8f067b10d7416430c88e9c429115ecfbccf8da9eb59db3b629a358
 ARG OPENCODE_SHA256_ARM64=d9a9d4f0bc1ed246258c0e8846e80593755a72bf4afd3940c4071d6f0b7b7775
 ARG TARGETARCH=amd64
@@ -114,13 +120,9 @@ RUN curl -fsSL --retry 3 --retry-delay 5 "https://github.com/stern/stern/release
     && tar -xz -C /usr/local/bin -f /tmp/stern.tar.gz stern \
     && rm /tmp/stern.tar.gz
 
-# age — embed SHA256 per arch; upstream releases provide only provenance .proof files, not a CHECKSUMS file
-RUN EXPECTED=$([ "$TARGETARCH" = "amd64" ] && echo "${AGE_SHA256_AMD64}" || echo "${AGE_SHA256_ARM64}") \
-    && curl -fsSL --retry 3 --retry-delay 5 "https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/age-v${AGE_VERSION}-linux-${TARGETARCH}.tar.gz" \
-      -o /tmp/age.tar.gz \
-    && echo "${EXPECTED}  /tmp/age.tar.gz" | sha256sum --check \
-    && tar -xz -C /usr/local/bin --strip-components=1 -f /tmp/age.tar.gz "age/age" "age/age-keygen" \
-    && rm /tmp/age.tar.gz
+# age — compiled from source with Go 1.25.7 to eliminate stdlib CVEs in upstream pre-built binaries
+COPY --from=age-builder /go/bin/age /usr/local/bin/age
+COPY --from=age-builder /go/bin/age-keygen /usr/local/bin/age-keygen
 
 # sops — sops releases use .checksums.txt (lowercase, with dot) (add retries)
 RUN curl -fsSL --retry 3 --retry-delay 5 "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.${TARGETARCH}" \
