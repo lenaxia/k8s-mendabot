@@ -1,7 +1,7 @@
 # Threat Model: mendabot
 
-**Version:** 1.0
-**Date:** 2026-02-23
+**Version:** 1.1
+**Date:** 2026-02-24
 **Status:** Authoritative
 
 This document is the single source of truth for mendabot's threat model. It is
@@ -132,15 +132,15 @@ techniques may bypass the heuristic detection patterns.
 
 ---
 
-### AV-02: Credential Exposure via Error Text (HIGH risk)
+### AV-02: Credential Exposure via Error Text and Tool Call Output (HIGH risk)
 
-**Entry point:** Same as AV-01 — error messages from pods, deployments, nodes. Also:
-tool call output returned verbatim by OpenCode's bash tool to the LLM context.
+**Entry point:** Error messages from pods, deployments, nodes. Also: raw stdout+stderr of
+every tool call executed by the LLM agent via OpenCode's bash tool.
 
-**Data flow (source path):**
+**Data flow (source path — controlled at ingestion):**
 ```
 pod fails with message containing "DATABASE_URL=postgres://user:pass@host/db"
-→ PodProvider extracts message → domain.RedactSecrets()
+→ PodProvider extracts message → truncate(msg, 500) → domain.RedactSecrets()
 → if regex misses the pattern → stored in RemediationJob.Spec.Finding.Errors
 → readable by anyone with kubectl get remediationjob in mendabot namespace
 → injected as FINDING_ERRORS → appears in agent Job spec
@@ -148,23 +148,67 @@ pod fails with message containing "DATABASE_URL=postgres://user:pass@host/db"
 → sent to LLM API (external service)
 ```
 
-**Data flow (tool call output path — epic25):**
+**Data flow (tool call output path — controlled at output by epic25):**
 ```
-agent calls kubectl get secret <name> -o yaml via OpenCode bash tool
-→ child_process.spawn() captures full stdout+stderr
-→ output returned verbatim to LLM context
+LLM directs: kubectl get secret <name> -o yaml
+→ OpenCode: child_process.spawn("kubectl get secret ...", { shell: "bash" })
+→ OS resolves "kubectl" via PATH → /usr/local/bin/kubectl (wrapper, not real binary)
+→ wrapper calls kubectl.real, captures stdout+stderr into tmpfile
+→ wrapper pipes tmpfile through /usr/local/bin/redact (cmd/redact binary)
+→ redact applies domain.RedactSecrets → filters base64 values, tokens, PEM keys, etc.
+→ filtered output returned to OpenCode → LLM context updated with redacted text
 → LLM context sent to external LLM API
 ```
 
 **Controls in place:**
-- Source path: `domain.RedactSecrets` with regex patterns
-- Tool call output path (epic25): PATH-shadowing shell wrappers for all 12 cluster/GitOps
-  tools pipe output through `cmd/redact` binary (imports `domain.RedactSecrets` directly)
-  before returning to caller; wrappers hard-fail if `redact` is absent
 
-**Residual risk:** Regex has false negatives for novel credential formats. Tool call output
-wrappers do not cover curl/jq/openssl (would break init container token exchange), git
-(would break diff-based PR workflows), or short secret values < 30 raw bytes.
+*Source path:*
+- `domain.RedactSecrets` applied at all six native provider ingestion points
+- 500-character truncation before redaction (limits exposure window)
+
+*Tool call output path (epic25):*
+- PATH-shadowing shell wrappers installed at `/usr/local/bin/<tool>` for all tools
+  where raw output can contain credential material (see wrapper inventory below)
+- Each wrapper calls the real binary (renamed to `<tool>.real`), captures combined
+  stdout+stderr, pipes through `/usr/local/bin/redact`
+- `cmd/redact` binary imports `internal/domain.RedactSecrets` directly — identical
+  compiled regex patterns, zero pattern drift between source and output redaction
+- Wrappers hard-fail (exit 1) if `redact` binary is absent, aborting the entrypoint
+  visibly rather than passing raw output silently
+
+**Wrapper inventory:**
+
+| Tool | Wrapper | Real binary | Why wrapped |
+|------|---------|-------------|-------------|
+| `kubectl` | `/usr/local/bin/kubectl` | `/usr/local/bin/kubectl.real` | `get secret -o yaml` exposes base64-encoded Secret data values |
+| `helm` | `/usr/local/bin/helm` | `/usr/local/bin/helm.real` | `helm get values` / `helm get secret` can expose Helm-managed secrets |
+| `flux` | `/usr/local/bin/flux` | `/usr/local/bin/flux.real` | `flux get secret` exposes Git credentials and SOPS keys |
+| `gh` | `/usr/local/bin/gh` | `/usr/bin/gh` (apt-installed, not renamed) | GitHub API responses can include `ghs_`/`ghp_` tokens |
+| `sops` | `/usr/local/bin/sops` | `/usr/local/bin/sops.real` | `sops --decrypt` writes plaintext secrets to stdout |
+| `talosctl` | `/usr/local/bin/talosctl` | `/usr/local/bin/talosctl.real` | Node credentials and machine configs contain key material |
+| `yq` | `/usr/local/bin/yq` | `/usr/local/bin/yq.real` | YAML queries over secret-bearing manifests |
+| `stern` | `/usr/local/bin/stern` | `/usr/local/bin/stern.real` | Log aggregation output can contain credentials printed by apps |
+| `kubeconform` | `/usr/local/bin/kubeconform` | `/usr/local/bin/kubeconform.real` | Manifest validation echoes content including secret fields |
+| `kustomize` | `/usr/local/bin/kustomize` | `/usr/local/bin/kustomize.real` | `kustomize build` renders manifests that may contain Secret data |
+| `age` | `/usr/local/bin/age` | `/usr/local/bin/age.real` | `age --decrypt` writes decrypted plaintext to stdout |
+| `age-keygen` | `/usr/local/bin/age-keygen` | `/usr/local/bin/age-keygen.real` | Prints generated private key to stdout |
+
+**Tools deliberately NOT wrapped:**
+
+| Tool | Reason not wrapped | Residual risk |
+|------|-------------------|---------------|
+| `curl` | Used in `get-github-app-token.sh` (init container) to call GitHub API — response body contains `ghs_...` token that must be captured by `TOKEN=$(curl ...)`. Wrapping would redact the token before the shell variable assignment, breaking the entire init container. | LLM can call `curl` against the Kubernetes API with the SA token and receive unredacted JSON responses. |
+| `jq` | Pipes `curl` output through `.token` in `get-github-app-token.sh`. Wrapping would redact the extracted token before `TOKEN=$(...)` captures it. | LLM can use `jq` to extract and display credential fields from piped JSON. |
+| `openssl` | Used in `get-github-app-token.sh` for `openssl dgst -sha256 -sign` which writes a raw binary DER signature to stdout. The `redact` base64 pattern would corrupt the binary signature, breaking JWT generation and preventing the init container from obtaining a GitHub App token. | LLM can call `openssl rsa`/`openssl pkey` to extract private key material to stdout. |
+| `git` | Core workflow tool used extensively in remediation PRs (`git diff`, `git log`, `git show`). Wrapping output would break diff-based PR workflows that the agent uses for every remediation. | `git log`/`git diff`/`git show` can surface credentials embedded in commit history or diff content. Accepted as a workflow-critical trade-off. |
+| `cat` | Used in `entrypoint-common.sh` to read SA token and prompt files; in `entrypoint-opencode.sh` to pass the rendered prompt to opencode. Wrapping would corrupt control-plane reads. | LLM can use `cat` to read any file in the container, including `/var/run/secrets/kubernetes.io/serviceaccount/token`. |
+| `env` / `printenv` | `FINDING_ERRORS` is already redacted at source in all six native providers. Wrapping has marginal security value. High risk of breaking shell initialisation. | LLM can call `env` or `printenv` to list all environment variables; only `FINDING_ERRORS` is pre-redacted. Other env vars (e.g. `GIT_AUTHOR_EMAIL`) are non-sensitive. |
+
+**Residual risk summary:**
+- `curl`/`jq`/`openssl`/`cat` bypass: LLM can reach Kubernetes API or read container files directly using unwrapped tools
+- `git` bypass: commit history and diffs may contain credential fragments
+- Short secret values (< 30 raw bytes, < 40 base64 chars): not matched by the base64 pattern threshold; only caught if key name matches a named pattern (`password`, `token`, `secret`, `api-key`, `x-api-key`)
+- Novel credential formats not covered by any existing regex pattern: pass through unredacted
 
 ---
 
