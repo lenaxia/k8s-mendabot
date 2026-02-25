@@ -1,0 +1,34 @@
+run:
+  timeout: 5m
+  go: "1.23"
+
+linters:
+  enable:
+    - govet        # go vet equivalent
+    - errcheck     # unchecked errors
+    - staticcheck  # comprehensive static analysis
+    - gosimple     # simplifications
+    - unused       # unused code
+    - ineffassign  # ineffectual assignments
+    - typecheck    # type correctness
+    - gosec        # security issues (HIGH/CRITICAL)
+    - misspell     # spelling in comments/strings
+    - gofmt        # formatting
+    - goimports    # import ordering
+
+linters-settings:
+  gosec:
+    severity: high
+    confidence: medium
+  goimports:
+    local-prefixes: github.com/lenaxia/k8s-mendabot
+
+issues:
+  exclude-rules:
+    # Test files: relax some checks
+    - path: "_test\\.go"
+      linters:
+        - gosec
+        - errcheck
+  max-issues-per-linter: 0
+  max-same-issues: 0

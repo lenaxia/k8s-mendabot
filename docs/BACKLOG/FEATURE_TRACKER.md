@@ -706,6 +706,7 @@ live PR creation.
 | FT-I5 | Automated regression test suggestion | ★★ | ●● | Evaluated |
 | FT-I6 | Multi-cluster support | ★★★ | ●●● | Deferred |
 | FT-I7 | Jira / Linear ticket creation (investigation sink) | ★★ | ●● | Idea |
+| FT-I8 | GitOps tooling abstraction (Flux, ArgoCD, Helm-only) | ★★★ | ●● | Planned (epic24) |
 
 ---
 
@@ -837,6 +838,41 @@ A central watcher deployment mode (one watcher, multiple `kubeconfig` contexts) 
 larger architectural change deferred to a separate design. The `CLUSTER_NAME` annotation
 change is low complexity and unblocks the multi-cluster PR routing use case even when
 running one watcher per cluster.
+
+---
+
+### FT-I8 — GitOps tooling abstraction (Flux, ArgoCD, Helm-only)
+
+**Problem:** mendabot is tightly coupled to Flux as the only supported GitOps tool.
+The agent image bundles the `flux` CLI unconditionally, Step 5 of the investigation
+prompt runs Flux-specific commands (`flux get all`, `kubectl get helmreleases`, `flux logs
+--kind=HelmRelease`) that fail or produce misleading output on non-Flux clusters, and the
+init container hardcodes `github.com` as the only git host.
+
+**Proposed solution:** Four targeted changes (see epic24-gitops-abstraction):
+
+1. **Config and CRD (`GITOPS_TOOL`, `GITOPS_GIT_HOST`)** — two new optional fields, both
+   backward-compatible with existing Flux deployments (default to `flux` and `github.com`
+   respectively). Propagated through Config → RemediationJobSpec → agent Job env vars.
+
+2. **Init script PAT support** — `initScript` in `job.go` branches on `GITOPS_GIT_TOKEN`:
+   if set, uses the token directly (supports PAT, GitLab tokens, Gitea tokens); if absent,
+   runs the existing GitHub App exchange. `${GITOPS_GIT_HOST}` replaces the hardcoded
+   `github.com` literal in the clone URL.
+
+3. **Prompt conditional step** — Step 5 of `core.txt` is replaced with a
+   `${GITOPS_TOOL}`-conditional block providing appropriate diagnostic commands for `flux`,
+   `argocd`, and `helm-only`. The `argocd` block uses `kubectl get applications` and
+   ArgoCD application inspection commands.
+
+4. **Agent image ArgoCD CLI** — `argocd` CLI (v3.3.2) installed in `Dockerfile.agent`
+   alongside `flux`. Both CLIs are always present; the agent picks the right one based on
+   `GITOPS_TOOL`. Size optimisation deferred.
+
+All changes are additive. Existing Flux + GitHub App deployments require zero
+configuration changes.
+
+**Dependency:** None (self-contained).
 
 ---
 

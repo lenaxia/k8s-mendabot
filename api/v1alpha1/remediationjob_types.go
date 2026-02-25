@@ -211,7 +211,7 @@ type RemediationJobStatus struct {
 // finding.
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:scope=Namespaced,shortName=rjob
+// +kubebuilder:resource:scope=Namespaced,shortName={rjob,rjobs,remjob,remjobs}
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
 // +kubebuilder:printcolumn:name="Kind",type=string,JSONPath=`.spec.finding.kind`
 // +kubebuilder:printcolumn:name="Parent",type=string,JSONPath=`.spec.finding.parentObject`

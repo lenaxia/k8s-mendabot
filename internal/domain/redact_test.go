@@ -157,6 +157,43 @@ func TestRedactSecrets(t *testing.T) {
 			input: "X-API-Key:\tmysecretvalue",
 			want:  "X-API-Key:\t[REDACTED]",
 		},
+		{
+			// Verifies the x-api-key pattern uses \s* (not \t*) so a space after
+			// the separator is consumed and the value is caught by this pattern
+			// (not silently falling through to the api-key pattern).
+			name:  "P-007: X-API-Key space after colon caught by x-api-key pattern",
+			input: "X-API-Key: mysecretvalue",
+			want:  "X-API-Key: [REDACTED]",
+		},
+		{
+			// gh[a-z]_ pattern fires before token= pattern, so the GH token gets
+			// [REDACTED-GH-TOKEN]; then token= fires on "token: [REDACTED-GH-TOKEN]"
+			// and replaces the value with [REDACTED]. Net result: token: [REDACTED].
+			// Consistent: all token= contexts produce [REDACTED] regardless of value.
+			name:  "GitHub App installation token ghs_ prefix in token= context",
+			input: "token: ghs_16C7e42F292c6912E7710c838347Ae178B4a",
+			want:  "token: [REDACTED]",
+		},
+		{
+			name:  "GitHub Actions token gha_ prefix",
+			input: "Authorization: gha_someTokenValue1234567890123456789012",
+			want:  "Authorization: [REDACTED-GH-TOKEN]",
+		},
+		{
+			name:  "GitHub PAT ghp_ prefix",
+			input: "GITHUB_TOKEN=ghp_16C7e42F292c6912E7710c838347Ae178B4a",
+			want:  "GITHUB_TOKEN=[REDACTED]",
+		},
+		{
+			name:  "GitHub OAuth token gho_ prefix",
+			input: "token gho_16C7e42F292c6912E7710c838347Ae178B4a",
+			want:  "token [REDACTED-GH-TOKEN]",
+		},
+		{
+			name:  "GitHub refresh token ghr_ prefix",
+			input: "refresh_token=ghr_16C7e42F292c6912E7710c838347Ae178B4a",
+			want:  "refresh_token=[REDACTED]",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

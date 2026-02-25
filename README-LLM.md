@@ -35,11 +35,11 @@ and the GitOps repository, then opens a pull request with a proposed fix.
 - Strictly read-only cluster access for the investigation agent
 - No direct commits to the GitOps repo's default branch — PRs only
 - CRD-based deduplication state via `RemediationJob` objects (survives restarts, no external store)
-- Self-contained Kubernetes deployment via Kustomize, compatible with Flux GitOps
+- Self-contained Kubernetes deployment via Kustomize, compatible with any GitOps tool (Flux, ArgoCD, etc.)
 
 **Two deliverables:**
 1. `mendabot-watcher` — Go controller binary (controller-runtime)
-2. `mendabot-agent` — Docker image (opencode + kubectl + helm + flux + gh)
+2. `mendabot-agent` — Docker image (opencode + kubectl + helm + gh)
 
 **Note:** Upstream contribution feature has been removed due to GitHub App permission complexity. The system focuses on self-remediation cascade prevention without attempting upstream bug reporting.
 
@@ -196,7 +196,7 @@ k8s-mendabot/
 │       └── deployment-watcher.yaml
 │
 ├── docker/
-│   ├── Dockerfile.agent               # debian-slim + opencode + kubectl + k8sgpt + helm + flux + gh
+│   ├── Dockerfile.agent               # debian-slim + opencode + kubectl + k8sgpt + helm + gh
 │   ├── Dockerfile.watcher             # multi-stage Go build → debian-slim runtime
 │   └── scripts/
 │       ├── get-github-app-token.sh    # Exchanges GitHub App private key for installation token
@@ -344,7 +344,7 @@ container for git clone and `gh` operations.
 | Agent base image | debian:bookworm-slim | Stable, rich apt ecosystem |
 | kubectl | Official release binary | Standard cluster interaction |
 | helm | Official release binary | GitOps repo uses Helm releases |
-| flux | Official release binary | GitOps repo uses Flux |
+| flux / argocd CLI | Optional, install in agent image if needed | GitOps tool-specific operations (reconcile, sync) — not bundled by default; add via Dockerfile.agent if required |
 | gh | GitHub CLI | PR creation, search, and commenting |
 | opencode | Pinned GitHub release binary (not install script) | AI agent driver |
 | Manifests | Kustomize | Matches talos-ops-prod GitOps pattern |

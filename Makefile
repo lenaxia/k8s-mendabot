@@ -5,7 +5,8 @@ WATCHER_IMAGE ?= mendabot-watcher:dev
 AGENT_IMAGE   ?= mendabot-agent:dev
 KIND_CLUSTER  ?= mendabot-dev
 
-.PHONY: build test lint lint-security lint-security-report \
+.PHONY: build test lint lint-full lint-security lint-security-report \
+        lint-secrets install-hooks \
         scan-watcher scan-agent \
         dev-cluster dev-cluster-destroy help
 
@@ -20,6 +21,20 @@ test:
 ## lint: run go vet
 lint:
 	go vet ./...
+
+## lint-full: run golangci-lint (superset of go vet, includes gosec, staticcheck, etc.)
+lint-full:
+	golangci-lint run --config .golangci.yml ./...
+
+## lint-secrets: scan staged + tracked files for secrets using gitleaks
+lint-secrets:
+	gitleaks detect --config .gitleaks.toml --redact --no-banner
+
+## install-hooks: symlink git hooks from scripts/hooks/ into .git/hooks/
+install-hooks:
+	@mkdir -p .git/hooks
+	@ln -sf "$(CURDIR)/scripts/hooks/pre-commit" .git/hooks/pre-commit
+	@echo "Git hooks installed. Run 'make install-hooks' after cloning."
 
 ## lint-security: run gosec static analysis (HIGH/CRITICAL fail the build)
 lint-security:

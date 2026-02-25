@@ -9,7 +9,7 @@ spec:
     listKind: RemediationJobList
     plural: remediationjobs
     singular: remediationjob
-    shortNames: [rjob]
+    shortNames: [rjob, rjobs, remjob, remjobs]
   scope: Namespaced
   versions:
   - name: v1alpha1

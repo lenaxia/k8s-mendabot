@@ -19,8 +19,9 @@ paths = [
   "go.sum",
   # Security reports contain example/redacted credential strings for documentation
   '''docs/SECURITY/''',
-  # Redaction test file contains fixture strings to verify redaction patterns work
+  # Redaction test files contain fixture strings to verify redaction patterns work
   '''internal/domain/redact_test\.go''',
+  '''cmd/redact/main_test\.go''',
 ]
 regexTarget = "line"
 regexes = [
