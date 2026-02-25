@@ -1,5 +1,7 @@
 package v1alpha1
 
+//go:generate make -C ../.. generate
+
 import (
 	"fmt"
 
@@ -90,6 +92,9 @@ const (
 )
 
 // RemediationJobSpec defines the desired state of a RemediationJob.
+// +kubebuilder:validation:XValidation:rule="!has(oldSelf.fingerprint) || self.fingerprint == oldSelf.fingerprint",message="spec.fingerprint is immutable"
+// +kubebuilder:validation:XValidation:rule="!has(oldSelf.sourceType) || self.sourceType == oldSelf.sourceType",message="spec.sourceType is immutable"
+// +kubebuilder:validation:XValidation:rule="!has(oldSelf.sinkType) || self.sinkType == oldSelf.sinkType",message="spec.sinkType is immutable"
 type RemediationJobSpec struct {
 	// SourceResultRef identifies the source object that triggered this remediation.
 	// +kubebuilder:validation:Required
@@ -169,6 +174,11 @@ type FindingSpec struct {
 
 	// Details is a human-readable explanation of the finding.
 	Details string `json:"details"`
+
+	// ChainDepth is the self-remediation cascade depth. Zero for normal findings.
+	// Not part of the deduplication fingerprint.
+	// +optional
+	ChainDepth int32 `json:"chainDepth,omitempty"`
 }
 
 // RemediationJobStatus defines the observed state of a RemediationJob.

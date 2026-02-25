@@ -2,7 +2,7 @@
 
 **Epic:** [epic11-self-remediation-cascade](README.md)
 **Priority:** Critical
-**Status:** Not Started
+**Status:** Complete
 **Estimated Effort:** 1 hour
 
 ---
@@ -24,19 +24,19 @@ Without these additions no other story in this epic can be implemented.
 
 ## Acceptance Criteria
 
-- [ ] `domain.Finding` in `internal/domain/provider.go` has a new field:
+- [x] `domain.Finding` in `internal/domain/provider.go` has a new field:
   ```go
   ChainDepth int
   ```
-- [ ] `FindingSpec` in `api/v1alpha1/remediationjob_types.go` has a new field:
+- [x] `FindingSpec` in `api/v1alpha1/remediationjob_types.go` has a new field:
   ```go
   ChainDepth int32 `json:"chainDepth,omitempty"`
   ```
-- [ ] `RemediationJob.DeepCopyInto` in `api/v1alpha1/remediationjob_types.go`
+- [x] `RemediationJob.DeepCopyInto` in `api/v1alpha1/remediationjob_types.go`
   copies `Spec.Finding.ChainDepth` (the struct is copied by value already; verify
   this is still true after the addition and add an explicit copy if a pointer is
   ever introduced).
-- [ ] `testdata/crds/remediationjob_crd.yaml` has the new field inside the
+- [x] `testdata/crds/remediationjob_crd.yaml` has the new field inside the
   `finding.properties` block (after `details: {type: string}` at line 77):
   ```yaml
   chainDepth: {type: integer}
@@ -44,7 +44,7 @@ Without these additions no other story in this epic can be implemented.
   The envtest suite in `internal/controller/suite_test.go` loads CRDs from
   `../../testdata/crds` (resolving to `testdata/crds/` at repo root). This is
   also the path used by `internal/provider/suite_test.go`.
-- [ ] `SourceProviderReconciler` in `internal/provider/provider.go` maps the
+- [x] `SourceProviderReconciler` in `internal/provider/provider.go` maps the
   new field when building `RemediationJobSpec.Finding`. The `FindingSpec`
   struct literal is at lines 403–410; add `ChainDepth` after `Details`:
   ```go
@@ -59,7 +59,7 @@ Without these additions no other story in this epic can be implemented.
   },
   ```
   This is the only change required in `provider.go` for this story.
-- [ ] All existing tests still pass (`go test -timeout 30s -race ./...`).
+- [x] All existing tests still pass (`go test -timeout 30s -race ./...`).
 
 ---
 
@@ -110,8 +110,8 @@ root `internal/domain/provider_test.go`):
 
 ## Definition of Done
 
-- [ ] All tests pass with `-race`
-- [ ] `go vet` clean
-- [ ] `go build ./...` clean
-- [ ] CRD testdata updated and envtest round-trip test added
-- [ ] `provider.go` mapping updated
+- [x] All tests pass with `-race`
+- [x] `go vet` clean
+- [x] `go build ./...` clean
+- [x] CRD testdata updated and envtest round-trip test added
+- [x] `provider.go` mapping updated

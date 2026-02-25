@@ -49,6 +49,15 @@ type Config struct {
 	// Findings below this threshold are silently dropped.
 	// Default: domain.SeverityLow (all findings pass).
 	MinSeverity domain.Severity // MIN_SEVERITY — default "low"
+
+	// SelfRemediationMaxDepth is the maximum allowed self-remediation chain depth.
+	// A Finding with ChainDepth > SelfRemediationMaxDepth is suppressed.
+	// 0 disables self-remediation entirely. Default: 2.
+	SelfRemediationMaxDepth int // SELF_REMEDIATION_MAX_DEPTH — default 2; 0 = disabled
+
+	// SelfRemediationCooldown is the minimum time between allowed self-remediations.
+	// 0 disables the circuit breaker. Default: 300s.
+	SelfRemediationCooldown time.Duration // SELF_REMEDIATION_COOLDOWN_SECONDS — default 300s; 0 = disabled
 }
 
 // FromEnv reads configuration from environment variables and returns a Config.
@@ -239,6 +248,34 @@ func FromEnv() (Config, error) {
 		}
 	} else {
 		cfg.MinSeverity = domain.SeverityLow
+	}
+
+	depthStr := os.Getenv("SELF_REMEDIATION_MAX_DEPTH")
+	if depthStr == "" {
+		cfg.SelfRemediationMaxDepth = 2
+	} else {
+		n, err := strconv.Atoi(depthStr)
+		if err != nil {
+			return Config{}, fmt.Errorf("SELF_REMEDIATION_MAX_DEPTH must be an integer: %w", err)
+		}
+		if n < 0 {
+			return Config{}, fmt.Errorf("SELF_REMEDIATION_MAX_DEPTH must be >= 0, got %d", n)
+		}
+		cfg.SelfRemediationMaxDepth = n
+	}
+
+	cooldownStr := os.Getenv("SELF_REMEDIATION_COOLDOWN_SECONDS")
+	if cooldownStr == "" {
+		cfg.SelfRemediationCooldown = 300 * time.Second
+	} else {
+		n, err := strconv.Atoi(cooldownStr)
+		if err != nil {
+			return Config{}, fmt.Errorf("SELF_REMEDIATION_COOLDOWN_SECONDS must be an integer: %w", err)
+		}
+		if n < 0 {
+			return Config{}, fmt.Errorf("SELF_REMEDIATION_COOLDOWN_SECONDS must be >= 0, got %d", n)
+		}
+		cfg.SelfRemediationCooldown = time.Duration(n) * time.Second
 	}
 
 	return cfg, nil

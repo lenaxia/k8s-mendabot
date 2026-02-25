@@ -14,6 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
+	"github.com/lenaxia/k8s-mendabot/internal/circuitbreaker"
 	"github.com/lenaxia/k8s-mendabot/internal/config"
 	"github.com/lenaxia/k8s-mendabot/internal/domain"
 	"github.com/lenaxia/k8s-mendabot/internal/provider"
@@ -580,4 +581,126 @@ func TestIntegration_ResultDeleted_CancelsBlankPhase(t *testing.T) {
 		err := k8sClient.Get(ctx, types.NamespacedName{Name: rjob.Name, Namespace: integrationNamespace}, &fetched)
 		return err != nil // deleted
 	}, 5*time.Second, 100*time.Millisecond)
+}
+
+// newIntegrationSelfRemediationReconciler builds a reconciler configured for self-
+// remediation integration tests with the supplied maxDepth and optional circuit breaker.
+func newIntegrationSelfRemediationReconciler(p *integrationFakeProvider, maxDepth int, cb circuitbreaker.Gater) *provider.SourceProviderReconciler {
+	cfg := integrationProviderCfg()
+	cfg.SelfRemediationMaxDepth = maxDepth
+	return &provider.SourceProviderReconciler{
+		Client:         k8sClient,
+		Scheme:         k8sClient.Scheme(),
+		Cfg:            cfg,
+		Provider:       p,
+		CircuitBreaker: cb,
+	}
+}
+
+// TestIntegration_SelfRemediation_DepthWithinLimit_CreatesRJob verifies that a finding
+// with ChainDepth=1 (within the default maxDepth=2) passes the depth gate and results
+// in a RemediationJob being created against a real API server.
+func TestIntegration_SelfRemediation_DepthWithinLimit_CreatesRJob(t *testing.T) {
+	if !suiteReady {
+		t.Skip("envtest not available: KUBEBUILDER_ASSETS not set")
+	}
+	ctx := context.Background()
+
+	pod := newTestPod("pod-selfremediation-within", integrationNamespace)
+	if err := k8sClient.Create(ctx, pod); err != nil {
+		t.Fatalf("create Pod: %v", err)
+	}
+	t.Cleanup(func() { _ = k8sClient.Delete(ctx, pod) })
+
+	finding := &domain.Finding{
+		Kind:         "Job",
+		Name:         pod.Name,
+		Namespace:    integrationNamespace,
+		ParentObject: "mendabot-agent-abc",
+		Errors:       `[{"text":"agent job failed"}]`,
+		Severity:     domain.SeverityMedium,
+		ChainDepth:   1, // within limit
+	}
+	p := &integrationFakeProvider{name: "native", finding: finding}
+	rec := newIntegrationSelfRemediationReconciler(p, 2, nil)
+
+	if _, err := rec.Reconcile(ctx, integrationReq(pod.Name, integrationNamespace)); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+
+	var rjobList v1alpha1.RemediationJobList
+	integrationEventually(t, func() bool {
+		if err := k8sClient.List(ctx, &rjobList, client.InNamespace(integrationNamespace)); err != nil {
+			return false
+		}
+		for i := range rjobList.Items {
+			if rjobList.Items[i].Spec.SourceResultRef.Name == pod.Name {
+				return true
+			}
+		}
+		return false
+	}, 5*time.Second, 100*time.Millisecond)
+
+	var found *v1alpha1.RemediationJob
+	for i := range rjobList.Items {
+		if rjobList.Items[i].Spec.SourceResultRef.Name == pod.Name {
+			found = &rjobList.Items[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatal("expected RemediationJob to be created when ChainDepth=1 <= maxDepth=2")
+	}
+	if found.Spec.Finding.ChainDepth != 1 {
+		t.Errorf("RemediationJob.Spec.Finding.ChainDepth = %d, want 1", found.Spec.Finding.ChainDepth)
+	}
+	t.Cleanup(func() { _ = k8sClient.Delete(ctx, found) })
+}
+
+// TestIntegration_SelfRemediation_DepthExceedsLimit_NoRJob verifies that a finding with
+// ChainDepth=3 (exceeds maxDepth=2) is blocked by the depth gate and no RemediationJob
+// is created against a real API server.
+func TestIntegration_SelfRemediation_DepthExceedsLimit_NoRJob(t *testing.T) {
+	if !suiteReady {
+		t.Skip("envtest not available: KUBEBUILDER_ASSETS not set")
+	}
+	ctx := context.Background()
+
+	pod := newTestPod("pod-selfremediation-exceeded", integrationNamespace)
+	if err := k8sClient.Create(ctx, pod); err != nil {
+		t.Fatalf("create Pod: %v", err)
+	}
+	t.Cleanup(func() { _ = k8sClient.Delete(ctx, pod) })
+
+	finding := &domain.Finding{
+		Kind:         "Job",
+		Name:         pod.Name,
+		Namespace:    integrationNamespace,
+		ParentObject: "mendabot-agent-abc",
+		Errors:       `[{"text":"agent job failed"}]`,
+		Severity:     domain.SeverityMedium,
+		ChainDepth:   3, // exceeds maxDepth=2
+	}
+	p := &integrationFakeProvider{name: "native", finding: finding}
+	rec := newIntegrationSelfRemediationReconciler(p, 2, nil)
+
+	res, err := rec.Reconcile(ctx, integrationReq(pod.Name, integrationNamespace))
+	if err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+	if res.RequeueAfter != 0 {
+		t.Errorf("depth-exceeded suppression should not requeue, got RequeueAfter=%v", res.RequeueAfter)
+	}
+
+	// Give a moment for any spurious creation then verify nothing exists.
+	time.Sleep(100 * time.Millisecond)
+	var rjobList v1alpha1.RemediationJobList
+	if err := k8sClient.List(ctx, &rjobList, client.InNamespace(integrationNamespace)); err != nil {
+		t.Fatalf("list RemediationJobs: %v", err)
+	}
+	for i := range rjobList.Items {
+		if rjobList.Items[i].Spec.SourceResultRef.Name == pod.Name {
+			t.Errorf("expected no RemediationJob when ChainDepth=3 > maxDepth=2, found %q", rjobList.Items[i].Name)
+		}
+	}
 }

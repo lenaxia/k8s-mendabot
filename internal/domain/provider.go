@@ -114,4 +114,8 @@ type Finding struct {
 	// Severity is the impact tier of this finding.
 	// Zero value "" passes when MinSeverity=low (default pass-all threshold).
 	Severity Severity
+
+	// ChainDepth is the self-remediation cascade depth of this finding.
+	// Zero means a normal (non-self-remediation) finding. Not part of the fingerprint.
+	ChainDepth int
 }

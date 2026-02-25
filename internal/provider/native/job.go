@@ -8,8 +8,10 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
 	"github.com/lenaxia/k8s-mendabot/internal/domain"
 )
 
@@ -47,12 +49,10 @@ func (p *jobProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 		return nil, fmt.Errorf("jobProvider: expected *batchv1.Job, got %T", obj)
 	}
 
-	// Self-exclusion: skip jobs created by mendabot-watcher (agent jobs).
-	// Without this guard a failed agent job would trigger a new RemediationJob,
-	// causing a self-triggering cascade loop.
-	if job.Labels["app.kubernetes.io/managed-by"] == "mendabot-watcher" {
-		return nil, nil
-	}
+	// Detect mendabot agent jobs for depth-aware self-remediation handling.
+	// Replacing the old unconditional guard: failed mendabot jobs now produce a
+	// Finding with ChainDepth computed from the owning RemediationJob.
+	isMendabotJob := job.Labels["app.kubernetes.io/managed-by"] == "mendabot-watcher"
 
 	// CronJob exclusion — checked before any failure detection.
 	// Jobs owned by a CronJob are transient by design; remediation should target
@@ -104,6 +104,15 @@ func (p *jobProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 		return nil, fmt.Errorf("jobProvider: serialising errors: %w", err)
 	}
 
+	var chainDepth int
+	if isMendabotJob {
+		var depthErr error
+		chainDepth, depthErr = p.getChainDepthFromOwner(context.Background(), job)
+		if depthErr != nil {
+			return nil, depthErr
+		}
+	}
+
 	parent := getParent(context.Background(), p.client, job.ObjectMeta, "Job")
 
 	finding := &domain.Finding{
@@ -113,7 +122,33 @@ func (p *jobProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 		ParentObject: parent,
 		Errors:       string(errorsJSON),
 		Severity:     domain.SeverityMedium,
+		ChainDepth:   chainDepth,
 	}
 
 	return finding, nil
+}
+
+// getChainDepthFromOwner reads the ChainDepth of the RemediationJob that owns
+// this batch/v1 Job and returns depth+1 as the child chain depth.
+// Returns 1 if no owning RemediationJob is found or if the owner is not present
+// in the cluster — this is the safe default for a first-level self-remediation.
+// Returns (0, err) only for unexpected API errors.
+func (p *jobProvider) getChainDepthFromOwner(ctx context.Context, job *batchv1.Job) (int, error) {
+	for _, ref := range job.OwnerReferences {
+		if ref.Kind != "RemediationJob" {
+			continue
+		}
+		var rjob v1alpha1.RemediationJob
+		if err := p.client.Get(ctx, client.ObjectKey{
+			Namespace: job.Namespace,
+			Name:      ref.Name,
+		}, &rjob); err != nil {
+			if apierrors.IsNotFound(err) {
+				return 1, nil
+			}
+			return 0, fmt.Errorf("jobProvider: reading owner RemediationJob %s: %w", ref.Name, err)
+		}
+		return int(rjob.Spec.Finding.ChainDepth) + 1, nil
+	}
+	return 1, nil
 }

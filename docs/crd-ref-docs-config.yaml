@@ -1,0 +1,9 @@
+processor:
+  ignoreTypes:
+    - TypeMeta
+    - ObjectMeta
+    - ListMeta
+    - Time
+    - Condition
+render:
+  schemaVersion: v1

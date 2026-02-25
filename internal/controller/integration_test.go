@@ -863,3 +863,57 @@ func TestRemediationJobReconciler_PermanentlyFailed(t *testing.T) {
 		t.Errorf("expected JobPermanentlyFailed event, got: %v", events)
 	}
 }
+
+// TestRemediationJobChainDepthRoundTrip verifies that FindingSpec.ChainDepth survives
+// a full create/read round-trip through the envtest API server, confirming that the
+// testdata CRD YAML includes chainDepth in the finding.properties schema.
+func TestRemediationJobChainDepthRoundTrip(t *testing.T) {
+	c := newIntegrationClient(t)
+	ctx := context.Background()
+
+	rjob := &v1alpha1.RemediationJob{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "chain-depth-roundtrip",
+			Namespace: integrationCtrlNamespace,
+		},
+		Spec: v1alpha1.RemediationJobSpec{
+			Fingerprint: "roundtrip-fp",
+			SourceType:  "native",
+			Finding: v1alpha1.FindingSpec{
+				Kind:       "Job",
+				Name:       "mendabot-agent-abc",
+				Namespace:  integrationCtrlNamespace,
+				ChainDepth: 2,
+			},
+			GitOpsRepo:         "org/repo",
+			GitOpsManifestRoot: "deploy",
+			AgentImage:         "mendabot-agent:test",
+			AgentSA:            "mendabot-agent",
+		},
+	}
+
+	// Pre-test cleanup: delete any stale object from a previous run.
+	_ = c.Delete(ctx, &v1alpha1.RemediationJob{ObjectMeta: metav1.ObjectMeta{
+		Name:      rjob.Name,
+		Namespace: integrationCtrlNamespace,
+	}})
+
+	if err := c.Create(ctx, rjob); err != nil {
+		t.Fatalf("Create RemediationJob: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = c.Delete(ctx, &v1alpha1.RemediationJob{ObjectMeta: metav1.ObjectMeta{
+			Name:      rjob.Name,
+			Namespace: integrationCtrlNamespace,
+		}})
+	})
+
+	var got v1alpha1.RemediationJob
+	if err := c.Get(ctx, types.NamespacedName{Name: rjob.Name, Namespace: integrationCtrlNamespace}, &got); err != nil {
+		t.Fatalf("Get RemediationJob: %v", err)
+	}
+
+	if got.Spec.Finding.ChainDepth != 2 {
+		t.Errorf("ChainDepth round-trip: got %d, want 2", got.Spec.Finding.ChainDepth)
+	}
+}

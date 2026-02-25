@@ -1085,3 +1085,121 @@ func TestFromEnv_BothFiltersCoexist(t *testing.T) {
 		t.Errorf("ExcludeNamespaces: got %v, want [kube-system]", cfg.ExcludeNamespaces)
 	}
 }
+
+func TestFromEnv_SelfRemediationMaxDepth_Default(t *testing.T) {
+	setRequiredEnv(t)
+	os.Unsetenv("SELF_REMEDIATION_MAX_DEPTH")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.SelfRemediationMaxDepth != 2 {
+		t.Errorf("SelfRemediationMaxDepth default: got %d, want 2", cfg.SelfRemediationMaxDepth)
+	}
+}
+
+func TestFromEnv_SelfRemediationMaxDepth_Valid(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("SELF_REMEDIATION_MAX_DEPTH", "5")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.SelfRemediationMaxDepth != 5 {
+		t.Errorf("SelfRemediationMaxDepth: got %d, want 5", cfg.SelfRemediationMaxDepth)
+	}
+}
+
+func TestFromEnv_SelfRemediationMaxDepth_Zero(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("SELF_REMEDIATION_MAX_DEPTH", "0")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.SelfRemediationMaxDepth != 0 {
+		t.Errorf("SelfRemediationMaxDepth zero: got %d, want 0", cfg.SelfRemediationMaxDepth)
+	}
+}
+
+func TestFromEnv_SelfRemediationMaxDepth_Negative(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("SELF_REMEDIATION_MAX_DEPTH", "-1")
+
+	_, err := config.FromEnv()
+	if err == nil {
+		t.Error("expected error for negative SELF_REMEDIATION_MAX_DEPTH, got nil")
+	}
+}
+
+func TestFromEnv_SelfRemediationMaxDepth_NonInteger(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("SELF_REMEDIATION_MAX_DEPTH", "foo")
+
+	_, err := config.FromEnv()
+	if err == nil {
+		t.Error("expected error for non-integer SELF_REMEDIATION_MAX_DEPTH, got nil")
+	}
+}
+
+func TestFromEnv_SelfRemediationCooldown_Default(t *testing.T) {
+	setRequiredEnv(t)
+	os.Unsetenv("SELF_REMEDIATION_COOLDOWN_SECONDS")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.SelfRemediationCooldown != 300*time.Second {
+		t.Errorf("SelfRemediationCooldown default: got %v, want 300s", cfg.SelfRemediationCooldown)
+	}
+}
+
+func TestFromEnv_SelfRemediationCooldown_Valid(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("SELF_REMEDIATION_COOLDOWN_SECONDS", "60")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.SelfRemediationCooldown != 60*time.Second {
+		t.Errorf("SelfRemediationCooldown: got %v, want 60s", cfg.SelfRemediationCooldown)
+	}
+}
+
+func TestFromEnv_SelfRemediationCooldown_Zero(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("SELF_REMEDIATION_COOLDOWN_SECONDS", "0")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.SelfRemediationCooldown != 0 {
+		t.Errorf("SelfRemediationCooldown zero: got %v, want 0", cfg.SelfRemediationCooldown)
+	}
+}
+
+func TestFromEnv_SelfRemediationCooldown_Negative(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("SELF_REMEDIATION_COOLDOWN_SECONDS", "-1")
+
+	_, err := config.FromEnv()
+	if err == nil {
+		t.Error("expected error for negative SELF_REMEDIATION_COOLDOWN_SECONDS, got nil")
+	}
+}
+
+func TestFromEnv_SelfRemediationCooldown_NonInteger(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("SELF_REMEDIATION_COOLDOWN_SECONDS", "foo")
+
+	_, err := config.FromEnv()
+	if err == nil {
+		t.Error("expected error for non-integer SELF_REMEDIATION_COOLDOWN_SECONDS, got nil")
+	}
+}

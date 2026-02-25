@@ -532,18 +532,47 @@ To bypass in an emergency: `git commit --no-verify`
 | `make test` | Full test suite with race detector |
 | `make install-hooks` | (Re-)install git hooks after cloning |
 
+## Community
+
+- **GitHub Discussions** — [github.com/lenaxia/k8s-mendabot/discussions](https://github.com/lenaxia/k8s-mendabot/discussions)
+  — questions, ideas, architecture discussions, and show-and-tell
+- **GitHub Issues** — bugs and feature requests
+- **CNCF Slack** — find us by searching `k8s-mendabot` in the
+  [CNCF Slack workspace](https://slack.cncf.io/), or join `#kubernetes` or `#gitops`
+
+### Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, coding standards,
+the DCO requirement, and how to find good first issues.
+
+### Governance
+
+See [GOVERNANCE.md](GOVERNANCE.md) for the project's contributor ladder, decision-making
+process, and how to become a maintainer. The current maintainer list is in
+[MAINTAINERS.md](MAINTAINERS.md).
+
+### GitHub Repository Topics
+
+The following topics are set on this repository to aid discoverability. If you
+are maintaining a fork or related project, you may want to apply the same set:
+
+`kubernetes` `gitops` `devops` `cloud-native` `operator` `controller`
+`remediation` `self-healing` `argocd` `flux` `automation`
+
+Topics are configured via the GitHub web UI: repository page → gear icon next
+to "About" → Topics.
+
+---
+
 ## License
 
 Apache 2.0
 
 ---
 
-## Disclaimer
+## Development Practices
 
-This project is heavily AI-assisted — the majority of code, documentation, and design
-artifacts were produced with AI tooling (primarily [OpenCode](https://opencode.ai)).
-
-That said, development follows structured SDLC practices throughout:
+This project follows structured SDLC practices throughout:
 
 - **Backlog-driven** — all features and epics are tracked in [`docs/BACKLOG/`](docs/BACKLOG/),
   with explicit story breakdowns, acceptance criteria, and value/complexity ratings before
@@ -557,4 +586,6 @@ That said, development follows structured SDLC practices throughout:
   capturing design decisions, implementation notes, and the rationale behind changes as they
   happen.
 
-AI accelerates the work; the process keeps it accountable.
+Development is AI-accelerated (primarily [OpenCode](https://opencode.ai)), which allows the
+project to move quickly without compromising process rigour. The process keeps the work
+accountable.

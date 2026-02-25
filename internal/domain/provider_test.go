@@ -277,4 +277,23 @@ func TestFindingFingerprint(t *testing.T) {
 			t.Error("expected error for invalid JSON, got nil")
 		}
 	})
+
+	t.Run("ChainDepthDoesNotAffectFingerprint", func(t *testing.T) {
+		f1 := &domain.Finding{
+			Kind: "Pod", Namespace: "default", ParentObject: "Deployment/my-app",
+			Errors: `[{"text":"CrashLoopBackOff"}]`, ChainDepth: 0,
+		}
+		f2 := &domain.Finding{
+			Kind: "Pod", Namespace: "default", ParentObject: "Deployment/my-app",
+			Errors: `[{"text":"CrashLoopBackOff"}]`, ChainDepth: 5,
+		}
+		fp1, err1 := domain.FindingFingerprint(f1)
+		fp2, err2 := domain.FindingFingerprint(f2)
+		if err1 != nil || err2 != nil {
+			t.Fatalf("unexpected error: %v %v", err1, err2)
+		}
+		if fp1 != fp2 {
+			t.Errorf("ChainDepth must not affect fingerprint: %q != %q", fp1, fp2)
+		}
+	})
 }

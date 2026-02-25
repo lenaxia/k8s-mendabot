@@ -8,15 +8,16 @@ within this project effectively and what is expected of contributors.
 ## Table of Contents
 
 1. [Code of Conduct](#code-of-conduct)
-2. [Getting Started](#getting-started)
-3. [Development Setup](#development-setup)
-4. [Branching and Workflow](#branching-and-workflow)
-5. [Coding Standards](#coding-standards)
-6. [Testing Requirements](#testing-requirements)
-7. [Commit Messages](#commit-messages)
-8. [Pull Requests](#pull-requests)
-9. [Worklogs](#worklogs)
-10. [Reporting Issues](#reporting-issues)
+2. [Developer Certificate of Origin (DCO)](#developer-certificate-of-origin-dco)
+3. [Getting Started](#getting-started)
+4. [Development Setup](#development-setup)
+5. [Branching and Workflow](#branching-and-workflow)
+6. [Coding Standards](#coding-standards)
+7. [Testing Requirements](#testing-requirements)
+8. [Commit Messages](#commit-messages)
+9. [Pull Requests](#pull-requests)
+10. [Worklogs](#worklogs)
+11. [Reporting Issues](#reporting-issues)
 
 ---
 
@@ -27,7 +28,53 @@ By participating you agree to uphold it.
 
 ---
 
+## Developer Certificate of Origin (DCO)
+
+All contributions must carry a Developer Certificate of Origin sign-off. By
+adding `Signed-off-by` to your commit you certify that you wrote the code or
+otherwise have the right to submit it under the Apache 2.0 license.
+
+```
+Signed-off-by: Your Name <your-email@example.com>
+```
+
+The full DCO text is at https://developercertificate.org.
+
+**How to sign off:**
+
+```sh
+# Sign a single commit
+git commit -s -m "feat(provider): add PVC provisioning failure detection"
+
+# Configure git to sign off all commits automatically
+git config --global format.signOff true
+```
+
+If you forget the sign-off, amend before opening the PR:
+
+```sh
+git commit --amend --signoff
+```
+
+Pull requests with missing sign-offs will not be merged.
+
+---
+
 ## Getting Started
+
+### Where to Begin
+
+If you are new to the project, the best entry points are:
+
+- Issues labelled [`good first issue`](https://github.com/lenaxia/k8s-mendabot/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+  — curated, self-contained tasks with clear acceptance criteria
+- Issues labelled [`help wanted`](https://github.com/lenaxia/k8s-mendabot/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
+  — open for any contributor, varying complexity
+- Documentation improvements — fixing typos, clarifying examples, or expanding
+  the Quick Start are all valued contributions
+
+If you are unsure whether a contribution fits the project, open a GitHub
+Discussion or comment on an existing issue before investing implementation time.
 
 ### Prerequisites
 
@@ -103,20 +150,21 @@ All work happens on a feature branch; nothing is committed directly to `main`.
 **Workflow:**
 
 1. Create a branch from `main`
-2. Update the active-branches table in `README-LLM.md`
-3. Work in the branch with regular, logical commits
-4. Ensure all tests pass: `make test`
-5. Write a worklog entry (see [Worklogs](#worklogs))
-6. Open a pull request against `main`
-7. Address review feedback
-8. Merge and update `README-LLM.md` branch tables
+2. Work in the branch with regular, logical commits
+3. Ensure all tests pass: `make test`
+4. Write a worklog entry (see [Worklogs](#worklogs))
+5. Open a pull request against `main`
+6. Address review feedback
+7. Merge
 
 ---
 
 ## Coding Standards
 
-This project follows the rules defined in [`README-LLM.md`](README-LLM.md).
-The key points are:
+The standards below are self-contained for human contributors. [`README-LLM.md`](README-LLM.md)
+is a separate extended guide written for AI-assisted development sessions; it
+covers the same principles in greater depth and includes session workflow rules
+that only apply when an AI agent is doing the implementation.
 
 **Type safety**
 - Define strongly-typed structs for all data structures.

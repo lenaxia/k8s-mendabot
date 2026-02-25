@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
+	"github.com/lenaxia/k8s-mendabot/internal/circuitbreaker"
 	"github.com/lenaxia/k8s-mendabot/internal/config"
 	"github.com/lenaxia/k8s-mendabot/internal/domain"
 	"github.com/lenaxia/k8s-mendabot/internal/readiness"
@@ -36,8 +37,12 @@ type SourceProviderReconciler struct {
 	// return nil before any RemediationJob is created. Use readiness.All to
 	// combine multiple checkers (sink + LLM). A nil value disables the gate.
 	ReadinessChecker readiness.Checker
-	firstSeen        *BoundedMap
-	initOnce         sync.Once
+	// CircuitBreaker gates self-remediation findings by enforcing a cooldown
+	// between successive self-remediation attempts. Only consulted when
+	// finding.ChainDepth > 0. A nil value disables the circuit breaker.
+	CircuitBreaker circuitbreaker.Gater
+	firstSeen      *BoundedMap
+	initOnce       sync.Once
 }
 
 // ReadinessCacheTTL is the recommended TTL for CachedChecker wrappers around
@@ -237,6 +242,46 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, nil
 	}
 
+	// Self-remediation depth gate — only applies to ChainDepth > 0 findings.
+	// Must come after namespace and severity filters and before fingerprinting.
+	if finding.ChainDepth > 0 {
+		maxDepth := r.Cfg.SelfRemediationMaxDepth
+		if maxDepth == 0 || finding.ChainDepth > maxDepth {
+			if r.Log != nil {
+				r.Log.Warn("self-remediation suppressed",
+					zap.Bool("audit", true),
+					zap.String("event", "self_remediation.depth_exceeded"),
+					zap.String("provider", r.Provider.ProviderName()),
+					zap.String("kind", finding.Kind),
+					zap.String("namespace", finding.Namespace),
+					zap.String("name", finding.Name),
+					zap.Int("chainDepth", finding.ChainDepth),
+					zap.Int("maxDepth", maxDepth),
+				)
+			}
+			return ctrl.Result{}, nil
+		}
+
+		if r.CircuitBreaker != nil {
+			allowed, remaining := r.CircuitBreaker.ShouldAllow()
+			if !allowed {
+				if r.Log != nil {
+					r.Log.Info("self-remediation suppressed by circuit breaker",
+						zap.Bool("audit", true),
+						zap.String("event", "self_remediation.circuit_breaker"),
+						zap.String("provider", r.Provider.ProviderName()),
+						zap.String("kind", finding.Kind),
+						zap.String("namespace", finding.Namespace),
+						zap.String("name", finding.Name),
+						zap.Int("chainDepth", finding.ChainDepth),
+						zap.Duration("remaining", remaining),
+					)
+				}
+				return ctrl.Result{RequeueAfter: remaining}, nil
+			}
+		}
+	}
+
 	fp, err := domain.FindingFingerprint(finding)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("computing fingerprint: %w", err)
@@ -407,6 +452,7 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 				ParentObject: finding.ParentObject,
 				Errors:       finding.Errors,
 				Details:      finding.Details,
+				ChainDepth:   int32(finding.ChainDepth),
 			},
 			GitOpsRepo:         r.Cfg.GitOpsRepo,
 			GitOpsManifestRoot: r.Cfg.GitOpsManifestRoot,

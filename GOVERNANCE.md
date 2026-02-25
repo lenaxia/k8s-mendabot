@@ -2,10 +2,14 @@
 
 ## Project Status
 
-k8s-mendabot is a personal / small-team open-source project maintained by
-[lenaxia](https://github.com/lenaxia). It does not (yet) have a formal
-governance body. This document describes how decisions are made, how
-maintainership works, and what contributors can expect.
+k8s-mendabot is an open-source project currently maintained by
+[lenaxia](https://github.com/lenaxia). The project is actively seeking
+co-maintainers from other organizations. If you use k8s-mendabot in production
+and are interested in co-maintaining, open a GitHub issue labelled `governance`
+to start the conversation.
+
+The authoritative list of current maintainers and committers is in
+[MAINTAINERS.md](MAINTAINERS.md).
 
 ---
 
@@ -13,7 +17,7 @@ maintainership works, and what contributors can expect.
 
 ### Maintainer
 
-The project maintainer is responsible for:
+Maintainers are responsible for:
 
 - Setting product direction and prioritising the backlog
 - Reviewing and merging pull requests
@@ -22,15 +26,66 @@ The project maintainer is responsible for:
 - Enforcing the [Code of Conduct](CODE_OF_CONDUCT.md)
 - Maintaining the CI/CD pipeline and release infrastructure
 
-**Current maintainer:** [lenaxia](https://github.com/lenaxia)
+**Current maintainers:** see [MAINTAINERS.md](MAINTAINERS.md)
+
+### Committer
+
+Committers are trusted contributors with review and merge rights. They are
+expected to:
+
+- Review pull requests in a timely manner
+- Participate in design discussions
+- Help triage issues and support new contributors
+
+Committers are listed in [MAINTAINERS.md](MAINTAINERS.md).
 
 ### Contributor
 
 Anyone who submits a pull request, opens an issue, or participates in
 discussion is a contributor. Contributors do not have merge rights.
 
-There is currently no committer tier between contributor and maintainer.
-If the project grows to warrant it, this document will be updated.
+---
+
+## Contributor Ladder
+
+The project uses a three-tier ladder: Contributor → Committer → Maintainer.
+
+### Contributor → Committer
+
+A contributor may be nominated for committer status after demonstrating
+sustained, high-quality engagement with the project. Criteria:
+
+- At least 5 pull requests merged over a period of at least 60 days
+- Participation in at least one architectural or design discussion
+- No unresolved Code of Conduct concerns
+- Familiarity with the project's testing, security, and governance practices
+
+**Process:** Any maintainer may nominate a contributor by opening a GitHub
+issue labelled `governance` with a summary of the nominee's contributions.
+Existing maintainers discuss and approve by consensus. The new committer is
+added to [MAINTAINERS.md](MAINTAINERS.md) via a pull request.
+
+### Committer → Maintainer
+
+A committer may be nominated for maintainer status after demonstrating
+ownership across multiple areas of the project. Additional criteria beyond
+committer requirements:
+
+- Track record of reviewing and merging pull requests
+- Demonstrated ability to make product and architectural decisions
+- Willingness to take on release and security responsibilities
+- Affiliation with an organization different from existing maintainers is
+  preferred but not required
+
+**Process:** Same as committer nomination — open a `governance` issue, discuss
+with existing maintainers, approve by consensus.
+
+### Inactive Maintainers / Emeritus
+
+A maintainer who has not participated in the project (code reviews, issues,
+releases, or community discussions) for 6 months may be moved to Emeritus
+status. Emeritus maintainers are listed in [MAINTAINERS.md](MAINTAINERS.md)
+and are always welcome to return to active status.
 
 ---
 

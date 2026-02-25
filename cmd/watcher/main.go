@@ -20,6 +20,7 @@ import (
 	zapr "sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/lenaxia/k8s-mendabot/api/v1alpha1"
+	"github.com/lenaxia/k8s-mendabot/internal/circuitbreaker"
 	"github.com/lenaxia/k8s-mendabot/internal/config"
 	"github.com/lenaxia/k8s-mendabot/internal/controller"
 	"github.com/lenaxia/k8s-mendabot/internal/domain"
@@ -153,6 +154,14 @@ func main() {
 	}
 
 	nativeClient := mgr.GetClient()
+
+	// Construct circuit breaker once; shared across all providers.
+	// nil when cooldown is 0 (disabled).
+	var cb circuitbreaker.Gater
+	if cfg.SelfRemediationCooldown > 0 {
+		cb = circuitbreaker.New(cfg.SelfRemediationCooldown)
+	}
+
 	enabledProviders := []domain.SourceProvider{
 		native.NewPodProvider(nativeClient),
 		native.NewDeploymentProvider(nativeClient),
@@ -170,6 +179,7 @@ func main() {
 			Provider:         p,
 			EventRecorder:    mgr.GetEventRecorderFor("mendabot-watcher"),
 			ReadinessChecker: combinedChecker,
+			CircuitBreaker:   cb,
 		}).SetupWithManager(mgr); err != nil {
 			logger.Fatal("provider setup failed", zap.Error(err))
 		}

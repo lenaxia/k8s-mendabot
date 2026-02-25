@@ -1,6 +1,6 @@
 # Epic 11: Self-Remediation Cascade Prevention
 
-## Status: Deferred — branch `feature/epic11-13-deferred`
+## Status: Complete — branch `feature/epic11-self-remediation-cascade`
 
 ## Problem Statement
 
@@ -43,10 +43,10 @@ No upstream repository routing. All PRs always target `GITOPS_REPO`.
 
 | # | File | Title | Status | Priority | Effort |
 |---|------|-------|--------|----------|--------|
-| 1 | [STORY_01_schema_foundations.md](STORY_01_schema_foundations.md) | Schema foundations: ChainDepth in Finding and RemediationJobSpec | Not Started | Critical | 1h |
-| 2 | [STORY_02_job_provider_detection.md](STORY_02_job_provider_detection.md) | jobProvider: detect mendabot agent jobs and compute chain depth | Not Started | Critical | 2h |
-| 3 | [STORY_03_reconciler_wiring.md](STORY_03_reconciler_wiring.md) | SourceProviderReconciler: depth gate, circuit breaker wiring, main.go | Not Started | Critical | 3h |
-| 4 | [STORY_04_circuit_breaker.md](STORY_04_circuit_breaker.md) | Circuit breaker: ConfigMap-backed cooldown | Not Started | High | 3h |
+| 1 | [STORY_01_schema_foundations.md](STORY_01_schema_foundations.md) | Schema foundations: ChainDepth in Finding and RemediationJobSpec | Complete | Critical | 1h |
+| 2 | [STORY_02_job_provider_detection.md](STORY_02_job_provider_detection.md) | jobProvider: detect mendabot agent jobs and compute chain depth | Complete | Critical | 2h |
+| 3 | [STORY_03_reconciler_wiring.md](STORY_03_reconciler_wiring.md) | SourceProviderReconciler: depth gate, circuit breaker wiring, main.go | Complete | Critical | 3h |
+| 4 | [STORY_04_circuit_breaker.md](STORY_04_circuit_breaker.md) | Circuit breaker: in-memory cooldown | Complete | High | 1h |
 
 ## Technical Overview
 
@@ -133,15 +133,15 @@ Both variables are optional. Safe defaults are applied when absent.
 
 ## Definition of Done
 
-- [ ] `domain.Finding.ChainDepth int` field exists
-- [ ] `FindingSpec.ChainDepth int32` field exists in `RemediationJobSpec`
-- [ ] `RemediationJob` CRD testdata YAML updated
-- [ ] `jobProvider.ExtractFinding` returns non-nil for failed mendabot agent
+- [x] `domain.Finding.ChainDepth int` field exists
+- [x] `FindingSpec.ChainDepth int32` field exists in `RemediationJobSpec`
+- [x] `RemediationJob` CRD testdata YAML updated
+- [x] `jobProvider.ExtractFinding` returns non-nil for failed mendabot agent
       jobs with correct `ChainDepth`
-- [ ] `SourceProviderReconciler.Reconcile` enforces max-depth and calls
+- [x] `SourceProviderReconciler.Reconcile` enforces max-depth and calls
       circuit breaker for self-remediations
-- [ ] `CircuitBreaker` package exists with ConfigMap persistence
-- [ ] `cmd/watcher/main.go` constructs and injects `CircuitBreaker`
-- [ ] `Config` contains `SelfRemediationMaxDepth` and `SelfRemediationCooldown`
-- [ ] All tests pass with `-race`
-- [ ] ConfigMap RBAC rule added to `charts/mendabot/templates/role-watcher.yaml`
+- [x] `CircuitBreaker` package exists with in-memory cooldown
+- [x] `cmd/watcher/main.go` constructs and injects `CircuitBreaker`
+- [x] `Config` contains `SelfRemediationMaxDepth` and `SelfRemediationCooldown`
+- [x] All tests pass with `-race`
+- [ ] ConfigMap RBAC rule added — N/A: implementation is in-memory only, no ConfigMap
