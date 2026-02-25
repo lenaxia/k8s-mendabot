@@ -123,10 +123,18 @@ The `github-app` Secret must contain three keys:
 
 ```yaml
 data:
-  app-id: <GitHub App ID>
-  installation-id: <Installation ID for your repository>
+  app-id: <GitHub App ID>           # numeric ID shown on the App settings page
+  installation-id: <Installation ID> # numeric ID from the installation URL (see below)
   private-key: <PEM-encoded RSA private key>
 ```
+
+The **App ID** is shown on `https://github.com/settings/apps/<your-app-name>`.
+
+The **Installation ID** is the numeric suffix in the URL when you view your app's
+installation: `https://github.com/organizations/<org>/settings/installations/<id>`
+(personal accounts: `https://github.com/settings/installations/<id>`).
+It is also returned by `GET https://api.github.com/app/installations` authenticated
+with the App JWT.
 
 The private key is used only in the agent Job's init container to exchange a
 short-lived installation token (1-hour TTL). It is never injected into the main
@@ -143,9 +151,19 @@ kubectl create secret generic github-app \
   --from-literal=installation-id=<your-installation-id> \
   --from-file=private-key=<path-to-private-key.pem>
 
+# For native OpenAI (api.openai.com):
 kubectl create secret generic llm-credentials-opencode \
   --namespace mendabot \
-  --from-literal=provider-config='{"model":"gpt-4o","providers":{"openai":{"apiKey":"<your-api-key>","baseURL":"https://api.openai.com/v1"}}}'
+  --from-literal=provider-config='{"model":"openai/gpt-4o"}'
+# The secret above tells OpenCode which model to use. You must also supply the API key
+# via the OPENAI_API_KEY environment variable or by running: opencode auth add openai
+# A common approach is to add the key to the secret and inject it via a Helm value
+# or a separate Secret; see Configuration below.
+
+# For a custom OpenAI-compatible endpoint (self-hosted, Ollama, Azure, etc.):
+# kubectl create secret generic llm-credentials-opencode \
+#   --namespace mendabot \
+#   --from-literal=provider-config='{"provider":{"myprovider":{"npm":"@ai-sdk/openai-compatible","name":"My Provider","options":{"baseURL":"<url>","apiKey":"<key>"},"models":{"<model-id>":{"name":"<model-name>"}}}},"model":"myprovider/<model-id>"}'
 ```
 
 ### 2. Install with Helm
@@ -162,6 +180,8 @@ helm install mendabot charts/mendabot/ \
 ```sh
 kubectl get deployment -n mendabot
 kubectl get rjob -n mendabot
+# Show lifecycle events for a specific RemediationJob:
+kubectl describe rjob <name> -n mendabot
 ```
 
 ## Configuration
@@ -185,7 +205,14 @@ All `values.yaml` keys and their defaults:
 | `watcher.remediationJobTTLSeconds` | `604800` | TTL for completed RemediationJob objects (7 days) |
 | `watcher.sinkType` | `github` | Sink type for PR creation |
 | `watcher.logLevel` | `info` | Log level: debug, info, warn, error |
-| `agentType` | `opencode` | Agent runner type. Currently `opencode`; additional agent backends planned. |
+| `watcher.llmProvider` | `openai` | LLM readiness gate: `openai` enables it; empty disables |
+| `watcher.injectionDetectionAction` | `log` | What to do when a prompt injection heuristic fires: `log` or `suppress` |
+| `watcher.maxInvestigationRetries` | `3` | Maximum Job retries per `RemediationJob` before permanently failing |
+| `watcher.agentRBACScope` | `cluster` | RBAC scope for the agent: `cluster` or `namespace` |
+| `watcher.agentWatchNamespaces` | `""` | Comma-separated namespaces for the agent RBAC scope. Required when `agentRBACScope=namespace` |
+| `watcher.watchNamespaces` | `""` | Comma-separated namespaces the watcher monitors for failures. Empty = all namespaces |
+| `watcher.excludeNamespaces` | `""` | Comma-separated namespaces the watcher ignores. Empty = no exclusions |
+| `agentType` | `opencode` | Agent runner type: `opencode` (functional) or `claude` (stub, not yet functional). Controls which `llm-credentials-<agentType>` Secret is consumed. Secret names are compile-time constants — they cannot be overridden via Helm values. |
 | `prompt.coreOverride` | `""` | Full core prompt override (replaces built-in `files/prompts/core.txt`) |
 | `prompt.agentOverride` | `""` | Full agent prompt override (replaces built-in `files/prompts/<agentType>.txt`) |
 | `rbac.create` | `true` | Create RBAC resources |
@@ -280,17 +307,58 @@ stateDiagram-v2
     Running --> Failed : exit non-zero or deadline exceeded
     Running --> Cancelled : source object deleted
 
-    Failed --> [*] : re-triggers on next reconcile of source
+    Failed --> Dispatched : retry (RetryCount < MaxRetries)
+    Failed --> PermanentlyFailed : RetryCount >= MaxRetries
     Succeeded --> [*]
     Cancelled --> [*]
+    PermanentlyFailed --> [*]
 ```
 
 - **Pending** — finding detected, waiting for a concurrent-job slot
 - **Dispatched** — `batch/v1 Job` created, waiting for pod scheduling
 - **Running** — agent pod is executing
 - **Succeeded** — agent Job completed; `status.prRef` holds the PR URL if one was opened
-- **Failed** — agent Job failed (exit non-zero or deadline exceeded); re-triggers on next reconcile
+- **Failed** — agent Job failed (exit non-zero or deadline exceeded); re-queued if `RetryCount < MaxRetries`
+- **PermanentlyFailed** — `RetryCount` has reached `MaxRetries`; no further dispatch; visible via `kubectl describe rjob <name>`
 - **Cancelled** — source object was deleted while the investigation was in progress
+
+### Per-resource annotation control
+
+Three annotations gate mendabot's behaviour on any watched resource (Pod, Deployment,
+StatefulSet, PVC, Node, Job) or on an entire Namespace:
+
+| Annotation | Value | Effect |
+|---|---|---|
+| `mendabot.io/enabled` | `"false"` | Permanently suppress all findings from this resource |
+| `mendabot.io/skip-until` | `"YYYY-MM-DD"` | Suppress findings until end-of-day UTC on this date |
+| `mendabot.io/priority` | `"critical"` | Bypass the stabilisation window — dispatch immediately |
+
+**Examples:**
+
+```sh
+# Disable investigations on a deployment permanently
+kubectl annotate deployment my-app mendabot.io/enabled=false
+
+# Silence a noisy node until after a maintenance window
+kubectl annotate node worker-03 mendabot.io/skip-until=2026-03-15
+
+# Dispatch immediately on a critical deployment (no stabilisation window)
+kubectl annotate deployment api-server mendabot.io/priority=critical
+```
+
+**Namespace-level gate:** Annotating the `Namespace` object itself applies to all resources
+in that namespace. This suppresses every finding regardless of the resource's own annotations:
+
+```sh
+# Disable all mendabot activity in the kube-system namespace
+kubectl annotate namespace kube-system mendabot.io/enabled=false
+
+# Suppress all findings in staging until a date
+kubectl annotate namespace staging mendabot.io/skip-until=2026-04-01
+```
+
+The `skip-until` date is inclusive: findings are suppressed until midnight UTC at the
+start of the day *after* the specified date.
 
 ### Components
 
@@ -326,12 +394,12 @@ Features under active development or planned:
 
 | Area | Feature | Status |
 |---|---|---|
-| Operability | Kubernetes Events on `RemediationJob` (`kubectl describe rjob` shows lifecycle) | In Progress |
+| Operability | Kubernetes Events on `RemediationJob` (`kubectl describe rjob` shows lifecycle) | Shipped |
 | Operability | Dry-run mode — investigate without opening PRs | Planned |
-| Reliability | Dead-letter queue for permanently-failed jobs | Planned |
+| Reliability | `PermanentlyFailed` phase — retry cap with dead-letter tombstone | Shipped |
 | Reliability | GitHub App token expiry fast-fail guard | Planned |
-| Accuracy | Namespace-scoped provider filtering | Planned |
-| Accuracy | Per-resource opt-out annotations | Planned |
+| Accuracy | Namespace-scoped provider filtering (`WATCH_NAMESPACES`, `EXCLUDE_NAMESPACES`) | Shipped |
+| Accuracy | Per-resource opt-out annotations (`mendabot.io/enabled`, `mendabot.io/skip-until`, `mendabot.io/priority`) | Shipped |
 | Accuracy | Multi-signal correlation (related findings grouped into one investigation) | Planned |
 | Accuracy | Mandatory pre-PR manifest validation | Planned |
 | Impact | PR auto-close when finding resolves | Evaluated |
@@ -348,6 +416,49 @@ full product backlog with value/complexity ratings and implementation notes.
 - [`docs/DESIGN/lld/`](docs/DESIGN/lld/) — Component-level low-level designs
 - [`docs/BACKLOG/`](docs/BACKLOG/) — Implementation backlog and feature tracker
 - [`README-LLM.md`](README-LLM.md) — LLM implementation guide
+
+## Development
+
+### Prerequisites
+
+- Go 1.23+
+- [`golangci-lint`](https://golangci-lint.run/usage/install/) — extended linter suite
+- [`gitleaks`](https://github.com/zricethezav/gitleaks) — secrets scanner
+
+Install both with `go install`:
+
+```sh
+go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+go install github.com/zricethezav/gitleaks/v8@latest
+```
+
+### Git hooks
+
+After cloning, install the pre-commit hook once:
+
+```sh
+make install-hooks
+```
+
+The hook runs on every `git commit` and enforces two checks:
+
+| Check | Tool | What it catches |
+|---|---|---|
+| Secrets scan | `gitleaks` | API keys, tokens, credentials in staged files |
+| Lint | `golangci-lint` | Type errors, unused code, security issues, formatting |
+
+To bypass in an emergency: `git commit --no-verify`
+
+### Useful make targets
+
+| Target | Description |
+|---|---|
+| `make lint` | Quick `go vet` check |
+| `make lint-full` | Full `golangci-lint` run (same as pre-commit) |
+| `make lint-secrets` | Full repo secrets scan with `gitleaks` |
+| `make lint-security` | `gosec` HIGH/CRITICAL security check |
+| `make test` | Full test suite with race detector |
+| `make install-hooks` | (Re-)install git hooks after cloning |
 
 ## License
 

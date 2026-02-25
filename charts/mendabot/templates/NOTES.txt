@@ -16,6 +16,11 @@ via Helm values.
      --from-literal=installation-id=<your-installation-id> \
      --from-file=private-key=<path-to-private-key.pem>
 
+   App ID: shown on https://github.com/settings/apps/<your-app-name>
+   Installation ID: numeric suffix in the URL at
+     https://github.com/organizations/<org>/settings/installations/<id>
+     (personal: https://github.com/settings/installations/<id>)
+
 2. LLM + cluster credentials (Secret name: "llm-credentials-{{ .Values.agentType }}"):
    The Secret uses an opaque config blob pattern — mendabot never interprets
    the provider-config content; it is passed directly to the agent runner.

@@ -71,6 +71,14 @@
           "type": "string",
           "description": "Comma-separated namespaces. Required when agentRBACScope=namespace."
         },
+        "watchNamespaces": {
+          "type": "string",
+          "description": "Comma-separated namespaces the watcher monitors. Empty = all namespaces."
+        },
+        "excludeNamespaces": {
+          "type": "string",
+          "description": "Comma-separated namespaces the watcher ignores. Empty = no exclusions."
+        },
         "maxInvestigationRetries": {
           "type": "string",
           "description": "Maximum investigation retries per RemediationJob before permanently failing."

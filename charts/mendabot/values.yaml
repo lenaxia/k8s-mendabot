@@ -50,9 +50,17 @@ watcher:
   # RBAC scope for cluster watching: "cluster" (default) or "namespace".
   # When set to "namespace", agentWatchNamespaces must also be set.
   agentRBACScope: "cluster"
-  # Comma-separated list of namespaces to watch. Required when agentRBACScope=namespace.
+  # Comma-separated list of namespaces for the agent RBAC scope. Required when agentRBACScope=namespace.
   # Example: "production,staging"
   agentWatchNamespaces: ""
+  # Comma-separated list of namespaces the watcher should monitor for failures.
+  # Empty (default) means watch all namespaces.
+  # Example: "production,staging"
+  watchNamespaces: ""
+  # Comma-separated list of namespaces the watcher should ignore.
+  # Empty (default) means exclude no namespaces.
+  # Example: "kube-system,monitoring"
+  excludeNamespaces: ""
 
 # Agent runner type. Controls which AI agent binary runs inside the Job.
 # Supported values: "opencode", "claude" (claude is a stub — not yet functional)
