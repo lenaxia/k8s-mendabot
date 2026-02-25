@@ -1,7 +1,7 @@
 # k8s-mendabot — LLM Implementation Guide
 
 **Version:** 1.0
-**Last Updated:** 2026-02-19
+**Last Updated:** 2026-02-25
 **Project Status:** Active Development — Design Phase
 
 ---
@@ -859,11 +859,7 @@ kubectl apply -k deploy/kustomize/
 | Branch | Purpose | Status | Created |
 |--------|---------|--------|---------|
 | `main` | Stable code | Active | 2026-02-19 |
-| `feature/epic11-self-remediation-cascade` | Epic 11 self-remediation cascade prevention | Active | 2026-02-25 |
-| `feature/epic11-13-deferred` | Epic 11 (cascade prevention) + Epic 13 (multi-signal correlation) — deferred | Deferred | 2026-02-23 |
-| `feature/epic12-security-remediation` | Epic 12 security gap remediation (findings 001–013) | Active | 2026-02-23 |
-| `feature/epic16-annotation-control` | Epic 16 per-resource annotation control (enabled, skip-until, priority) | Active | 2026-02-24 |
-| `feature/epic25-tool-output-redaction` | Epic 25 tool call output redaction (wrappers + cmd/redact) | Active | 2026-02-24 |
+
 **Merged branches:**
 
 | Branch | Purpose | Merged | Commit |
@@ -871,10 +867,14 @@ kubectl apply -k deploy/kustomize/
 | `feature/epic09-native-provider` | Native cluster provider (replaces k8sgpt) | 2026-02-22 | df59899 |
 | `feature/epic10-helm-chart` | Helm chart packaging (epic10) | 2026-02-23 | 2dec0ae |
 | `feature/epic11-fixes` | Epic 11 complete: EventRecorder (3 events), 10-gap review, Grafana dashboard, alert rules | 2026-02-23 | 9a8477a |
+| `feature/epic12-security-remediation` | Epic 12 security gap remediation (findings 001–013) | 2026-02-25 | 6f7d8ae |
 | `feature/epic15-namespace-filtering` | Epic 15 namespace filtering (WATCH_NAMESPACES, EXCLUDE_NAMESPACES) | 2026-02-24 | 127c08e |
-| `feature/epic21-kubernetes-events` | Epic 21: Kubernetes Events on RemediationJob (FT-U3) | 2026-02-24 | 021ac37 |
+| `feature/epic16-annotation-control` | Epic 16 per-resource annotation control (enabled, skip-until, priority) | 2026-02-25 | c37e52c |
 | `feature/epic16-namespace-annotation` | Epic 16 STORY_04: namespace-level annotation gate (enabled, skip-until on Namespace objects) | 2026-02-24 | 2553638 |
+| `feature/epic21-kubernetes-events` | Epic 21: Kubernetes Events on RemediationJob (FT-U3) | 2026-02-24 | 021ac37 |
 | `feature/epic24-severity-tiers` | Epic 24: Severity tiers on findings (Severity type, provider classification, MIN_SEVERITY filter, prompt calibration) | 2026-02-25 | a4d719c |
+| `feature/epic11-self-remediation-cascade` | Epic 11 self-remediation cascade prevention (depth limit + circuit breaker) | 2026-02-25 | e7d731f |
+| `feature/epic25-tool-output-redaction` | Epic 25 tool call output redaction (wrappers + cmd/redact) | 2026-02-25 | 6df2e76 |
 
 **Branch naming:**
 - Feature: `feature/short-description`
