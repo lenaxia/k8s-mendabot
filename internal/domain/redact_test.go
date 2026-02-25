@@ -122,6 +122,41 @@ func TestRedactSecrets(t *testing.T) {
 			input: "redis://:s3cr3tpassword@redis.default.svc:6379/0",
 			want:  "redis://[REDACTED]@redis.default.svc:6379/0",
 		},
+		{
+			name:  "P-006: PEM RSA private key full block",
+			input: "error: -----BEGIN RSA PRIVATE KEY-----\nMIIEow...\n-----END RSA PRIVATE KEY-----",
+			want:  "error: [REDACTED-PEM-KEY]",
+		},
+		{
+			name:  "P-006: PEM EC private key full block",
+			input: "key: -----BEGIN EC PRIVATE KEY-----\nbase64data\n-----END EC PRIVATE KEY-----",
+			want:  "key: [REDACTED-PEM-KEY]",
+		},
+		{
+			name:  "P-006: PEM PRIVATE KEY (PKCS8) full block",
+			input: "-----BEGIN PRIVATE KEY-----\nMIIEvQ==\n-----END PRIVATE KEY-----",
+			want:  "[REDACTED-PEM-KEY]",
+		},
+		{
+			name:  "P-006: PEM public key not redacted",
+			input: "-----BEGIN PUBLIC KEY-----\nMFww...\n-----END PUBLIC KEY-----",
+			want:  "-----BEGIN PUBLIC KEY-----\nMFww...\n-----END PUBLIC KEY-----",
+		},
+		{
+			name:  "P-007: X-API-Key header",
+			input: "X-API-Key: sk-abc123def456",
+			want:  "X-API-Key: [REDACTED]",
+		},
+		{
+			name:  "P-007: x-api-key header lowercase",
+			input: "x-api-key: myshortkey",
+			want:  "x-api-key: [REDACTED]",
+		},
+		{
+			name:  "P-007: X-API-Key with tabs",
+			input: "X-API-Key:\tmysecretvalue",
+			want:  "X-API-Key:\t[REDACTED]",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

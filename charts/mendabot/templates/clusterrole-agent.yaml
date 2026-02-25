@@ -6,7 +6,16 @@ metadata:
   labels:
     {{- include "mendabot.labels" . | nindent 4 }}
 rules:
-- apiGroups: ["*"]
-  resources: ["*"]
+- apiGroups: [""]
+  resources: ["pods", "pods/log", "nodes", "persistentvolumeclaims", "namespaces", "events", "services", "endpoints", "configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "statefulsets", "replicasets", "daemonsets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["batch"]
+  resources: ["jobs", "cronjobs"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["remediation.mendabot.io"]
+  resources: ["remediationjobs", "remediationjobs/status"]
   verbs: ["get", "list", "watch"]
 {{- end }}

@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	githubAppSecretName = "github-app"
+	githubAppSecretName = "github-app" //nolint:gosec // G101 false positive: this is a Kubernetes Secret name, not a credential value
 )
 
 // requiredGitHubAppKeys are the keys that must be present and non-empty in the

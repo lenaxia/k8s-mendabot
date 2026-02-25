@@ -258,6 +258,19 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	priorityCritical := obj.GetAnnotations()[domain.AnnotationPriority] == "critical"
+	if priorityCritical {
+		if r.Log != nil {
+			r.Log.Info("stabilisation window bypassed by priority annotation",
+				zap.Bool("audit", true),
+				zap.String("event", "finding.stabilisation_window_bypassed"),
+				zap.String("provider", r.Provider.ProviderName()),
+				zap.String("fingerprint", fp[:12]),
+				zap.String("kind", finding.Kind),
+				zap.String("namespace", finding.Namespace),
+				zap.String("name", finding.Name),
+			)
+		}
+	}
 	if !priorityCritical && r.Cfg.StabilisationWindow != 0 {
 		if first, seen := r.firstSeen.Get(fp); !seen {
 			r.firstSeen.Set(fp)

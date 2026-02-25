@@ -248,6 +248,21 @@ func TestFromEnv_ZeroRemediationJobTTL(t *testing.T) {
 	}
 }
 
+// TestFromEnv_TTLOverflow verifies that REMEDIATION_JOB_TTL_SECONDS > MaxInt32 returns an error.
+func TestFromEnv_TTLOverflow(t *testing.T) {
+	t.Setenv("GITOPS_REPO", "org/repo")
+	t.Setenv("GITOPS_MANIFEST_ROOT", "kubernetes/")
+	t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mendabot-agent:latest")
+	t.Setenv("AGENT_NAMESPACE", "mendabot")
+	t.Setenv("AGENT_SA", "mendabot-agent")
+	t.Setenv("REMEDIATION_JOB_TTL_SECONDS", "2147483648")
+
+	_, err := config.FromEnv()
+	if err == nil {
+		t.Fatal("expected error for REMEDIATION_JOB_TTL_SECONDS overflow, got nil")
+	}
+}
+
 func setRequiredEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("GITOPS_REPO", "org/repo")
@@ -706,6 +721,11 @@ func TestFromEnv_MaxInvestigationRetries(t *testing.T) {
 		{
 			name:     "float is invalid",
 			envValue: "3.5",
+			wantErr:  true,
+		},
+		{
+			name:     "overflow above MaxInt32 is invalid",
+			envValue: "2147483648",
 			wantErr:  true,
 		},
 	}

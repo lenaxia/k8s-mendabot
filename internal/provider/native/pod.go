@@ -101,7 +101,7 @@ func (p *podProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 			if cond.Type == corev1.PodScheduled &&
 				cond.Status == corev1.ConditionFalse &&
 				cond.Reason == "Unschedulable" {
-				text := fmt.Sprintf("pod %s: %s", cond.Reason, domain.RedactSecrets(cond.Message))
+				text := fmt.Sprintf("pod %s: %s", cond.Reason, domain.RedactSecrets(truncate(cond.Message, 500)))
 				errors = append(errors, errorEntry{Text: text})
 				break
 			}

@@ -13,6 +13,8 @@ var redactPatterns = []struct {
 	{regexp.MustCompile(`(?i)(token\s*[=:]\s*)\S+`), `${1}[REDACTED]`},
 	{regexp.MustCompile(`(?i)(secret\s*[=:]\s*)\S+`), `${1}[REDACTED]`},
 	{regexp.MustCompile(`(?i)(api[_-]?key\s*[=:]\s*)\S+`), `${1}[REDACTED]`},
+	{regexp.MustCompile(`(?i)(x-api-key\s*[=:]\t*)\S+`), `${1}[REDACTED]`},
+	{regexp.MustCompile(`(?is)-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----.*?-----END (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----`), `[REDACTED-PEM-KEY]`},
 	{regexp.MustCompile(`[A-Za-z0-9+/]{40,}={0,2}`), `[REDACTED-BASE64]`},
 }
 

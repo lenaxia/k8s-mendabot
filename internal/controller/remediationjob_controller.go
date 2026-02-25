@@ -271,6 +271,30 @@ func (r *RemediationJobReconciler) dispatch(
 	ctx context.Context,
 	rjob *v1alpha1.RemediationJob,
 ) error {
+	if domain.DetectInjection(rjob.Spec.Finding.Errors) || domain.DetectInjection(rjob.Spec.Finding.Details) {
+		if r.Log != nil {
+			r.Log.Warn("injection detected in RemediationJob spec — suppressing dispatch",
+				zap.Bool("audit", true),
+				zap.String("event", "finding.injection_detected"),
+				zap.String("source", "controller"),
+				zap.String("remediationJob", rjob.Name),
+				zap.String("namespace", rjob.Namespace),
+			)
+		}
+		if r.Cfg.InjectionDetectionAction == "suppress" {
+			rjobCopy := rjob.DeepCopyObject().(*v1alpha1.RemediationJob)
+			rjob.Status.Phase = v1alpha1.PhasePermanentlyFailed
+			apimeta.SetStatusCondition(&rjob.Status.Conditions, metav1.Condition{
+				Type:               v1alpha1.ConditionPermanentlyFailed,
+				Status:             metav1.ConditionTrue,
+				Reason:             "InjectionDetected",
+				Message:            "injection pattern detected in finding; dispatch suppressed",
+				LastTransitionTime: metav1.Now(),
+			})
+			return r.Status().Patch(ctx, rjob, client.MergeFrom(rjobCopy))
+		}
+	}
+
 	job, err := r.JobBuilder.Build(rjob, nil)
 	if err != nil {
 		return fmt.Errorf("building Job: %w", err)

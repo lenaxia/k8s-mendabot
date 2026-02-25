@@ -29,9 +29,6 @@ func newExhaustedJob(name, namespace string, failedCount int32) *batchv1.Job {
 	}
 }
 
-// ptr returns a pointer to any value.
-func ptr[T any](v T) *T { return &v }
-
 // TestJobProviderName_IsNative verifies ProviderName() returns "native".
 func TestJobProviderName_IsNative(t *testing.T) {
 	s := newTestScheme()

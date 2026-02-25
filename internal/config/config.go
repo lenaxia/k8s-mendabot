@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -120,6 +121,9 @@ func FromEnv() (Config, error) {
 		if n <= 0 {
 			return Config{}, fmt.Errorf("REMEDIATION_JOB_TTL_SECONDS must be a positive integer, got %d", n)
 		}
+		if n > math.MaxInt32 {
+			return Config{}, fmt.Errorf("REMEDIATION_JOB_TTL_SECONDS must be at most %d, got %d", math.MaxInt32, n)
+		}
 		cfg.RemediationJobTTLSeconds = n
 	}
 
@@ -218,6 +222,9 @@ func FromEnv() (Config, error) {
 		}
 		if n <= 0 {
 			return Config{}, fmt.Errorf("MAX_INVESTIGATION_RETRIES must be a positive integer, got %d", n)
+		}
+		if n > math.MaxInt32 {
+			return Config{}, fmt.Errorf("MAX_INVESTIGATION_RETRIES must be at most %d, got %d", math.MaxInt32, n)
 		}
 		cfg.MaxInvestigationRetries = int32(n)
 	}

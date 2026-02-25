@@ -1,0 +1,29 @@
+# .gitleaks.toml — gitleaks configuration
+# Docs: https://github.com/gitleaks/gitleaks
+
+title = "k8s-mendabot gitleaks config"
+
+[extend]
+# Use the default ruleset as a base
+useDefault = true
+
+[allowlist]
+description = "Global allowlist"
+paths = [
+  # Test fixtures and example configs are expected to contain fake credentials
+  "testdata/",
+  "examples/",
+  # gosec baseline may contain false-positive patterns
+  '''docs/BACKLOG/epic12-security-review/gosec-baseline\.json''',
+  # go.sum contains hashes that can resemble secrets
+  "go.sum",
+  # Security reports contain example/redacted credential strings for documentation
+  '''docs/SECURITY/''',
+  # Redaction test file contains fixture strings to verify redaction patterns work
+  '''internal/domain/redact_test\.go''',
+]
+regexTarget = "line"
+regexes = [
+  # Ignore common placeholder values
+  '''(?i)(password|secret|token|key)\s*[=:]\s*["']?(placeholder|changeme|todo|fixme|xxx|example|test|fake|dummy|your[-_].*here)["']?''',
+]

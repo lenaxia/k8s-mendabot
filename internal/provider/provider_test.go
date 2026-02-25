@@ -1317,6 +1317,52 @@ func TestStabilisationWindow_PriorityCriticalWindowAlreadyZero(t *testing.T) {
 	}
 }
 
+// TestStabilisationWindow_PriorityCriticalEmitsAuditLog verifies that when
+// mendabot.io/priority=critical bypasses the stabilisation window, an audit log
+// entry with event=finding.stabilisation_window_bypassed is emitted.
+func TestStabilisationWindow_PriorityCriticalEmitsAuditLog(t *testing.T) {
+	finding := makeFinding()
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
+	}
+	obj := makeWatchedObjectWithAnnotations("r1", "default", map[string]string{
+		domain.AnnotationPriority: "critical",
+	})
+	c := newTestClient(obj)
+	window := 2 * time.Minute
+
+	logger, logs := newObserverInfoLogger()
+	r := &provider.SourceProviderReconciler{
+		Client: c,
+		Scheme: newTestScheme(),
+		Cfg: config.Config{
+			AgentNamespace:      agentNamespace,
+			StabilisationWindow: window,
+		},
+		Provider: p,
+		Log:      logger,
+	}
+
+	_, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var found bool
+	for _, entry := range logs.All() {
+		cm := entry.ContextMap()
+		if cm["event"] == "finding.stabilisation_window_bypassed" && cm["audit"] == true {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected audit log entry with event=finding.stabilisation_window_bypassed, got entries: %v", logs.All())
+	}
+}
+
 // --- GAP-2: finding.detected audit log ---
 
 // TestAuditLog_FindingDetected verifies that when ExtractFinding returns a non-nil finding,
