@@ -119,6 +119,10 @@ exposed to the main agent container.
 | Pull requests | Write | Create and comment on pull requests |
 | Issues | Write | Reference issues in PR descriptions |
 
+For individual accounts visit here to create a new app with the above permissions: https://github.com/settings/apps/new
+
+Then visit https://github.com/settings/apps/<app-name>/installations and install it in your account and select your target repo
+
 ### 1. Create required Secrets
 
 ```sh
@@ -126,6 +130,7 @@ kubectl create namespace mendabot
 ```
 
 #### github-app
+
 
 The `github-app` Secret must contain three keys:
 
