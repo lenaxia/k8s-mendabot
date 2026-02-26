@@ -7,26 +7,43 @@ if ! command -v redact > /dev/null 2>&1; then
     exit 1
 fi
 
-# Dry-run enforcement: block write subcommands that create, modify, or comment on
-# GitHub resources. This is a deterministic control — the LLM cannot bypass it by
-# rephrasing a prompt instruction or unsetting DRY_RUN in a child shell.
+# Dry-run enforcement — three independent layers, defense-in-depth.
+# Any single layer returning "true" is sufficient to enforce dry-run mode.
 #
-# We read DRY_RUN from /proc/1/environ (the PID-1 / container entrypoint
-# environment) rather than the current shell environment. This makes the check
-# tamper-proof: a child process cannot unset or override the value that was
-# injected by the Kubernetes Job spec.
-_dry_run_val="false"
-if [ -r /proc/1/environ ]; then
-    # /proc/1/environ is NUL-delimited; grep for the exact variable.
-    if tr '\0' '\n' < /proc/1/environ 2>/dev/null | grep -q '^DRY_RUN=true$'; then
-        _dry_run_val="true"
-    fi
-else
-    # Fallback for environments where /proc/1/environ is not readable.
-    _dry_run_val="${DRY_RUN:-false}"
+#   Layer 1 — /mendabot-cfg/dry-run sentinel file (chmod 444, read-only volume mount).
+#              Written by the dry-run-gate init container before this container
+#              starts. The main container mounts the emptyDir read-only, so no
+#              child process can delete or modify the file — including via
+#              "unset DRY_RUN" or any other shell manipulation.
+#
+#   Layer 2 — /proc/1/environ (PID-1 / container entrypoint environment).
+#              Set by the Kubernetes Job spec at container creation time.
+#              Immutable from inside the container; unaffected by child unset.
+#
+#   Layer 3 — Current shell $DRY_RUN env var.
+#              Last-resort fallback for local testing / environments where
+#              /proc is unavailable. Can be bypassed by "unset DRY_RUN" but
+#              layers 1 and 2 cover that attack.
+_dry_run="false"
+
+# Layer 1: sentinel file (tamper-proof read-only mount)
+if [ -f /mendabot-cfg/dry-run ] && [ "$(cat /mendabot-cfg/dry-run 2>/dev/null)" = "true" ]; then
+    _dry_run="true"
 fi
 
-if [ "$_dry_run_val" = "true" ]; then
+# Layer 2: /proc/1/environ (immutable container-init env)
+if [ "$_dry_run" = "false" ] && [ -r /proc/1/environ ]; then
+    if tr '\0' '\n' < /proc/1/environ 2>/dev/null | grep -q '^DRY_RUN=true$'; then
+        _dry_run="true"
+    fi
+fi
+
+# Layer 3: current shell env var (fallback / local testing)
+if [ "$_dry_run" = "false" ] && [ "${DRY_RUN:-false}" = "true" ]; then
+    _dry_run="true"
+fi
+
+if [ "$_dry_run" = "true" ]; then
     case "${1:-}" in
         pr|issue|release|gist|workflow)
             case "${2:-}" in

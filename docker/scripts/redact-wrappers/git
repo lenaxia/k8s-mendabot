@@ -7,21 +7,39 @@
 # Dockerfile.agent. This wrapper is installed at /usr/local/bin/git which
 # takes precedence in PATH.
 
-# Dry-run enforcement: block subcommands that write to the remote or local
-# repository history. We read DRY_RUN from /proc/1/environ (the PID-1 /
-# container entrypoint environment) rather than the current shell environment.
-# This makes the check tamper-proof: a child process cannot unset or override
-# the value injected by the Kubernetes Job spec.
-_dry_run_val="false"
-if [ -r /proc/1/environ ]; then
-    if tr '\0' '\n' < /proc/1/environ 2>/dev/null | grep -q '^DRY_RUN=true$'; then
-        _dry_run_val="true"
-    fi
-else
-    _dry_run_val="${DRY_RUN:-false}"
+# Dry-run enforcement — three independent layers, defense-in-depth.
+# Any single layer returning "true" is sufficient to enforce dry-run mode.
+#
+#   Layer 1 — /mendabot-cfg/dry-run sentinel file (chmod 444, read-only volume mount).
+#              Written by the dry-run-gate init container; cannot be removed or
+#              modified by any child process inside the agent container.
+#
+#   Layer 2 — /proc/1/environ (PID-1 / container entrypoint environment).
+#              Immutable from inside the container; unaffected by child unset.
+#
+#   Layer 3 — Current shell $DRY_RUN env var.
+#              Last-resort fallback. Can be bypassed by "unset DRY_RUN" but
+#              layers 1 and 2 cover that attack.
+_dry_run="false"
+
+# Layer 1: sentinel file (tamper-proof read-only mount)
+if [ -f /mendabot-cfg/dry-run ] && [ "$(cat /mendabot-cfg/dry-run 2>/dev/null)" = "true" ]; then
+    _dry_run="true"
 fi
 
-if [ "$_dry_run_val" = "true" ]; then
+# Layer 2: /proc/1/environ (immutable container-init env)
+if [ "$_dry_run" = "false" ] && [ -r /proc/1/environ ]; then
+    if tr '\0' '\n' < /proc/1/environ 2>/dev/null | grep -q '^DRY_RUN=true$'; then
+        _dry_run="true"
+    fi
+fi
+
+# Layer 3: current shell env var (fallback / local testing)
+if [ "$_dry_run" = "false" ] && [ "${DRY_RUN:-false}" = "true" ]; then
+    _dry_run="true"
+fi
+
+if [ "$_dry_run" = "true" ]; then
     case "${1:-}" in
         push|commit)
             echo "[DRY_RUN] git $* blocked — write operations are disabled in dry-run mode" >&2

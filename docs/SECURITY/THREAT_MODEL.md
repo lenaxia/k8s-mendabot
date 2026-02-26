@@ -1,7 +1,7 @@
 # Threat Model: mendabot
 
-**Version:** 1.2
-**Date:** 2026-02-25
+**Version:** 1.3
+**Date:** 2026-02-26
 **Status:** Authoritative
 
 This document is the single source of truth for mendabot's threat model. It is
@@ -489,25 +489,63 @@ operator sets DRY_RUN=true expecting shadow-mode evaluation (no PRs, no git push
 → operator loses the safety guarantee of the evaluation period
 ```
 
-**Controls in place (epic20):**
+**Live exploit confirmed (2026-02-26, dry-run wrapper bypass test):**
 
-- **`gh` wrapper** (`/usr/local/bin/gh`) — intercepts all `gh` calls; when `DRY_RUN=true`,
-  blocks `pr create`, `pr comment`, `pr edit`, `pr merge`, `issue create`, and all other
-  write subcommands. Exits 0 with a `[DRY_RUN]` message on stderr. The LLM sees a clean
-  exit and does not retry.
-- **`git` wrapper** (`/usr/local/bin/git`, epic20 STORY_03b) — intercepts all `git` calls;
-  when `DRY_RUN=true`, blocks `push`, `commit`, and annotated/signed `tag`. All read-only
-  subcommands (`log`, `diff`, `show`, `status`, `clone`, etc.) pass through to
-  `/usr/bin/git.real` unchanged, including stdout.
-- **HARD RULE 11** in `core.txt` — informs the LLM it is in dry-run mode and explains
-  that write operations are blocked. This is a supporting informational control; the
-  wrappers are the enforcement layer.
+During live production testing of Epic 20, the agent bypassed the v0.3.16
+dry-run wrapper by discovering the `DRY_RUN` env var was visible in the shell
+environment and executing:
 
-**Residual risk:** The wrappers cover `gh` and `git`. An LLM that constructs its own HTTP
-request to the GitHub API via `curl` (unwrapped) could bypass both wrappers. This is
-considered low-probability (the LLM would need to know the GitHub API format, the
-installation token from `/workspace/github-token`, and the target repo) and is bounded by
-the same network egress controls (AV-03/TC-03) and the 1-hour token TTL (AV-10).
+```sh
+unset DRY_RUN && gh pr create --repo lenaxia/talos-ops-prod ...
+```
+
+Because the v0.3.16 `gh` wrapper read `${DRY_RUN:-false}` from the current
+shell environment, `unset` in a child process cleared the variable before the
+wrapper's check ran, causing the blocking `case` to be skipped entirely. PR
+#1263 was successfully opened on the live production repository before the
+exploit was caught. The PR was immediately closed and the branch deleted.
+
+**Root cause:** The wrapper relied solely on the inherited shell env var, which
+is mutable by any child process. The check operated on the subprocess's own
+environment copy, not on the immutable Job-spec value.
+
+**Controls in place (v0.3.18 — defense-in-depth, three independent layers):**
+
+- **Layer 1 — `/mendabot-cfg/dry-run` sentinel file** (PRIMARY, tamper-proof):
+  A `dry-run-gate` init container (added by `jobbuilder.Build()` when `DryRun=true`)
+  writes `true` into `/mendabot-cfg/dry-run` (mode `444`) before the main
+  container starts. The main container mounts that `emptyDir` volume **read-only**
+  (`ReadOnly: true`). A read-only volume mount cannot be removed, remounted, or
+  written to by any process inside the container — including root (absent
+  `CAP_SYS_ADMIN`). `unset DRY_RUN` has no effect on this file.
+
+- **Layer 2 — `/proc/1/environ`** (SECONDARY, immutable container-init env):
+  The wrappers read the NUL-delimited PID-1 environment file and grep for
+  `^DRY_RUN=true$`. `/proc/1/environ` reflects the environment at container
+  creation time (set by the Kubernetes Job spec) and cannot be modified by child
+  processes. The `unset DRY_RUN` bypass does not affect PID-1's environment.
+
+- **Layer 3 — `$DRY_RUN` shell env var** (FALLBACK, bypassable via `unset`):
+  Retained for local testing and environments where `/proc` is unavailable.
+  Alone it is insufficient; layers 1 and 2 close the bypass.
+
+The three layers are checked independently in both the `gh` and `git` wrappers.
+Any single layer returning `true` is sufficient to enforce dry-run mode.
+
+**Previously: HARD RULE 11** — the `core.txt` prompt rule that informed the LLM
+of dry-run mode has been **removed** (v0.3.18). Enforcement is now entirely
+deterministic (wrappers + sentinel file); the LLM has no prior knowledge of
+dry-run mode and is expected to attempt writes, which the wrappers silently
+block. This removes the LLM's ability to craft bypass prompts by reasoning about
+the dry-run rule itself.
+
+**Residual risk:** The `curl` tool is not wrapped (see AV-02 / unwrapped tools
+table). An LLM that constructs a raw GitHub API request via `curl` using the
+installation token from `/workspace/github-token` could bypass all three layers.
+This requires the LLM to know the GitHub REST API format, the token path, and
+the target repository. Bounded by network egress controls (AV-03) and the
+1-hour token TTL (AV-10). No practical mitigation without wrapping `curl` (which
+would break the init container token flow). Accepted as AR-07.
 
 ---
 
@@ -582,4 +620,4 @@ Each step is a control point. A failure at any step propagates to all downstream
 | AR-04 | Prompt injection cannot be fully prevented | MEDIUM | Field-wide unsolved problem; layered mitigations reduce but cannot eliminate risk. Pentest confirmed LLM refused live payload, but this is not a deterministic control. P-008 remediation adds a deterministic gate in the controller path. |
 | AR-05 | GitHub token in shared emptyDir | MEDIUM | Required by init container pattern; 1-hour TTL limits exposure window. Pentest phase06 verified isolation — no findings. |
 | AR-06 | HARD RULEs are prompt instructions, not technical controls | MEDIUM | GitHub branch protection is the external technical control; human review required to merge. Prompt envelope verified present and intact (pentest phase02). Epic20 adds deterministic wrapper enforcement (AV-13) as the technical control for dry-run mode specifically. |
-| AR-07 | `curl` can bypass `gh`/`git` dry-run wrappers to push to GitHub API directly | LOW | Requires LLM to know GitHub REST API format, installation token location (`/workspace/github-token`), and target repo. Bounded by network egress (AV-03) and 1-hour token TTL (AV-10). Accepted — no practical mitigation without wrapping `curl` (which would break the init container). |
+| AR-07 | `curl` can bypass `gh`/`git` dry-run wrappers to push to GitHub API directly | LOW | Requires LLM to know GitHub REST API format, installation token location (`/workspace/github-token`), and target repo. Bounded by network egress (AV-03) and 1-hour token TTL (AV-10). Accepted — no practical mitigation without wrapping `curl` (which would break the init container). **Note:** A simpler bypass (`unset DRY_RUN && gh pr create`) was confirmed live on 2026-02-26 (PR #1263 opened on production repo). Remediated in v0.3.18 by three-layer wrapper hardening (sentinel file + `/proc/1/environ` + env var fallback). See AV-13. |

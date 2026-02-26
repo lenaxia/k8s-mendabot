@@ -1079,3 +1079,87 @@ func TestBuild_DryRun_InitContainerNoEnvVar(t *testing.T) {
 		t.Error("DRY_RUN must not be injected into the git-token-clone init container")
 	}
 }
+
+func TestBuild_DryRun_GateInitContainerPresent(t *testing.T) {
+	job := buildDryRunJob(t)
+	var gate *corev1.Container
+	for i := range job.Spec.Template.Spec.InitContainers {
+		if job.Spec.Template.Spec.InitContainers[i].Name == "dry-run-gate" {
+			gate = &job.Spec.Template.Spec.InitContainers[i]
+			break
+		}
+	}
+	if gate == nil {
+		t.Fatal("dry-run-gate init container missing when DryRun=true")
+	}
+	// Must write the sentinel file
+	if len(gate.Args) == 0 || !strings.Contains(gate.Args[0], "/mendabot-cfg/dry-run") {
+		t.Errorf("dry-run-gate args do not reference /mendabot-cfg/dry-run: %v", gate.Args)
+	}
+}
+
+func TestBuild_NoDryRun_GateInitContainerAbsent(t *testing.T) {
+	job := buildJob(t)
+	for _, c := range job.Spec.Template.Spec.InitContainers {
+		if c.Name == "dry-run-gate" {
+			t.Error("dry-run-gate init container must not be present when DryRun=false")
+		}
+	}
+}
+
+func TestBuild_DryRun_MendabotCfgVolumePresent(t *testing.T) {
+	job := buildDryRunJob(t)
+	var found bool
+	for _, v := range job.Spec.Template.Spec.Volumes {
+		if v.Name == "mendabot-cfg" {
+			found = true
+			if v.EmptyDir == nil {
+				t.Error("mendabot-cfg volume must be an emptyDir")
+			}
+			break
+		}
+	}
+	if !found {
+		t.Error("mendabot-cfg volume missing when DryRun=true")
+	}
+}
+
+func TestBuild_NoDryRun_MendabotCfgVolumeAbsent(t *testing.T) {
+	job := buildJob(t)
+	for _, v := range job.Spec.Template.Spec.Volumes {
+		if v.Name == "mendabot-cfg" {
+			t.Error("mendabot-cfg volume must not be present when DryRun=false")
+		}
+	}
+}
+
+func TestBuild_DryRun_MainContainerMountReadOnly(t *testing.T) {
+	job := buildDryRunJob(t)
+	main := job.Spec.Template.Spec.Containers[0]
+	var mount *corev1.VolumeMount
+	for i := range main.VolumeMounts {
+		if main.VolumeMounts[i].Name == "mendabot-cfg" {
+			mount = &main.VolumeMounts[i]
+			break
+		}
+	}
+	if mount == nil {
+		t.Fatal("mendabot-cfg volume mount missing from main container when DryRun=true")
+	}
+	if !mount.ReadOnly {
+		t.Error("mendabot-cfg volume mount must be ReadOnly=true in main container")
+	}
+	if mount.MountPath != "/mendabot-cfg" {
+		t.Errorf("mendabot-cfg MountPath = %q, want /mendabot-cfg", mount.MountPath)
+	}
+}
+
+func TestBuild_NoDryRun_MainContainerMountAbsent(t *testing.T) {
+	job := buildJob(t)
+	main := job.Spec.Template.Spec.Containers[0]
+	for _, m := range main.VolumeMounts {
+		if m.Name == "mendabot-cfg" {
+			t.Error("mendabot-cfg volume mount must not be present when DryRun=false")
+		}
+	}
+}

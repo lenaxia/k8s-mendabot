@@ -115,13 +115,70 @@ else
     echo "FAIL"; ((fail++)) || true
 fi
 
-# git wrapper: verify it contains the DRY_RUN blocking pattern
-printf 'Checking git wrapper has DRY_RUN blocking pattern ... '
+# git wrapper: verify it contains all three dry-run enforcement layers
+printf 'Checking git wrapper has sentinel file layer ... '
+if docker run --rm --entrypoint /bin/sh "$IMAGE" -c \
+    "grep -qF '/mendabot-cfg/dry-run' /usr/local/bin/git"; then
+    echo "OK"; ((pass++)) || true
+else
+    echo "FAIL"; ((fail++)) || true
+fi
+
+printf 'Checking git wrapper has /proc/1/environ layer ... '
+if docker run --rm --entrypoint /bin/sh "$IMAGE" -c \
+    "grep -qF '/proc/1/environ' /usr/local/bin/git"; then
+    echo "OK"; ((pass++)) || true
+else
+    echo "FAIL"; ((fail++)) || true
+fi
+
+printf 'Checking git wrapper has env var fallback layer ... '
 if docker run --rm --entrypoint /bin/sh "$IMAGE" -c \
     "grep -qF 'DRY_RUN' /usr/local/bin/git"; then
     echo "OK"; ((pass++)) || true
 else
     echo "FAIL"; ((fail++)) || true
+fi
+
+# git wrapper: verify sentinel file layer blocks even when DRY_RUN is unset
+printf 'Checking git wrapper blocks via sentinel file when DRY_RUN is unset ... '
+block_rc=$(docker run --rm --entrypoint /bin/sh "$IMAGE" -c \
+    'mkdir -p /mendabot-cfg && echo -n true > /mendabot-cfg/dry-run \
+     && unset DRY_RUN \
+     && git push 2>&1; echo "exit:$?"') || true
+if echo "$block_rc" | grep -q "DRY_RUN.*blocked" && echo "$block_rc" | grep -q "exit:0"; then
+    echo "OK"; ((pass++)) || true
+else
+    echo "FAIL (output: $block_rc)"; ((fail++)) || true
+fi
+
+# gh wrapper: verify all three layers present
+printf 'Checking gh wrapper has sentinel file layer ... '
+if docker run --rm --entrypoint /bin/sh "$IMAGE" -c \
+    "grep -qF '/mendabot-cfg/dry-run' /usr/local/bin/gh"; then
+    echo "OK"; ((pass++)) || true
+else
+    echo "FAIL"; ((fail++)) || true
+fi
+
+printf 'Checking gh wrapper has /proc/1/environ layer ... '
+if docker run --rm --entrypoint /bin/sh "$IMAGE" -c \
+    "grep -qF '/proc/1/environ' /usr/local/bin/gh"; then
+    echo "OK"; ((pass++)) || true
+else
+    echo "FAIL"; ((fail++)) || true
+fi
+
+# gh wrapper: verify sentinel file layer blocks even when DRY_RUN is unset
+printf 'Checking gh wrapper blocks via sentinel file when DRY_RUN is unset ... '
+block_gh_rc=$(docker run --rm --entrypoint /bin/sh "$IMAGE" -c \
+    'mkdir -p /mendabot-cfg && echo -n true > /mendabot-cfg/dry-run \
+     && unset DRY_RUN \
+     && /usr/local/bin/gh pr create 2>&1; echo "exit:$?"') || true
+if echo "$block_gh_rc" | grep -q "DRY_RUN.*blocked" && echo "$block_gh_rc" | grep -q "exit:0"; then
+    echo "OK"; ((pass++)) || true
+else
+    echo "FAIL (output: $block_gh_rc)"; ((fail++)) || true
 fi
 
 # ── Functional hard-fail test: wrapper must exit 1 when redact is absent ──────

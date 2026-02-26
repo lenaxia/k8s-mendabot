@@ -190,6 +190,14 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 			Name:  "DRY_RUN",
 			Value: "true",
 		})
+		// Mount the dry-run sentinel volume read-only so the wrappers can detect
+		// dry-run mode via a tamper-proof file rather than an env var that a child
+		// shell could unset.
+		mainContainer.VolumeMounts = append(mainContainer.VolumeMounts, corev1.VolumeMount{
+			Name:      "mendabot-cfg",
+			MountPath: "/mendabot-cfg",
+			ReadOnly:  true,
+		})
 	}
 
 	volumes := []corev1.Volume{
@@ -239,6 +247,37 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 		},
 	}
 
+	initContainers := []corev1.Container{initContainer}
+
+	if b.cfg.DryRun {
+		// dry-run-gate: writes /mendabot-cfg/dry-run before the main container
+		// starts. The main container mounts the same emptyDir read-only, so the
+		// sentinel file cannot be deleted or modified by any child process inside
+		// the agent — not even via "unset DRY_RUN" shell tricks.
+		volumes = append(volumes, corev1.Volume{
+			Name: "mendabot-cfg",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		})
+		gateContainer := corev1.Container{
+			Name:    "dry-run-gate",
+			Image:   rjob.Spec.AgentImage,
+			Command: []string{"/bin/sh", "-c"},
+			Args:    []string{"echo -n 'true' > /mendabot-cfg/dry-run && chmod 444 /mendabot-cfg/dry-run"},
+			VolumeMounts: []corev1.VolumeMount{
+				{Name: "mendabot-cfg", MountPath: "/mendabot-cfg"},
+			},
+			SecurityContext: &corev1.SecurityContext{
+				AllowPrivilegeEscalation: ptr(false),
+				Capabilities: &corev1.Capabilities{
+					Drop: []corev1.Capability{"ALL"},
+				},
+			},
+		}
+		initContainers = append(initContainers, gateContainer)
+	}
+
 	annotations := map[string]string{
 		"remediation.mendabot.io/fingerprint-full": rjob.Spec.Fingerprint,
 		"remediation.mendabot.io/finding-parent":   rjob.Spec.Finding.ParentObject,
@@ -281,7 +320,7 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 						RunAsNonRoot: ptr(true),
 						RunAsUser:    ptr(int64(1000)),
 					},
-					InitContainers: []corev1.Container{initContainer},
+					InitContainers: initContainers,
 					Containers:     []corev1.Container{mainContainer},
 					Volumes:        volumes,
 				},
