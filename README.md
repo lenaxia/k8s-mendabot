@@ -537,8 +537,6 @@ To bypass in an emergency: `git commit --no-verify`
 - **GitHub Discussions** — [github.com/lenaxia/k8s-mendabot/discussions](https://github.com/lenaxia/k8s-mendabot/discussions)
   — questions, ideas, architecture discussions, and show-and-tell
 - **GitHub Issues** — bugs and feature requests
-- **CNCF Slack** — find us by searching `k8s-mendabot` in the
-  [CNCF Slack workspace](https://slack.cncf.io/), or join `#kubernetes` or `#gitops`
 
 ### Contributing
 
