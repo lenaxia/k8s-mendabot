@@ -135,7 +135,17 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, err
 	}
 	if finding == nil {
-		r.firstSeen.Clear()
+		// Do NOT clear firstSeen here.  ExtractFinding returns nil transiently during
+		// pod restart cycles (e.g., the Deployment Available condition briefly flips to
+		// True while pods are cycling).  Calling Clear() on any nil wipes in-progress
+		// stabilisation windows for all fingerprints, causing an infinite loop where
+		// the rjob is never created.
+		//
+		// Permanent clearance is handled by two other paths:
+		//   1. The NotFound path (object deleted) calls firstSeen.Clear() explicitly.
+		//   2. The BoundedMap TTL naturally expires entries that remain absent for
+		//      longer than StabilisationWindow*2, so a genuinely recovered object will
+		//      restart the window correctly on next sight.
 		if r.EventRecorder != nil {
 			r.EventRecorder.Event(obj, corev1.EventTypeNormal, "FindingCleared", "Finding cleared; no active finding on this object")
 		}

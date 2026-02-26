@@ -101,27 +101,22 @@ func (m *BoundedMap) SetWithTime(key string, timestamp time.Time) bool {
 }
 
 // Get returns the timestamp for a key and whether it exists.
+// If the entry exists but is older than the TTL, it is treated as absent.
 func (m *BoundedMap) Get(key string) (time.Time, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	// Run cleanup if needed (read-only cleanup doesn't modify map)
-	// We check but don't actually clean in read lock to avoid deadlock
-	// Actual cleanup will happen on next write operation
-	if m.needsCleanup() {
-		// Return false if entry would have been cleaned up
-		if m.ttl > 0 {
-			if ts, exists := m.data[key]; exists {
-				if time.Since(ts) > m.ttl {
-					return time.Time{}, false
-				}
-				return ts, true
-			}
-		}
-	}
-
 	ts, exists := m.data[key]
-	return ts, exists
+	if !exists {
+		return time.Time{}, false
+	}
+	// Always enforce TTL on reads — do not wait for the cleanup interval.
+	// This ensures that a genuinely recovered object (entry older than TTL)
+	// is treated as unseen, restarting the stabilisation window correctly.
+	if m.ttl > 0 && time.Since(ts) > m.ttl {
+		return time.Time{}, false
+	}
+	return ts, true
 }
 
 // Delete removes an entry from the map.

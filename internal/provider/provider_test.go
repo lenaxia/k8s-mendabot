@@ -654,7 +654,10 @@ func TestStabilisationWindow_SecondSightWithinWindow(t *testing.T) {
 }
 
 // TestStabilisationWindow_FindingClearsResetsWindow verifies that when ExtractFinding returns
-// nil (finding cleared), the firstSeen entry is evicted. A subsequent finding restarts the window.
+// nil (finding cleared), the stabilisation window behaviour depends on how long the
+// entry has been absent.  A single nil does NOT evict the entry (transient flap
+// protection).  An entry older than the BoundedMap TTL (StabilisationWindow*2) is
+// treated as absent by Get(), so a subsequent finding starts a fresh window.
 func TestStabilisationWindow_FindingClearsResetsWindow(t *testing.T) {
 	finding := makeFinding()
 	fp, err := domain.FindingFingerprint(finding)
@@ -672,29 +675,34 @@ func TestStabilisationWindow_FindingClearsResetsWindow(t *testing.T) {
 	window := 2 * time.Minute
 	r := newTestReconcilerWithWindow(p, c, window)
 
-	// Pre-populate firstSeen as if we already recorded a first sight.
+	// Pre-populate firstSeen as if we already recorded a first sight 30s ago.
 	r.SetFirstSeenForTest(fp, time.Now().Add(-30*time.Second))
 
-	// Now simulate the finding clearing: set provider to return nil.
+	// Simulate the finding clearing transiently: provider returns nil.
 	p.finding = nil
 	_, err = r.Reconcile(context.Background(), reqFor("r1", "default"))
 	if err != nil {
 		t.Fatalf("unexpected error on nil-finding reconcile: %v", err)
 	}
 
-	// The firstSeen entry should have been evicted.
-	if _, exists := r.FirstSeen()[fp]; exists {
-		t.Error("expected firstSeen entry to be evicted after finding cleared")
+	// After a single nil the entry must STILL be present — transient flap protection.
+	if _, exists := r.FirstSeen()[fp]; !exists {
+		t.Error("firstSeen entry must not be evicted on a single nil (transient flap protection)")
 	}
 
-	// Restore the finding — subsequent reconcile should restart the window (not proceed to create).
+	// Simulate the object having been healthy for longer than TTL (window*2).
+	// Overwrite the timestamp to be well past the TTL so Get() treats it as absent.
+	r.SetFirstSeenForTest(fp, time.Now().Add(-(window*2 + time.Second)))
+
+	// Restore the finding — subsequent reconcile should restart the window (not
+	// proceed to create) because the TTL-expired entry is treated as not-seen.
 	p.finding = finding
 	result, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
 	if err != nil {
 		t.Fatalf("unexpected error on re-finding reconcile: %v", err)
 	}
 	if result.RequeueAfter <= 0 {
-		t.Errorf("expected window to restart after finding cleared, got RequeueAfter=%v", result.RequeueAfter)
+		t.Errorf("expected window to restart after TTL-expired entry, got RequeueAfter=%v", result.RequeueAfter)
 	}
 
 	var list v1alpha1.RemediationJobList
@@ -735,6 +743,224 @@ func TestStabilisationWindow_NotFoundClearsMap(t *testing.T) {
 
 	if len(r.FirstSeen()) != 0 {
 		t.Errorf("expected firstSeen to be cleared on not-found, got %d entries", len(r.FirstSeen()))
+	}
+}
+
+// --- Stabilisation window transient-nil flap tests ---
+//
+// These tests capture the production bug reported in v0.3.21 validation:
+// ExtractFinding transiently returns nil during pod restart cycles (e.g., the
+// deployment Available condition flips briefly to True while the pod is cycling).
+// The old code called firstSeen.Clear() on ANY nil return, wiping the stabilisation
+// window and causing an infinite loop:
+//   t=0    finding detected → firstSeen.Set(fp), requeue 120s
+//   t=60s  pod restarts → ExtractFinding returns nil → firstSeen.Clear()
+//   t=120s finding detected again → seen=false → window restarts → repeat forever
+//
+// The fix: only evict the specific fingerprint on nil (do not Clear the whole map),
+// and only do so when the finding has been absent for at least the stabilisation window.
+// For now the minimal fix is: do NOT call firstSeen.Clear() on a single nil; let TTL
+// handle true-permanent clearance. The not-found path (object deleted) still calls
+// Clear() because that is a definitively permanent event.
+
+// TestStabilisationWindow_TransientNil_DoesNotResetWindow is the primary regression
+// test for the production bug.  A single transient nil return from ExtractFinding
+// mid-window must NOT reset the stabilisation window; the rjob must be created on
+// the next reconcile once the window has elapsed.
+func TestStabilisationWindow_TransientNil_DoesNotResetWindow(t *testing.T) {
+	finding := makeFinding()
+	fp, err := domain.FindingFingerprint(finding)
+	if err != nil {
+		t.Fatalf("computing fingerprint: %v", err)
+	}
+
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
+	}
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj)
+	window := 2 * time.Minute
+	r := newTestReconcilerWithWindow(p, c, window)
+
+	// Reconcile 1: first sight — window starts.
+	result, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("reconcile 1: unexpected error: %v", err)
+	}
+	if result.RequeueAfter <= 0 {
+		t.Fatalf("reconcile 1: expected RequeueAfter > 0 (window started), got %v", result.RequeueAfter)
+	}
+
+	// Snapshot firstSeen timestamp before the transient nil.
+	seenBefore := r.FirstSeen()
+	if _, exists := seenBefore[fp]; !exists {
+		t.Fatal("firstSeen entry missing after first reconcile")
+	}
+
+	// Reconcile 2: transient nil — pod is mid-restart, deployment briefly healthy.
+	p.finding = nil
+	_, err = r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("reconcile 2 (transient nil): unexpected error: %v", err)
+	}
+
+	// firstSeen entry must STILL be present — transient nil must not clear the window.
+	seenAfter := r.FirstSeen()
+	if _, exists := seenAfter[fp]; !exists {
+		t.Error("BUG: firstSeen entry was cleared by transient nil — stabilisation window reset; rjob will never be created")
+	}
+
+	// Reconcile 3: finding is back, window has now elapsed (pre-populate timestamp as old enough).
+	p.finding = finding
+	r.SetFirstSeenForTest(fp, time.Now().Add(-window-time.Second))
+	result, err = r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("reconcile 3 (elapsed): unexpected error: %v", err)
+	}
+	if result.RequeueAfter != 0 {
+		t.Errorf("reconcile 3: expected RequeueAfter=0 (window elapsed, proceed to dispatch), got %v", result.RequeueAfter)
+	}
+
+	var list v1alpha1.RemediationJobList
+	if err := c.List(context.Background(), &list, client.InNamespace(agentNamespace)); err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+	if len(list.Items) != 1 {
+		t.Errorf("expected 1 RemediationJob after window elapsed, got %d — transient nil prevented dispatch", len(list.Items))
+	}
+}
+
+// TestStabilisationWindow_MultipleTransientNils_WindowSurvives verifies that
+// repeated transient nils (e.g., a crashloop cycling several times) do not
+// accumulate into a permanent window reset.
+func TestStabilisationWindow_MultipleTransientNils_WindowSurvives(t *testing.T) {
+	finding := makeFinding()
+	fp, err := domain.FindingFingerprint(finding)
+	if err != nil {
+		t.Fatalf("computing fingerprint: %v", err)
+	}
+
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
+	}
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj)
+	window := 2 * time.Minute
+	r := newTestReconcilerWithWindow(p, c, window)
+
+	// First sight.
+	_, err = r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("initial reconcile: %v", err)
+	}
+	if _, exists := r.FirstSeen()[fp]; !exists {
+		t.Fatal("firstSeen entry missing after first reconcile")
+	}
+
+	// Five consecutive transient nils.
+	p.finding = nil
+	for i := 0; i < 5; i++ {
+		_, err = r.Reconcile(context.Background(), reqFor("r1", "default"))
+		if err != nil {
+			t.Fatalf("transient nil reconcile %d: %v", i+1, err)
+		}
+	}
+
+	// Entry must survive all five transient nils.
+	if _, exists := r.FirstSeen()[fp]; !exists {
+		t.Errorf("BUG: firstSeen entry cleared after %d transient nils — window was reset", 5)
+	}
+}
+
+// TestStabilisationWindow_TransientNil_OtherFingerprintsUnaffected verifies that
+// a transient nil on one object does not clear firstSeen entries belonging to
+// other objects being tracked by the same reconciler instance.
+func TestStabilisationWindow_TransientNil_OtherFingerprintsUnaffected(t *testing.T) {
+	// Two independent findings with different fingerprints.
+	finding1 := makeFinding()
+	finding2 := &domain.Finding{
+		Kind: "Pod", Name: "pod-xyz", Namespace: "other",
+		ParentObject: "other-deploy",
+		Errors:       `[{"text":"ImagePullBackOff"}]`,
+	}
+	fp2, err := domain.FindingFingerprint(finding2)
+	if err != nil {
+		t.Fatalf("fp2: %v", err)
+	}
+
+	// Reconciler for object 1 — has entry for finding1.
+	p1 := &fakeSourceProvider{name: "native", objectType: &corev1.ConfigMap{}, finding: finding1}
+	obj1 := makeWatchedObject("r1", "default")
+	obj2 := makeWatchedObject("r2", "other")
+	c := newTestClient(obj1, obj2)
+	window := 2 * time.Minute
+	r := newTestReconcilerWithWindow(p1, c, window)
+
+	// Pre-populate firstSeen for finding2 as if it had already been seen.
+	r.SetFirstSeenForTest(fp2, time.Now().Add(-30*time.Second))
+
+	// Reconcile r1: transient nil — should NOT wipe the fp2 entry.
+	p1.finding = nil
+	_, err = r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("reconcile r1 transient nil: %v", err)
+	}
+
+	if _, exists := r.FirstSeen()[fp2]; !exists {
+		t.Error("BUG: transient nil for r1 cleared firstSeen entry for unrelated fingerprint fp2")
+	}
+}
+
+// TestStabilisationWindow_PersistentNil_EventuallyAllowsReset documents the
+// intended behaviour when an object is genuinely healthy (ExtractFinding persistently
+// returns nil).  After the stabilisation window, a subsequent finding on the same
+// object should start a fresh window rather than dispatching immediately.
+//
+// NOTE: This test reflects the DESIRED post-fix behaviour.  It does NOT require
+// firstSeen to be cleared immediately on the first nil — the entry may age out via
+// TTL or be cleared after the window duration.  What matters is that a brand-new
+// finding after a period of health restarts the window correctly.
+func TestStabilisationWindow_PersistentNil_SubsequentFindingRestartsWindow(t *testing.T) {
+	finding := makeFinding()
+	fp, err := domain.FindingFingerprint(finding)
+	if err != nil {
+		t.Fatalf("computing fingerprint: %v", err)
+	}
+
+	p := &fakeSourceProvider{
+		name:       "native",
+		objectType: &corev1.ConfigMap{},
+		finding:    finding,
+	}
+	obj := makeWatchedObject("r1", "default")
+	c := newTestClient(obj)
+	window := 2 * time.Minute
+	r := newTestReconcilerWithWindow(p, c, window)
+
+	// Simulate object being healthy: nil finding for longer than the TTL (window*2).
+	// Manually expire the firstSeen entry so Get() treats it as gone.
+	// This simulates what the BoundedMap TTL does after a long nil period.
+	r.SetFirstSeenForTest(fp, time.Now().Add(-window*3)) // well past TTL
+
+	// When the finding reappears after a genuine health period, window must restart.
+	result, err := r.Reconcile(context.Background(), reqFor("r1", "default"))
+	if err != nil {
+		t.Fatalf("reconcile after healthy period: %v", err)
+	}
+	if result.RequeueAfter <= 0 {
+		t.Errorf("expected window to restart (RequeueAfter > 0) after genuine health period, got %v", result.RequeueAfter)
+	}
+
+	var list v1alpha1.RemediationJobList
+	if err := c.List(context.Background(), &list, client.InNamespace(agentNamespace)); err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+	if len(list.Items) != 0 {
+		t.Errorf("expected 0 RemediationJobs (window restarted), got %d", len(list.Items))
 	}
 }
 
