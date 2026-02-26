@@ -136,7 +136,7 @@ metadata:
   name: github-app
   namespace: mendabot
 data:
-  app-id: 2917483           # numeric ID shown on the App settings page
+  app-id: <GitHub App ID>            # numeric ID shown on the App settings page
   installation-id: <Installation ID> # numeric ID from the installation URL (see below)
   private-key: |
     <PEM-encoded RSA private key>
