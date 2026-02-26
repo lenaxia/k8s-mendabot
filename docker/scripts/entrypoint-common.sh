@@ -124,7 +124,7 @@ fi
 # Substitute environment variables into the combined prompt template.
 # Restrict envsubst to known variable names to avoid corrupting content in
 # FINDING_ERRORS or FINDING_DETAILS that may contain literal $ signs.
-VARS='${FINDING_KIND}${FINDING_NAME}${FINDING_NAMESPACE}${FINDING_PARENT}${FINDING_FINGERPRINT}${FINDING_ERRORS}${FINDING_DETAILS}${FINDING_SEVERITY}${GITOPS_REPO}${GITOPS_MANIFEST_ROOT}${DRY_RUN}'
+VARS='${FINDING_KIND}${FINDING_NAME}${FINDING_NAMESPACE}${FINDING_PARENT}${FINDING_FINGERPRINT}${FINDING_ERRORS}${FINDING_DETAILS}${FINDING_SEVERITY}${GITOPS_REPO}${GITOPS_MANIFEST_ROOT}'
 printf '%s' "$COMBINED_PROMPT" | envsubst "$VARS" > /tmp/rendered-prompt.txt
 
 # emit_dry_run_report — called by per-agent entrypoints after the agent binary

@@ -9,8 +9,24 @@ fi
 
 # Dry-run enforcement: block write subcommands that create, modify, or comment on
 # GitHub resources. This is a deterministic control — the LLM cannot bypass it by
-# rephrasing a prompt instruction. Exit 0 so the LLM does not enter an error loop.
-if [ "${DRY_RUN:-false}" = "true" ]; then
+# rephrasing a prompt instruction or unsetting DRY_RUN in a child shell.
+#
+# We read DRY_RUN from /proc/1/environ (the PID-1 / container entrypoint
+# environment) rather than the current shell environment. This makes the check
+# tamper-proof: a child process cannot unset or override the value that was
+# injected by the Kubernetes Job spec.
+_dry_run_val="false"
+if [ -r /proc/1/environ ]; then
+    # /proc/1/environ is NUL-delimited; grep for the exact variable.
+    if tr '\0' '\n' < /proc/1/environ 2>/dev/null | grep -q '^DRY_RUN=true$'; then
+        _dry_run_val="true"
+    fi
+else
+    # Fallback for environments where /proc/1/environ is not readable.
+    _dry_run_val="${DRY_RUN:-false}"
+fi
+
+if [ "$_dry_run_val" = "true" ]; then
     case "${1:-}" in
         pr|issue|release|gist|workflow)
             case "${2:-}" in
