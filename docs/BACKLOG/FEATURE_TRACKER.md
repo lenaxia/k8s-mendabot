@@ -683,7 +683,7 @@ live PR creation.
 
 | ID | Feature | Value | Complexity | Status |
 |----|---------|-------|------------|--------|
-| FT-I1 | PR auto-close on finding resolution | ★★★ | ●● | Evaluated |
+| FT-I1 | PR / issue auto-close on finding resolution | ★★★ | ●● | Planned (epic26) |
 | FT-I2 | PR auto-update when finding changes | ★★ | ●● | Evaluated |
 | FT-I3 | GitLab and Gitea sink support | ★★★ | ●● | Evaluated |
 | FT-I4 | ArgoCD sink support | ★★ | ●● | Evaluated |
@@ -691,30 +691,79 @@ live PR creation.
 | FT-I6 | Multi-cluster support | ★★★ | ●●● | Deferred |
 | FT-I7 | Jira / Linear ticket creation (investigation sink) | ★★ | ●● | Idea |
 | FT-I8 | GitOps tooling abstraction (Flux, ArgoCD, Helm-only) | ★★★ | ●● | Evaluated |
+| FT-I9 | PR / issue comment feedback and iteration loop | ★★★ | ●●● | Planned (epic27) |
+| FT-I10 | Manual investigation triggers (webhook, GitHub issue, Slack, Jira) | ★★★ | ●●● | Planned (epic28) |
 
 ---
 
-### FT-I1 — PR auto-close on finding resolution
+### FT-I1 — PR / issue auto-close on finding resolution
+
+**Status: Planned (epic26, 2026-02-25)**
 
 **Problem:** When a finding clears (the deployment recovers, the PVC is provisioned),
 the `SourceProviderReconciler` cancels `Pending`/`Dispatched` `RemediationJob` objects.
-But if the agent already opened a PR, that PR remains open indefinitely. A human must
-manually close it. For clusters with frequent transient failures, this produces a backlog
-of stale open PRs that obscures genuinely important ones.
+But if the agent already opened a PR or issue, that sink remains open indefinitely. A
+human must manually close it. For clusters with frequent transient failures, this produces
+a backlog of stale open PRs and issues that obscures genuinely important ones.
 
-**Proposed solution:** In the `SourceProviderReconciler`'s not-found / finding-cleared
-path, if `RemediationJob.status.prRef` is non-empty:
-1. Extract the PR number from the URL
-2. Add a job to a `PRCloseQueue` (a simple in-memory list flushed at reconcile time)
-3. The watcher calls `gh pr close <number> --repo <GITOPS_REPO> --comment
-   "Closing: the underlying issue has resolved itself. No manual fix is needed."`
+See [`docs/BACKLOG/epic26-auto-close-resolved/README.md`](epic26-auto-close-resolved/README.md)
+for the full design.
 
-The `gh` call is made from the watcher process (not the agent), using the GitHub App
-token from a mounted Secret. This requires the watcher ServiceAccount to have access
-to the GitHub App credentials Secret — a new Secret mount in the watcher Deployment.
+**Summary:** `SinkCloser` interface in `internal/domain/sink.go` with a `GitHubSinkCloser`
+implementation. The watcher mounts the GitHub App credentials Secret and calls
+`gh pr/issue close` with a human-readable explanation when a finding resolves. Controlled
+by `PR_AUTO_CLOSE` env var (default: `true`).
 
-**Alternative for operators who do not want auto-close:** A `PR_AUTO_CLOSE=false` env
-var disables this behaviour. Default: `true`.
+---
+
+### FT-I9 — PR / issue comment feedback and iteration loop
+
+**Status: Planned (epic27, 2026-02-25)**
+
+**Problem:** When the agent opens a PR or issue, human reviewers leave comments,
+request changes, or point out that the fix is wrong. Today mendabot is deaf to all of
+this. A reviewed PR sits with unaddressed comments until a human manually intervenes.
+
+See [`docs/BACKLOG/epic27-pr-feedback-iteration/README.md`](epic27-pr-feedback-iteration/README.md)
+for the full design.
+
+**Summary:** A `FeedbackPoller` interface in `internal/domain/feedback.go`. The
+`RemediationJobReconciler` gains an `AwaitingFeedback` phase and polls open sinks for
+new comments at `FEEDBACK_POLL_INTERVAL` (default: `5m`). When an actionable comment is
+detected, a follow-up agent Job is dispatched with `FEEDBACK_MODE=true` and the comment
+body injected. A `feedback-mode.txt` prompt instructs the agent to address the comment
+on the existing branch. Maximum iterations controlled by `FEEDBACK_MAX_ITERATIONS`
+(default: `3`); transitions to `FeedbackExhausted` when the limit is hit.
+
+---
+
+### FT-I10 — Manual investigation triggers (webhook, GitHub issue, Slack, Jira)
+
+**Status: Planned (epic28, 2026-02-25)**
+
+**Problem:** All current `RemediationJob` sources are automatic — they fire only when a
+Kubernetes provider detects a problem. There is no way for an operator to request
+"investigate this resource now" without touching the cluster or Kubernetes API directly.
+Teams using Slack for ops, GitHub issues as a runbook, or Jira for incident tracking
+have no native integration point.
+
+See [`docs/BACKLOG/epic28-manual-trigger/README.md`](epic28-manual-trigger/README.md)
+for the full design.
+
+**Summary:** A `TriggerProvider` interface in `internal/domain/trigger.go` — the same
+pluggable pattern as `SourceProvider`. Three reference backends:
+
+1. **WebhookTrigger** — `POST /trigger` with bearer-token auth; works with any HTTP
+   caller (scripts, PagerDuty, Grafana, CI pipelines)
+2. **GitHubIssueTrigger** — polls a repo for issues labelled `mendabot-investigate`;
+   acknowledges by commenting and applying a `mendabot-dispatched` label
+3. **SlackTrigger** — Slack Events API; supports `/investigate Kind/ns/name` slash
+   commands and `@mendabot` app mentions; HMAC-signed request validation
+
+All backends are disabled by default and independently enabled via env vars. The
+`TriggerProviderLoop` converts any trigger event into a `RemediationJob` using the
+standard deduplication pipeline. `RemediationJobSpec.Source = "manual"` distinguishes
+trigger-created jobs in metrics and audit logs.
 
 ---
 
@@ -1148,6 +1197,8 @@ product, the recommended implementation sequence (after epic09 is complete):
 | 11 | FT-A5 | Recurrence memory prevents redundant re-investigation of known failures |
 | 12 | FT-U8 | Dry-run mode enables safe evaluation on production clusters |
 | 13 | FT-P2 | cert-manager provider: high-value, low-complexity new signal source |
-| 14 | FT-I1 | PR auto-close prevents stale PR accumulation as volume grows |
-| 15 | FT-A6 | Multi-signal correlation (high value but complex; tackle after lower-hanging fruit) |
-| 16 | FT-P1 | Alertmanager provider: highest-value new source; tackle after core accuracy is solid |
+| 14 | FT-I1 | PR/issue auto-close prevents stale sink accumulation as volume grows |
+| 15 | FT-I9 | Feedback iteration closes the human-agent review loop |
+| 16 | FT-I10 | Manual triggers unblock operator-initiated investigations |
+| 17 | FT-A6 | Multi-signal correlation (high value but complex; tackle after lower-hanging fruit) |
+| 18 | FT-P1 | Alertmanager provider: highest-value new source; tackle after core accuracy is solid |

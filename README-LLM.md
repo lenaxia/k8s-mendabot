@@ -217,18 +217,25 @@ k8s-mendabot/
 │   │       ├── DEPLOY_LLD.md
 │   │       └── PROMPT_LLD.md
 │   ├── BACKLOG/
-│   │   ├── README.md
-│   │   ├── epic00-foundation/
-│   │   ├── epic00.1-interfaces/
-│   │   ├── epic01-controller/
-│   │   ├── epic02-jobbuilder/
-│   │   ├── epic03-agent-image/
-│   │   ├── epic04-deploy/
-│   │   ├── epic05-prompt/
-│   │   ├── epic06-ci-cd/
-│   │   ├── epic11-self-remediation-cascade/
-│   │   ├── epic12-security-review/
-│   │   └── epic13-multi-signal-correlation/
+│   │   ├── README.md                      # Epic overview table — read this first
+│   │   ├── FEATURE_TRACKER.md             # Product-level backlog by area
+│   │   ├── epic00-foundation/             # (complete)
+│   │   ├── epic00.1-interfaces/           # (complete)
+│   │   ├── epic01-controller/             # (complete)
+│   │   ├── epic02-jobbuilder/             # (complete)
+│   │   ├── epic03-agent-image/            # (complete)
+│   │   ├── epic04-deploy/                 # (complete)
+│   │   ├── epic05-prompt/                 # (complete)
+│   │   ├── epic06-ci-cd/                  # (complete)
+│   │   ├── epic11-self-remediation-cascade/ # (complete)
+│   │   ├── epic12-security-review/        # (complete)
+│   │   ├── epic13-multi-signal-correlation/ # (deferred)
+│   │   ├── epic18-manifest-validation/    # (not started)
+│   │   ├── epic20-dry-run-mode/           # (not started)
+│   │   ├── epic22-token-expiry-guard/     # (not started)
+│   │   ├── epic26-auto-close-resolved/    # (not started) auto-close PRs/issues on resolution
+│   │   ├── epic27-pr-feedback-iteration/  # (not started) iterate on reviewer comments
+│   │   └── epic28-manual-trigger/         # (not started) on-demand trigger abstraction
 │   └── WORKLOGS/
 │       └── README.md
 │

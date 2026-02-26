@@ -202,5 +202,5 @@ func TestFromEnv_DryRunInvalid(t *testing.T) {
 - [ ] Full test suite passes: `go test -timeout 120s -race ./...`
 - [ ] `go vet ./...` clean
 - [ ] `go build ./...` clean
-- [ ] `DRY_RUN` documented in `deploy/kustomize/deployment-watcher.yaml` env block
+- [ ] `DRY_RUN` documented in `charts/mendabot/templates/deployment-watcher.yaml` env block
   (as a commented-out optional variable with its default `false`)

@@ -196,7 +196,8 @@ LLM directs: kubectl get secret <name> -o yaml
 | `kubectl` | `/usr/local/bin/kubectl` | `/usr/local/bin/kubectl.real` | `get secret -o yaml` exposes base64-encoded Secret data values |
 | `helm` | `/usr/local/bin/helm` | `/usr/local/bin/helm.real` | `helm get values` / `helm get secret` can expose Helm-managed secrets |
 | `flux` | `/usr/local/bin/flux` | `/usr/local/bin/flux.real` | `flux get secret` exposes Git credentials and SOPS keys |
-| `gh` | `/usr/local/bin/gh` | `/usr/bin/gh` (apt-installed, not renamed) | GitHub API responses can include `ghs_`/`ghp_` tokens |
+| `gh` | `/usr/local/bin/gh` | `/usr/bin/gh` (apt-installed, not renamed) | Output redaction (AV-02); write-subcommand blocking when `DRY_RUN=true` (AV-13) |
+| `git` | `/usr/local/bin/git` | `/usr/bin/git.real` | Write-subcommand blocking when `DRY_RUN=true` (AV-13 — see epic20 STORY_03b). Does **not** redact stdout — read-only commands pass through unchanged. |
 | `sops` | `/usr/local/bin/sops` | `/usr/local/bin/sops.real` | `sops --decrypt` writes plaintext secrets to stdout |
 | `talosctl` | `/usr/local/bin/talosctl` | `/usr/local/bin/talosctl.real` | Node credentials and machine configs contain key material |
 | `yq` | `/usr/local/bin/yq` | `/usr/local/bin/yq.real` | YAML queries over secret-bearing manifests |
@@ -213,13 +214,13 @@ LLM directs: kubectl get secret <name> -o yaml
 | `curl` | Used in `get-github-app-token.sh` (init container) to call GitHub API — response body contains `ghs_...` token that must be captured by `TOKEN=$(curl ...)`. Wrapping would redact the token before the shell variable assignment, breaking the entire init container. | LLM can call `curl` against the Kubernetes API with the SA token and receive unredacted JSON responses. |
 | `jq` | Pipes `curl` output through `.token` in `get-github-app-token.sh`. Wrapping would redact the extracted token before `TOKEN=$(...)` captures it. | LLM can use `jq` to extract and display credential fields from piped JSON. |
 | `openssl` | Used in `get-github-app-token.sh` for `openssl dgst -sha256 -sign` which writes a raw binary DER signature to stdout. The `redact` base64 pattern would corrupt the binary signature, breaking JWT generation and preventing the init container from obtaining a GitHub App token. | LLM can call `openssl rsa`/`openssl pkey` to extract private key material to stdout. |
-| `git` | Core workflow tool used extensively in remediation PRs (`git diff`, `git log`, `git show`). Wrapping output would break diff-based PR workflows that the agent uses for every remediation. | `git log`/`git diff`/`git show` can surface credentials embedded in commit history or diff content. Accepted as a workflow-critical trade-off. |
+| `git` | **Output redaction** is not applied to git. `git log`/`git diff`/`git show` output must pass through unchanged for diff-based PR workflows. The git wrapper (added in epic20 STORY_03b) exists **only** for dry-run write-subcommand blocking — it does not redact stdout. | `git log`/`git diff`/`git show` can surface credentials embedded in commit history or diff content. Accepted as a workflow-critical trade-off for the redaction wrapper; mitigated for dry-run by the blocking wrapper. |
 | `cat` | Used in `entrypoint-common.sh` to read SA token and prompt files; in `entrypoint-opencode.sh` to pass the rendered prompt to opencode. Wrapping would corrupt control-plane reads. | LLM can use `cat` to read any file in the container, including `/var/run/secrets/kubernetes.io/serviceaccount/token`. |
 | `env` / `printenv` | `FINDING_ERRORS` is already redacted at source in all six native providers. Wrapping has marginal security value. High risk of breaking shell initialisation. | LLM can call `env` or `printenv` to list all environment variables; only `FINDING_ERRORS` is pre-redacted. Other env vars (e.g. `GIT_AUTHOR_EMAIL`) are non-sensitive. |
 
 **Residual risk summary:**
 - `curl`/`jq`/`openssl`/`cat` bypass: LLM can reach Kubernetes API or read container files directly using unwrapped tools
-- `git` bypass: commit history and diffs may contain credential fragments
+- `git` output bypass: commit history and diffs may contain credential fragments (stdout redaction not applied; dry-run write blocking is the only gate)
 - Short secret values (< 30 raw bytes, < 40 base64 chars): not matched by the base64 pattern threshold; only caught if key name matches a named pattern (`password`, `token`, `secret`, `api-key`, `x-api-key`)
 - Novel credential formats not covered by any existing regex pattern: pass through unredacted
 
@@ -475,6 +476,41 @@ using `:latest` or mutable tags are exposed.
 
 ---
 
+### AV-13: Dry-Run Mode Bypass (MEDIUM risk)
+
+**Entry point:** Agent Job pod running with `DRY_RUN=true` in its environment.
+
+**Mechanism:**
+```
+operator sets DRY_RUN=true expecting shadow-mode evaluation (no PRs, no git pushes)
+→ LLM hallucinates, ignores HARD RULE 11, or is manipulated by prompt injection
+→ LLM executes: git push / gh pr create
+→ PR is created or code is pushed despite dry-run intent
+→ operator loses the safety guarantee of the evaluation period
+```
+
+**Controls in place (epic20):**
+
+- **`gh` wrapper** (`/usr/local/bin/gh`) — intercepts all `gh` calls; when `DRY_RUN=true`,
+  blocks `pr create`, `pr comment`, `pr edit`, `pr merge`, `issue create`, and all other
+  write subcommands. Exits 0 with a `[DRY_RUN]` message on stderr. The LLM sees a clean
+  exit and does not retry.
+- **`git` wrapper** (`/usr/local/bin/git`, epic20 STORY_03b) — intercepts all `git` calls;
+  when `DRY_RUN=true`, blocks `push`, `commit`, and annotated/signed `tag`. All read-only
+  subcommands (`log`, `diff`, `show`, `status`, `clone`, etc.) pass through to
+  `/usr/bin/git.real` unchanged, including stdout.
+- **HARD RULE 11** in `core.txt` — informs the LLM it is in dry-run mode and explains
+  that write operations are blocked. This is a supporting informational control; the
+  wrappers are the enforcement layer.
+
+**Residual risk:** The wrappers cover `gh` and `git`. An LLM that constructs its own HTTP
+request to the GitHub API via `curl` (unwrapped) could bypass both wrappers. This is
+considered low-probability (the LLM would need to know the GitHub API format, the
+installation token from `/workspace/github-token`, and the target repo) and is bounded by
+the same network egress controls (AV-03/TC-03) and the 1-hour token TTL (AV-10).
+
+---
+
 ### AV-12: Log Injection / Structured Log Pollution (LOW risk)
 
 **Entry point:** Any field from `Finding.Errors` or pod names that reach the structured
@@ -545,4 +581,5 @@ Each step is a control point. A failure at any step propagates to all downstream
 | AR-03 | NetworkPolicy requires CNI — not enforced without it | MEDIUM | Cilium CNI confirmed deployed and capable (pentest phase05). NetworkPolicy not applied (P-009) — this is now a deployment gap, not a CNI availability gap. Operator action required (`kubectl apply -f deploy/overlays/security/network-policy-agent.yaml`). |
 | AR-04 | Prompt injection cannot be fully prevented | MEDIUM | Field-wide unsolved problem; layered mitigations reduce but cannot eliminate risk. Pentest confirmed LLM refused live payload, but this is not a deterministic control. P-008 remediation adds a deterministic gate in the controller path. |
 | AR-05 | GitHub token in shared emptyDir | MEDIUM | Required by init container pattern; 1-hour TTL limits exposure window. Pentest phase06 verified isolation — no findings. |
-| AR-06 | HARD RULEs are prompt instructions, not technical controls | MEDIUM | GitHub branch protection is the external technical control; human review required to merge. Prompt envelope verified present and intact (pentest phase02). |
+| AR-06 | HARD RULEs are prompt instructions, not technical controls | MEDIUM | GitHub branch protection is the external technical control; human review required to merge. Prompt envelope verified present and intact (pentest phase02). Epic20 adds deterministic wrapper enforcement (AV-13) as the technical control for dry-run mode specifically. |
+| AR-07 | `curl` can bypass `gh`/`git` dry-run wrappers to push to GitHub API directly | LOW | Requires LLM to know GitHub REST API format, installation token location (`/workspace/github-token`), and target repo. Bounded by network egress (AV-03) and 1-hour token TTL (AV-10). Accepted — no practical mitigation without wrapping `curl` (which would break the init container). |

@@ -30,20 +30,22 @@ The `Builder` struct holds a local `Config` (of type `jobbuilder.Config`, **not*
 ```go
 type Config struct {
     AgentNamespace string
+    AgentType      config.AgentType
+    TTLSeconds     int32
 }
 ```
 
 The `jobbuilder.Config` is constructed in `main.go` from the `config.Config`. To carry the
-dry-run flag through, `jobbuilder.Config` must gain a `DryRun bool` field, which is populated
-from `config.Config.DryRun` at construction time.
+dry-run flag through, `jobbuilder.Config` must gain a `DryRun bool` field as the fourth
+field, which is populated from `config.Config.DryRun` at construction time.
 
-The main container is named `"mendabot-agent"` (line 115 of `job.go`). Its `Env` slice is
-built inline at lines 117–165. The env var `DRY_RUN=true` must be appended to the main
+The main container is named `"mendabot-agent"`. Its `Env` slice is built inline and
+currently ends with `AGENT_TYPE`. The env var `DRY_RUN=true` must be appended to the main
 container's `Env` slice — and only when `b.cfg.DryRun == true`. The init container
 (`git-token-clone`) must **not** receive `DRY_RUN`.
 
 The annotation key is `mendabot.io/dry-run` with value `"true"`. It is added to the Job's
-`ObjectMeta.Annotations` map. The existing annotations (lines 241–244 of `job.go`) are:
+`ObjectMeta.Annotations` map. The existing annotations (lines 244–247 of `job.go`) are:
 
 ```go
 Annotations: map[string]string{
@@ -64,10 +66,10 @@ When `b.cfg.DryRun == true`, a third entry is added:
 
 | File | Current state | Change |
 |------|--------------|--------|
-| `internal/jobbuilder/job.go` | `type Config struct { AgentNamespace string }` (line 17) | add `DryRun bool` field |
-| `internal/jobbuilder/job.go` | `mainContainer.Env` slice ends at `{Name: "IS_SELF_REMEDIATION", Value: "false"}` (line 164) | append `DRY_RUN=true` conditionally after slice definition |
-| `internal/jobbuilder/job.go` | `Annotations` map literal (lines 241–244) | add `"mendabot.io/dry-run": "true"` entry conditionally |
-| `internal/jobbuilder/job_test.go` | — | add four new test functions |
+| `internal/jobbuilder/job.go` | `type Config struct { AgentNamespace string; AgentType config.AgentType; TTLSeconds int32 }` | add `DryRun bool` as fourth field |
+| `internal/jobbuilder/job.go` | `mainContainer.Env` slice ends at `{Name: "AGENT_TYPE", Value: ...}` | append `DRY_RUN=true` conditionally after slice definition |
+| `internal/jobbuilder/job.go` | `Annotations` map literal (lines 244–247) | add `"mendabot.io/dry-run": "true"` entry conditionally |
+| `internal/jobbuilder/job_test.go` | — | add five new test functions |
 | `cmd/watcher/main.go` | construction of `jobbuilder.Config{}` | add `DryRun: cfg.DryRun` |
 
 ---
@@ -95,6 +97,8 @@ When `b.cfg.DryRun == true`, a third entry is added:
 ```go
 type Config struct {
     AgentNamespace string
+    AgentType      config.AgentType
+    TTLSeconds     int32
     DryRun         bool
 }
 ```
@@ -129,11 +133,13 @@ Then reference `annotations` in the `ObjectMeta` literal instead of the inline m
 
 ### 4. Update `cmd/watcher/main.go`
 
-Wherever `jobbuilder.Config{AgentNamespace: cfg.AgentNamespace}` is constructed, change to:
+Wherever `jobbuilder.Config{AgentNamespace: cfg.AgentNamespace, AgentType: cfg.AgentType, TTLSeconds: int32(cfg.RemediationJobTTLSeconds)}` is constructed, change to:
 
 ```go
 jobbuilder.Config{
     AgentNamespace: cfg.AgentNamespace,
+    AgentType:      cfg.AgentType,
+    TTLSeconds:     int32(cfg.RemediationJobTTLSeconds),
     DryRun:         cfg.DryRun,
 }
 ```

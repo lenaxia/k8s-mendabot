@@ -19,7 +19,7 @@ mendabot would have done without leaving the Kubernetes API.
 
 ### `RemediationJobStatus.Message` — already exists
 
-`api/v1alpha1/remediationjob_types.go` line 173 shows that `Message string` is **already
+`api/v1alpha1/remediationjob_types.go` line 206 shows that `Message string` is **already
 present** in `RemediationJobStatus`:
 
 ```go
@@ -28,7 +28,7 @@ present** in `RemediationJobStatus`:
 Message string `json:"message,omitempty"`
 ```
 
-`DeepCopyInto` already copies it (line 212). No CRD type changes are required by this story.
+`DeepCopyInto` already copies it (line 251). No CRD type changes are required by this story.
 
 ### How the controller currently detects Job completion
 
@@ -46,42 +46,22 @@ The reconciler detects completion at lines 100–142: it lists owned Jobs by lab
 
 ### How the report is read — Kubernetes CoreV1 Logs API
 
-The agent writes the report to `/workspace/investigation-report.txt` on the shared-workspace
-`EmptyDir` volume. The entrypoint script (`agent-entrypoint.sh`) writes to that path and
-then exits. The report content appears in the pod's stdout only if the entrypoint explicitly
-`cat`s it before `exec opencode`. However, the **investigation-report.txt** file exists only
-on the pod's ephemeral volume — it is not part of container stdout.
+The agent writes the report to `/workspace/investigation-report.txt`. The entrypoint
+script (`entrypoint-common.sh`) defines `emit_dry_run_report()`, which is called by the
+per-agent entrypoint (`entrypoint-opencode.sh`, `entrypoint-claude.sh`) after the agent
+binary returns. This function prints the sentinel `=== DRY_RUN INVESTIGATION REPORT ===`
+followed by the file contents to stdout — making the report available via the Kubernetes
+pod logs API.
 
-The correct approach is to use the Kubernetes **CoreV1 Pods GetLogs API**. After the Job
-succeeds, the controller calls:
+The reconciler reads the pod logs, finds the sentinel line, and extracts only the text
+after it as the report. If the sentinel is absent (e.g. opencode exited before writing the
+report), the reconciler stores the raw truncated logs with a note.
 
-```go
-logReq := r.CoreV1Client.CoreV1().Pods(r.Cfg.AgentNamespace).GetLogs(podName, &corev1.PodLogOptions{
-    Container: "mendabot-agent",
-})
-```
-
-This returns the `mendabot-agent` container's stdout. To make the report available via logs,
-**STORY_03 must additionally update `agent-entrypoint.sh`** to cat the report file to stdout
-after `opencode` exits in dry-run mode (see Coordination note below).
-
-Alternatively — and more reliably — the entrypoint can print the report to stdout immediately
-before `exec opencode` exits. The simplest implementation is:
-
-```bash
-# In dry-run mode, after opencode writes the report:
-if [ "${DRY_RUN:-false}" = "true" ]; then
-    echo "=== DRY_RUN INVESTIGATION REPORT ==="
-    cat /workspace/investigation-report.txt
-fi
-```
-
-This ensures the report appears in the pod logs regardless of how `opencode` exits.
-
-> **Coordination note:** The `cat` call above belongs in `docker/scripts/agent-entrypoint.sh`
-> and should be implemented as part of STORY_03 (prompt), not this story. STORY_04 assumes
-> the report is present in the `mendabot-agent` container logs when the Job has succeeded and
-> the `mendabot.io/dry-run: "true"` annotation is set on the Job.
+> **Coordination note:** The `emit_dry_run_report` function and the per-agent entrypoint
+> restructuring are implemented in STORY_03 (`entrypoint-common.sh`,
+> `entrypoint-opencode.sh`, `entrypoint-claude.sh`). STORY_04 assumes the sentinel and
+> report text are present in the `mendabot-agent` container logs when the Job has succeeded
+> and the `mendabot.io/dry-run: "true"` annotation is set on the Job.
 
 ### How the controller identifies a dry-run Job
 
@@ -118,8 +98,7 @@ The first succeeded pod is used.
 | File | Change |
 |------|--------|
 | `internal/controller/remediationjob_controller.go` | add log-fetch logic in the `PhaseSucceeded` branch; add `KubeClient kubernetes.Interface` field to reconciler struct |
-| `internal/controller/remediationjob_controller.go` | new private method `fetchDryRunReport` |
-| `docker/scripts/agent-entrypoint.sh` | add `cat /workspace/investigation-report.txt` to stdout after opencode exits in dry-run mode (see Coordination note — this may be implemented as part of STORY_03) |
+| `internal/controller/remediationjob_controller.go` | new private method `fetchDryRunReport` with sentinel extraction |
 | `cmd/watcher/main.go` | populate `KubeClient` on the reconciler |
 
 ---
@@ -132,18 +111,18 @@ The first succeeded pod is used.
   1. Lists pods with label `batch.kubernetes.io/job-name: <job-name>` in `cfg.AgentNamespace`
   2. Selects the first pod with phase `Succeeded`
   3. Fetches logs for container `"mendabot-agent"` via `KubeClient.CoreV1().Pods(...).GetLogs(...).Stream(ctx)`
-  4. Reads up to **10,000 bytes** of log output
-  5. Stores the truncated content in `rjob.Status.Message`
-  6. Patches `rjob.Status` via `r.Status().Patch(...)`
+  4. Reads up to **10,000 bytes** of log output via `io.LimitReader` + `io.ReadAll`
+  5. Extracts text after the sentinel `=== DRY_RUN INVESTIGATION REPORT ===`; falls back to raw log with note if sentinel absent
+  6. Stores the result in `rjob.Status.Message`
+  7. Patches `rjob.Status` via `r.Status().Patch(...)`
 - [ ] If no succeeded pod is found, or if the log fetch fails, the reconciler logs a warning
   and sets `rjob.Status.Message` to a descriptive error string — it does **not** return an
   error that would trigger a retry loop, since the Job itself succeeded
 - [ ] When `DRY_RUN` is not set (normal mode), `status.message` is never populated by this
   code path — it remains whatever it was (empty by default)
-- [ ] `docker/scripts/agent-entrypoint.sh` cats the report to stdout before exiting in
-  dry-run mode (either implemented here or confirmed implemented in STORY_03)
-- [ ] `cmd/watcher/main.go` creates a `kubernetes.Clientset` from in-cluster config and
-  passes it as `KubeClient`
+- [ ] `entrypoint-common.sh` emits the sentinel and report to stdout in dry-run mode
+  (confirmed implemented in STORY_03 — not implemented here)
+- [ ] `cmd/watcher/main.go` creates a `kubernetes.Clientset` and passes it as `KubeClient`
 - [ ] Unit tests cover the new log-fetch path using a fake `kubernetes.Interface`
 - [ ] `go test -race ./internal/controller/...` passes
 
@@ -172,8 +151,11 @@ type RemediationJobReconciler struct {
 
 ```go
 // fetchDryRunReport retrieves the investigation report from the mendabot-agent
-// container logs of the first succeeded pod owned by job. Returns the report
-// truncated to maxReportBytes, or an error description string on failure.
+// container logs of the first succeeded pod owned by job. It finds the sentinel
+// line "=== DRY_RUN INVESTIGATION REPORT ===" and returns only the text after it,
+// truncated to maxReportBytes. If the sentinel is absent, returns the raw
+// truncated logs with a prefix note. Returns an error description string on
+// any infrastructure failure.
 const maxReportBytes = 10_000
 
 func (r *RemediationJobReconciler) fetchDryRunReport(ctx context.Context, job *batchv1.Job) string {
@@ -208,11 +190,25 @@ func (r *RemediationJobReconciler) fetchDryRunReport(ctx context.Context, job *b
     }
     defer stream.Close()
 
-    buf := make([]byte, maxReportBytes)
-    n, _ := io.ReadFull(stream, buf)
-    return string(buf[:n])
+    limited := io.LimitReader(stream, maxReportBytes)
+    raw, err := io.ReadAll(limited)
+    if err != nil {
+        return fmt.Sprintf("dry-run report unavailable: read logs: %v", err)
+    }
+
+    // Extract only the content after the sentinel line.
+    const sentinel = "=== DRY_RUN INVESTIGATION REPORT ==="
+    logs := string(raw)
+    if idx := strings.Index(logs, sentinel); idx >= 0 {
+        return strings.TrimSpace(logs[idx+len(sentinel):])
+    }
+    // Sentinel absent — store raw logs with a note so the operator has something useful.
+    return "(sentinel not found — raw log follows)\n" + logs
 }
 ```
+
+> **Imports required:** `"io"`, `"strings"`, `"fmt"`, `corev1 "k8s.io/api/core/v1"`,
+> `"k8s.io/client-go/kubernetes"`.
 
 ### 3. Call `fetchDryRunReport` in the reconcile loop
 
@@ -230,34 +226,7 @@ if newPhase == v1alpha1.PhaseSucceeded &&
 Place this before the `r.Status().Patch(...)` call so the message is included in the same
 patch that sets `Phase = Succeeded`.
 
-### 4. Update `agent-entrypoint.sh` (coordination with STORY_03)
-
-Add the following block **after** `exec opencode run "$(cat /tmp/rendered-prompt.txt)"`:
-
-```bash
-# In dry-run mode, emit the investigation report to stdout so the
-# watcher can read it via the Kubernetes pod logs API.
-if [ "${DRY_RUN:-false}" = "true" ] && [ -f /workspace/investigation-report.txt ]; then
-    echo "=== DRY_RUN INVESTIGATION REPORT ==="
-    cat /workspace/investigation-report.txt
-fi
-```
-
-> **Note:** `exec` replaces the shell process, so the block above must appear *before*
-> the `exec opencode` line, not after. The entrypoint should be restructured to run
-> `opencode` without `exec` in dry-run mode, then cat the report:
->
-> ```bash
-> if [ "${DRY_RUN:-false}" = "true" ]; then
->     opencode run "$(cat /tmp/rendered-prompt.txt)"
->     echo "=== DRY_RUN INVESTIGATION REPORT ==="
->     cat /workspace/investigation-report.txt
-> else
->     exec opencode run "$(cat /tmp/rendered-prompt.txt)"
-> fi
-> ```
-
-### 5. Update `cmd/watcher/main.go`
+### 4. Update `cmd/watcher/main.go`
 
 ```go
 import (
@@ -300,10 +269,19 @@ Add the necessary RBAC marker to `remediationjob_controller.go`:
 Tests live in `internal/controller/` alongside the existing controller tests. Use
 `k8s.io/client-go/kubernetes/fake` for the `KubeClient`.
 
+The fake log stream must include the sentinel line so tests verify extraction:
+
+```
+=== DRY_RUN INVESTIGATION REPORT ===
+## Root Cause
+ImagePullBackOff — image not found.
+```
+
 | Test Name | Setup | Assertion |
 |-----------|-------|-----------|
-| `TestReconcile_DryRunSucceeded_ReportStored` | Job with `mendabot.io/dry-run: "true"` and `Succeeded: 1`; fake pod with `Phase: Succeeded`; fake log stream returns report text | `rjob.Status.Message` contains the report text |
-| `TestReconcile_DryRunSucceeded_ReportTruncated` | Same as above but log stream returns > 10,000 bytes | `rjob.Status.Message` is exactly 10,000 bytes |
+| `TestReconcile_DryRunSucceeded_ReportStored` | Job with `mendabot.io/dry-run: "true"` and `Succeeded: 1`; fake pod with `Phase: Succeeded`; fake log stream contains sentinel + report text | `rjob.Status.Message` contains the post-sentinel report text, not the sentinel line itself |
+| `TestReconcile_DryRunSucceeded_ReportTruncated` | Same as above but post-sentinel log content is > 10,000 bytes | `rjob.Status.Message` is at most 10,000 bytes |
+| `TestReconcile_DryRunSucceeded_SentinelAbsent` | Same setup but log stream contains no sentinel line | `rjob.Status.Message` starts with `"(sentinel not found"` |
 | `TestReconcile_DryRunSucceeded_NoPodFound` | Job succeeded, dry-run annotated, but no pods in list | `rjob.Status.Message` starts with `"dry-run report unavailable"` |
 | `TestReconcile_NoDryRun_MessageNotPopulated` | Job succeeded, no dry-run annotation | `rjob.Status.Message == ""` |
 | `TestFetchDryRunReport_NilKubeClient` | `KubeClient == nil` | returns `"dry-run report unavailable: KubeClient not configured"` |
@@ -314,13 +292,11 @@ Tests live in `internal/controller/` alongside the existing controller tests. Us
 
 - [ ] Add `KubeClient kubernetes.Interface` to `RemediationJobReconciler` struct
 - [ ] Add `//+kubebuilder:rbac:groups="",resources=pods/log,verbs=get` marker
-- [ ] Implement `fetchDryRunReport` method
+- [ ] Implement `fetchDryRunReport` method with `io.LimitReader` and sentinel extraction
 - [ ] Add `maxReportBytes = 10_000` constant
 - [ ] Wire dry-run branch in reconcile loop (detect `mendabot.io/dry-run` annotation)
-- [ ] Restructure `agent-entrypoint.sh` to cat report in dry-run mode (or confirm
-  STORY_03 covers this — must not be done twice)
 - [ ] Add `KubeClient` wiring in `cmd/watcher/main.go`
-- [ ] Write the five controller tests
+- [ ] Write the six controller tests
 - [ ] Run `go test -race ./internal/controller/...` — all pass
 - [ ] Run `go build ./...` — clean
 
@@ -330,14 +306,14 @@ Tests live in `internal/controller/` alongside the existing controller tests. Us
 
 **Depends on:** STORY_01 (`cfg.DryRun` field)
 **Depends on:** STORY_02 (`mendabot.io/dry-run` annotation on the Job)
-**Depends on:** STORY_03 (the `agent-entrypoint.sh` must emit the report to stdout in dry-run
-mode; if STORY_03 does not include the entrypoint change, it must be done here)
+**Depends on:** STORY_03 (`entrypoint-common.sh` must emit the sentinel and report to stdout
+in dry-run mode via `emit_dry_run_report`; implemented in STORY_03, not here)
 
 ---
 
 ## Definition of Done
 
-- [ ] All five new controller tests pass with `-race`
+- [ ] All six new controller tests pass with `-race`
 - [ ] Existing controller tests unchanged and still pass
 - [ ] Full test suite passes: `go test -timeout 120s -race ./...`
 - [ ] `go vet ./...` clean

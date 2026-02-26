@@ -44,6 +44,9 @@ the epic and individual story files for each unit of work.
 | epic23 — Structured Audit Log (gap check) | [epic23-structured-audit-log/](epic23-structured-audit-log/) | Verify epic12 STORY_03 completeness; fill gaps from epics 15–22 | epic12, epic15–22 | Complete |
 | epic24 — Severity Tiers | [epic24-severity-tiers/](epic24-severity-tiers/) | Severity field on findings; MIN_SEVERITY filter; FINDING_SEVERITY in agent prompt | epic09, epic00.1 | Complete |
 | epic25 — Tool Output Redaction | [epic25-tool-output-redaction/](epic25-tool-output-redaction/) | cmd/redact binary + PATH-shadowing shell wrappers; all tool output redacted before LLM API | epic12, epic03 | Complete |
+| epic26 — Auto-Close Resolved Sinks | [epic26-auto-close-resolved/](epic26-auto-close-resolved/) | Close open PRs/issues automatically when the underlying finding resolves | epic01, epic04, epic09 | Not Started |
+| epic27 — PR Feedback Iteration | [epic27-pr-feedback-iteration/](epic27-pr-feedback-iteration/) | Poll open sinks for reviewer comments; dispatch follow-up agent Jobs to address feedback | epic26 | Not Started |
+| epic28 — Manual Investigation Triggers | [epic28-manual-trigger/](epic28-manual-trigger/) | TriggerProvider interface + Webhook, GitHub issue, and Slack backends for on-demand investigations | epic01, epic02, epic26 | Not Started |
 
 ## Implementation Order
 
@@ -80,6 +83,9 @@ epic13-multi-signal-correlation  DEFERRED (epic11-13-deferred branch; needs epic
 epic18-manifest-validation       Not Started
 epic20-dry-run-mode              Not Started
 epic22-token-expiry-guard        Not Started
+epic26-auto-close-resolved       Not Started (depends on epic01, epic04, epic09)
+epic27-pr-feedback-iteration     Not Started (depends on epic26)
+epic28-manual-trigger            Not Started (depends on epic01, epic02, epic26)
 ```
 
 ## Feature Tracker
