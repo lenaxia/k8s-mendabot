@@ -87,7 +87,7 @@ func (p *podProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 		if cs.State.Terminated != nil && cs.State.Terminated.ExitCode != 0 {
 			msg := cs.State.Terminated.Message
 			if msg != "" {
-				msg = ": " + domain.RedactSecrets(msg)
+				msg = ": " + truncate(domain.StripDelimiters(domain.RedactSecrets(msg)), maxTerminatedMessage)
 			}
 			text := fmt.Sprintf("container %s: terminated with exit code %d%s",
 				cs.Name, cs.State.Terminated.ExitCode, msg)
@@ -101,7 +101,7 @@ func (p *podProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 			if cond.Type == corev1.PodScheduled &&
 				cond.Status == corev1.ConditionFalse &&
 				cond.Reason == "Unschedulable" {
-				text := fmt.Sprintf("pod %s: %s", cond.Reason, domain.RedactSecrets(truncate(cond.Message, 500)))
+				text := fmt.Sprintf("pod %s: %s", cond.Reason, truncate(domain.StripDelimiters(domain.RedactSecrets(cond.Message)), maxSchedulerMessage))
 				errors = append(errors, errorEntry{Text: text})
 				break
 			}
@@ -204,8 +204,7 @@ func buildWaitingText(cs corev1.ContainerStatus) string {
 	reason := cs.State.Waiting.Reason
 	msg := cs.State.Waiting.Message
 	if msg != "" {
-		msg = truncate(msg, 500)
-		msg = domain.RedactSecrets(msg)
+		msg = truncate(domain.StripDelimiters(domain.RedactSecrets(msg)), maxWaitingMessage)
 		return fmt.Sprintf("container %s: %s: %s", cs.Name, reason, msg)
 	}
 	return fmt.Sprintf("container %s: %s", cs.Name, reason)

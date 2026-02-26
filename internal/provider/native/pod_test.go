@@ -722,14 +722,16 @@ func TestWaitingMessageRedacted(t *testing.T) {
 	assertErrorTextContains(t, finding.Errors, "[REDACTED]")
 }
 
-// TestWaitingMessageTruncated: container waiting with a Waiting.Message of 600 chars
-// → error text must be truncated and contain "...[truncated]".
+// TestWaitingMessageTruncated: container waiting with a Waiting.Message exceeding
+// maxWaitingMessage (1024 bytes) → error text must be truncated and contain "...[truncated]".
+// The message uses spaces so it is not matched by the base64 redaction pattern
+// (which requires 40+ consecutive alphanumeric chars), ensuring truncation fires.
 func TestWaitingMessageTruncated(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
 	p := NewPodProvider(c)
 
-	longMsg := strings.Repeat("x", 600)
+	longMsg := strings.Repeat("container startup error occurred. ", 40) // 1360 chars, spaces break base64
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -762,7 +764,7 @@ func TestWaitingMessageTruncated(t *testing.T) {
 	}
 	assertErrorsJSON(t, finding.Errors)
 	if contains(finding.Errors, longMsg) {
-		t.Errorf("error text should not contain the full 600-char message (expected truncation): %s", finding.Errors)
+		t.Errorf("error text should not contain the full 1360-char message (expected truncation): %s", finding.Errors)
 	}
 	assertErrorTextContains(t, finding.Errors, "...[truncated]")
 }

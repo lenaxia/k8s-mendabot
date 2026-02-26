@@ -70,7 +70,7 @@ func (p *deploymentProvider) ExtractFinding(obj client.Object) (*domain.Finding,
 	for _, cond := range deploy.Status.Conditions {
 		if cond.Type == appsv1.DeploymentAvailable && cond.Status == corev1.ConditionFalse {
 			text := fmt.Sprintf("deployment %s: Available=False reason=%s message=%s",
-				deploy.Name, cond.Reason, domain.RedactSecrets(truncate(cond.Message, 500)))
+				deploy.Name, cond.Reason, truncate(domain.StripDelimiters(domain.RedactSecrets(cond.Message)), maxConditionMessage))
 			errors = append(errors, errorEntry{Text: text})
 			break
 		}

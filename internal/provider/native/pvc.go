@@ -62,7 +62,7 @@ func (p *pvcProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 		Text string `json:"text"`
 	}
 
-	errText := fmt.Sprintf("pvc %s: ProvisioningFailed: %s", pvc.Name, domain.RedactSecrets(truncate(eventMsg, 500)))
+	errText := fmt.Sprintf("pvc %s: ProvisioningFailed: %s", pvc.Name, truncate(domain.StripDelimiters(domain.RedactSecrets(eventMsg)), maxCSIEventMessage))
 	errorsJSON, err := json.Marshal([]errorEntry{{Text: errText}})
 	if err != nil {
 		return nil, fmt.Errorf("pvcProvider: serialising errors: %w", err)

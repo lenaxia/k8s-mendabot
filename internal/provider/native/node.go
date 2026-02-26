@@ -135,5 +135,5 @@ func computeNodeSeverity(node *corev1.Node) domain.Severity {
 // Format: "node <name> has condition <Type> (<Reason>): <Message>"
 func buildNodeConditionText(nodeName string, cond corev1.NodeCondition) string {
 	return fmt.Sprintf("node %s has condition %s (%s): %s",
-		nodeName, cond.Type, cond.Reason, domain.RedactSecrets(truncate(cond.Message, 500)))
+		nodeName, cond.Type, cond.Reason, truncate(domain.StripDelimiters(domain.RedactSecrets(cond.Message)), maxConditionMessage))
 }

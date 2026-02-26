@@ -92,7 +92,7 @@ func (p *jobProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 	for _, cond := range job.Status.Conditions {
 		if cond.Type == batchv1.JobFailed && cond.Status == corev1.ConditionTrue {
 			if cond.Reason != "" || cond.Message != "" {
-				condText := fmt.Sprintf("job %s: %s: %s", job.Name, cond.Reason, domain.RedactSecrets(truncate(cond.Message, 500)))
+				condText := fmt.Sprintf("job %s: %s: %s", job.Name, cond.Reason, truncate(domain.StripDelimiters(domain.RedactSecrets(cond.Message)), maxConditionMessage))
 				errors = append(errors, errorEntry{Text: condText})
 			}
 			break
