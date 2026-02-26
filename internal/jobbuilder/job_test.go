@@ -168,6 +168,7 @@ func TestBuild_EnvVars_AllPresent(t *testing.T) {
 		"SINK_TYPE",
 		"AGENT_PROVIDER_CONFIG",
 		"AGENT_TYPE",
+		"AGENT_NAMESPACE",
 	}
 	for _, name := range required {
 		if _, ok := getEnv(main, name); !ok {
@@ -181,6 +182,11 @@ func TestBuild_EnvVars_AllPresent(t *testing.T) {
 	// 40-char base64 redaction threshold and is not redacted in gh output.
 	if val, ok := getEnv(main, "FINDING_FINGERPRINT"); !ok || val != "abcdef012345" {
 		t.Errorf("FINDING_FINGERPRINT = %q (ok=%v), want %q", val, ok, "abcdef012345")
+	}
+	// AGENT_NAMESPACE must equal the builder's AgentNamespace so emit_dry_run_report()
+	// writes the ConfigMap to the same namespace the controller reads from.
+	if val, ok := getEnv(main, "AGENT_NAMESPACE"); !ok || val != "mendabot" {
+		t.Errorf("AGENT_NAMESPACE = %q (ok=%v), want %q", val, ok, "mendabot")
 	}
 }
 

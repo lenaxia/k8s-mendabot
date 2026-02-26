@@ -10,7 +10,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
@@ -50,7 +49,6 @@ func newDryRunRJobWithJob(
 }
 
 // newDryRunCM creates the ConfigMap that emit_dry_run_report() would write.
-// cmName must match controller.dryRunCMName(fp).
 func newDryRunCM(cmName, namespace, report, patch string) *corev1.ConfigMap {
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -64,17 +62,52 @@ func newDryRunCM(cmName, namespace, report, patch string) *corev1.ConfigMap {
 	}
 }
 
-// dryRunCMName mirrors the private function in the controller package so tests
-// can derive the expected ConfigMap name from a fingerprint.
-func dryRunCMName(fp string) string {
-	if len(fp) > 12 {
-		fp = fp[:12]
+// ---------------------------------------------------------------------------
+// DryRunCMName unit tests
+// ---------------------------------------------------------------------------
+
+// TestDryRunCMName verifies the exported naming function used by both the
+// controller (production) and tests. Having a single implementation eliminates
+// the silent-divergence risk identified in the audit.
+func TestDryRunCMName(t *testing.T) {
+	tests := []struct {
+		name        string
+		fingerprint string
+		want        string
+	}{
+		{
+			name:        "longer than 12 chars — truncated",
+			fingerprint: "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345",
+			want:        "mendabot-dryrun-abcdefghijkl",
+		},
+		{
+			name:        "exactly 12 chars — boundary, no truncation",
+			fingerprint: "abcdefghijkl",
+			want:        "mendabot-dryrun-abcdefghijkl",
+		},
+		{
+			name:        "shorter than 12 chars — used as-is (jobbuilder rejects this, but function should not panic)",
+			fingerprint: "short",
+			want:        "mendabot-dryrun-short",
+		},
+		{
+			name:        "different 12-char prefix",
+			fingerprint: "aabbccddeeff00112233445566778899",
+			want:        "mendabot-dryrun-aabbccddeeff",
+		},
 	}
-	return "mendabot-dryrun-" + fp
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := controller.DryRunCMName(tt.fingerprint)
+			if got != tt.want {
+				t.Errorf("DryRunCMName(%q) = %q, want %q", tt.fingerprint, got, tt.want)
+			}
+		})
+	}
 }
 
 // ---------------------------------------------------------------------------
-// Tests
+// Reconciler integration tests
 // ---------------------------------------------------------------------------
 
 // TestReconcile_DryRunSucceeded_ReportAndPatchStored verifies the happy path:
@@ -86,7 +119,8 @@ func TestReconcile_DryRunSucceeded_ReportAndPatchStored(t *testing.T) {
 		map[string]string{"mendabot.io/dry-run": "true"},
 	)
 
-	cm := newDryRunCM(dryRunCMName(fp), testNamespace,
+	cmName := controller.DryRunCMName(fp)
+	cm := newDryRunCM(cmName, testNamespace,
 		"## Root Cause\nImagePullBackOff — image not found.",
 		"diff --git a/foo.yaml b/foo.yaml\n--- a/foo.yaml\n+++ b/foo.yaml\n@@ -1 +1 @@\n-old\n+new",
 	)
@@ -131,7 +165,7 @@ func TestReconcile_DryRunSucceeded_ReportAndPatchStored(t *testing.T) {
 
 	// ConfigMap must be deleted after reading.
 	var remaining corev1.ConfigMap
-	err = c.Get(context.Background(), types.NamespacedName{Name: dryRunCMName(fp), Namespace: testNamespace}, &remaining)
+	err = c.Get(context.Background(), types.NamespacedName{Name: cmName, Namespace: testNamespace}, &remaining)
 	if err == nil {
 		t.Error("expected ConfigMap to be deleted after reading, but it still exists")
 	}
@@ -146,7 +180,7 @@ func TestReconcile_DryRunSucceeded_ReportOnlyNoPatch(t *testing.T) {
 		map[string]string{"mendabot.io/dry-run": "true"},
 	)
 
-	cm := newDryRunCM(dryRunCMName(fp), testNamespace,
+	cm := newDryRunCM(controller.DryRunCMName(fp), testNamespace,
 		"## Root Cause\nThe image tag was wrong.",
 		"", // no patch
 	)
@@ -266,7 +300,7 @@ func TestReconcile_NoDryRun_MessageNotPopulated(t *testing.T) {
 
 // TestReconcile_DryRunSucceeded_MessageAlreadySet verifies that when
 // rjob.Status.Message is already set, the reconciler does not overwrite it
-// and does not attempt to read the ConfigMap again.
+// and does not touch the ConfigMap.
 func TestReconcile_DryRunSucceeded_MessageAlreadySet(t *testing.T) {
 	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
 	rjob, job := newDryRunRJobWithJob(
@@ -277,7 +311,8 @@ func TestReconcile_DryRunSucceeded_MessageAlreadySet(t *testing.T) {
 
 	// A CM exists with different content — if idempotency guard fires, CM is
 	// NOT read and Message stays "existing report".
-	cm := newDryRunCM(dryRunCMName(fp), testNamespace, "NEW CONTENT", "")
+	cmName := controller.DryRunCMName(fp)
+	cm := newDryRunCM(cmName, testNamespace, "NEW CONTENT", "")
 
 	s := newTestScheme(t)
 	c := fake.NewClientBuilder().
@@ -313,23 +348,23 @@ func TestReconcile_DryRunSucceeded_MessageAlreadySet(t *testing.T) {
 
 	// CM must NOT have been deleted (guard fired before fetchDryRunReport).
 	var remaining corev1.ConfigMap
-	if err := c.Get(context.Background(), types.NamespacedName{Name: dryRunCMName(fp), Namespace: testNamespace}, &remaining); err != nil {
+	if err := c.Get(context.Background(), types.NamespacedName{Name: cmName, Namespace: testNamespace}, &remaining); err != nil {
 		t.Error("expected ConfigMap to still exist when idempotency guard fired, but it was deleted")
 	}
 }
 
 // TestReconcile_DryRunSucceeded_CMNameDerivedFromFingerprint verifies that the
 // controller constructs the ConfigMap name as "mendabot-dryrun-<fp[:12]>", which
-// must match what emit_dry_run_report() writes.
+// must match what emit_dry_run_report() writes. Tests the exact-12-char boundary.
 func TestReconcile_DryRunSucceeded_CMNameDerivedFromFingerprint(t *testing.T) {
+	// Use a fingerprint whose first 12 chars are distinctive.
 	const fp = "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899"
 	rjob, job := newDryRunRJobWithJob(
 		"test-dryrun-cmname", fp, v1alpha1.PhaseDispatched,
 		map[string]string{"mendabot.io/dry-run": "true"},
 	)
 
-	// Use a well-known CM name derived from the fingerprint prefix.
-	expectedCMName := "mendabot-dryrun-aabbccddeeff"
+	expectedCMName := controller.DryRunCMName(fp) // "mendabot-dryrun-aabbccddeeff"
 	cm := newDryRunCM(expectedCMName, testNamespace, "root cause found", "")
 
 	s := newTestScheme(t)
@@ -361,57 +396,64 @@ func TestReconcile_DryRunSucceeded_CMNameDerivedFromFingerprint(t *testing.T) {
 		t.Errorf("Message = %q — expected report content; CM name derivation may be wrong", updated.Status.Message)
 	}
 
-	// Verify the CM was consumed (deleted).
+	// CM was consumed (deleted).
 	var remaining corev1.ConfigMap
 	err = c.Get(context.Background(), types.NamespacedName{Name: expectedCMName, Namespace: testNamespace}, &remaining)
 	if err == nil {
 		t.Error("expected ConfigMap to be deleted after reading")
 	}
+}
 
-	// Also confirm a CM with the wrong name would NOT have been consumed.
-	wrongName := "mendabot-dryrun-wrongname12"
-	wrongCM := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{Name: wrongName, Namespace: testNamespace},
-		Data:       map[string]string{"report": "should not appear"},
-	}
-	c2 := fake.NewClientBuilder().
+// TestReconcile_DryRunSucceeded_WrongNamespaceCMNotFound verifies that a
+// ConfigMap written in the wrong namespace is not found by the controller,
+// confirming that AGENT_NAMESPACE and r.Cfg.AgentNamespace must agree.
+func TestReconcile_DryRunSucceeded_WrongNamespaceCMNotFound(t *testing.T) {
+	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
+	rjob, job := newDryRunRJobWithJob(
+		"test-dryrun-wrongns", fp, v1alpha1.PhaseDispatched,
+		map[string]string{"mendabot.io/dry-run": "true"},
+	)
+
+	// CM written to a different namespace than AgentNamespace.
+	cmName := controller.DryRunCMName(fp)
+	cm := newDryRunCM(cmName, "wrong-namespace", "should not be found", "")
+
+	s := newTestScheme(t)
+	c := fake.NewClientBuilder().
 		WithScheme(s).
 		WithStatusSubresource(&v1alpha1.RemediationJob{}).
-		WithObjects(rjob, job, wrongCM).
+		WithObjects(rjob, job, cm).
 		Build()
-	// Reset rjob phase for second run.
-	rjob2 := rjob.DeepCopyObject().(*v1alpha1.RemediationJob)
-	rjob2.Status.Message = ""
-	if patchErr := c2.Status().Update(context.Background(), rjob2); patchErr != nil {
-		t.Fatalf("reset rjob: %v", patchErr)
-	}
-	r2 := &controller.RemediationJobReconciler{
-		Client:     c2,
+
+	r := &controller.RemediationJobReconciler{
+		Client:     c,
 		Scheme:     s,
 		JobBuilder: &fakeJobBuilder{},
-		Cfg:        defaultCfg(),
+		Cfg:        defaultCfg(), // AgentNamespace = testNamespace, not "wrong-namespace"
 	}
-	_, _ = r2.Reconcile(context.Background(), ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: "test-dryrun-cmname", Namespace: testNamespace},
+
+	_, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: types.NamespacedName{Name: "test-dryrun-wrongns", Namespace: testNamespace},
 	})
-	var updated2 v1alpha1.RemediationJob
-	if err := c2.Get(context.Background(), types.NamespacedName{Name: "test-dryrun-cmname", Namespace: testNamespace}, &updated2); err != nil {
-		t.Fatalf("get rjob2: %v", err)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if strings.Contains(updated2.Status.Message, "should not appear") {
-		t.Errorf("wrong CM name was used; message = %q", updated2.Status.Message)
+
+	var updated v1alpha1.RemediationJob
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-dryrun-wrongns", Namespace: testNamespace}, &updated); err != nil {
+		t.Fatalf("get rjob: %v", err)
 	}
-	// wrongCM must still exist (was never found by the controller).
-	var stillThere corev1.ConfigMap
-	if err := c2.Get(context.Background(), types.NamespacedName{Name: wrongName, Namespace: testNamespace}, &stillThere); err != nil {
-		t.Error("wrong-named CM was unexpectedly deleted")
+	// Controller should report CM not found — it looked in the wrong namespace.
+	if !strings.HasPrefix(updated.Status.Message, "dry-run report unavailable") {
+		t.Errorf("Message = %q — expected \"dry-run report unavailable\" when CM is in wrong namespace", updated.Status.Message)
+	}
+	if strings.Contains(updated.Status.Message, "should not be found") {
+		t.Errorf("Message = %q — CM from wrong namespace must not be read", updated.Status.Message)
 	}
 }
 
 // TestReconcile_DryRunSucceeded_CMDeletedAfterRead verifies the controller
-// performs a best-effort delete after reading, so stale CMs do not accumulate.
-// (This is implicitly covered by TestReconcile_DryRunSucceeded_ReportAndPatchStored
-// but is kept as an explicit, focused test.)
+// performs a best-effort delete after reading.
 func TestReconcile_DryRunSucceeded_CMDeletedAfterRead(t *testing.T) {
 	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
 	rjob, job := newDryRunRJobWithJob(
@@ -419,14 +461,20 @@ func TestReconcile_DryRunSucceeded_CMDeletedAfterRead(t *testing.T) {
 		map[string]string{"mendabot.io/dry-run": "true"},
 	)
 
-	cmName := dryRunCMName(fp)
+	cmName := controller.DryRunCMName(fp)
 	cm := newDryRunCM(cmName, testNamespace, "some report", "some patch")
+
+	// An unrelated CM in the same namespace must not be touched.
+	unrelated := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: "unrelated-cm", Namespace: testNamespace},
+		Data:       map[string]string{"key": "value"},
+	}
 
 	s := newTestScheme(t)
 	c := fake.NewClientBuilder().
 		WithScheme(s).
 		WithStatusSubresource(&v1alpha1.RemediationJob{}).
-		WithObjects(rjob, job, cm).
+		WithObjects(rjob, job, cm, unrelated).
 		Build()
 
 	r := &controller.RemediationJobReconciler{
@@ -443,35 +491,16 @@ func TestReconcile_DryRunSucceeded_CMDeletedAfterRead(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
+	// Dry-run CM must be gone.
 	var remaining corev1.ConfigMap
 	err = c.Get(context.Background(), types.NamespacedName{Name: cmName, Namespace: testNamespace}, &remaining)
 	if err == nil {
 		t.Errorf("ConfigMap %q still exists after reconcile — expected deletion", cmName)
 	}
 
-	// Confirm other ConfigMaps in the namespace are not affected.
-	unrelated := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{Name: "unrelated-cm", Namespace: testNamespace},
-		Data:       map[string]string{"key": "value"},
-	}
-	c2 := fake.NewClientBuilder().
-		WithScheme(s).
-		WithStatusSubresource(&v1alpha1.RemediationJob{}).
-		WithObjects(rjob, job, cm, unrelated).
-		Build()
-	r2 := &controller.RemediationJobReconciler{
-		Client:     c2,
-		Scheme:     s,
-		JobBuilder: &fakeJobBuilder{},
-		Cfg:        defaultCfg(),
-	}
-	_, _ = r2.Reconcile(context.Background(), ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: "test-dryrun-cmdelete", Namespace: testNamespace},
-	})
+	// Unrelated CM must still exist.
 	var unrelatedCM corev1.ConfigMap
-	if err := c2.Get(context.Background(), types.NamespacedName{Name: "unrelated-cm", Namespace: testNamespace}, &unrelatedCM); err != nil {
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "unrelated-cm", Namespace: testNamespace}, &unrelatedCM); err != nil {
 		t.Error("unrelated ConfigMap was unexpectedly deleted")
 	}
-
-	_ = client.IgnoreNotFound(err)
 }

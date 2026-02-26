@@ -1,0 +1,33 @@
+{{- if .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "mendabot.fullname" . }}-watcher-dryrun
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "mendabot.labels" . | nindent 4 }}
+rules:
+# Grants the watcher SA access to read and delete dry-run report ConfigMaps
+# written by the agent. Scoped to AgentNamespace only (not cluster-wide).
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "delete"]
+{{- end }}
+---
+{{- if .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "mendabot.fullname" . }}-watcher-dryrun
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "mendabot.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "mendabot.fullname" . }}-watcher-dryrun
+subjects:
+- kind: ServiceAccount
+  name: {{ include "mendabot.watcherSAName" . }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}
