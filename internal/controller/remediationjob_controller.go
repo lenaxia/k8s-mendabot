@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -23,6 +24,11 @@ import (
 	"github.com/lenaxia/k8s-mendabot/internal/correlator"
 	"github.com/lenaxia/k8s-mendabot/internal/domain"
 )
+
+// errRequeueNow is a sentinel returned by dispatch() when a stale agent Job was
+// deleted and the caller should requeue immediately (no exponential backoff).
+// Use errors.Is(err, errRequeueNow) to detect it.
+var errRequeueNow = errors.New("requeue immediately")
 
 //+kubebuilder:rbac:groups=remediation.mendabot.io,resources=remediationjobs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=remediation.mendabot.io,resources=remediationjobs/status,verbs=get;update;patch
@@ -166,15 +172,20 @@ func (r *RemediationJobReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		// → Dispatched flow entirely.  Delete the stale Job so the name is free for
 		// the new dispatch, then fall through to the correlation block.
 		if !isOwnedBy(job, rjob.UID) {
-			if delErr := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); delErr != nil && !apierrors.IsNotFound(delErr) {
-				return ctrl.Result{}, fmt.Errorf("deleting stale agent Job %s: %w", job.Name, delErr)
-			}
-			if r.Log != nil {
-				r.Log.Info("deleted stale agent Job owned by previous RemediationJob",
-					zap.String("job", job.Name),
-					zap.String("remediationJob", rjob.Name),
-					zap.String("namespace", job.Namespace),
-				)
+			// Skip deletion if the Job is already terminating — it's on its way out and
+			// deleting again could cause a Conflict error. Fall through regardless so
+			// the correlation block runs and dispatch() will handle any AlreadyExists.
+			if job.DeletionTimestamp.IsZero() {
+				if delErr := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); delErr != nil && !apierrors.IsNotFound(delErr) {
+					return ctrl.Result{}, fmt.Errorf("deleting stale agent Job %s: %w", job.Name, delErr)
+				}
+				if r.Log != nil {
+					r.Log.Warn("deleted stale agent Job owned by previous RemediationJob",
+						zap.String("job", job.Name),
+						zap.String("remediationJob", rjob.Name),
+						zap.String("namespace", job.Namespace),
+					)
+				}
 			}
 		} else {
 			newPhase := syncPhaseFromJob(job)
@@ -365,7 +376,7 @@ func (r *RemediationJobReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 					} else if limited {
 						return res, nil
 					}
-					return ctrl.Result{}, r.dispatch(ctx, &rjob, nil)
+					return r.callDispatch(ctx, &rjob, nil)
 				} else {
 					return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 				}
@@ -402,7 +413,7 @@ func (r *RemediationJobReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 						zap.Int("correlatedPeers", len(group.CorrelatedUIDs)),
 					)
 				}
-				return ctrl.Result{}, r.dispatch(ctx, &rjob, group.AllFindings)
+				return r.callDispatch(ctx, &rjob, group.AllFindings)
 			}
 		}
 
@@ -447,7 +458,7 @@ func (r *RemediationJobReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			} else if limited {
 				return result, nil
 			}
-			return ctrl.Result{}, r.dispatch(ctx, &rjob, recoveredFindings)
+			return r.callDispatch(ctx, &rjob, recoveredFindings)
 		}
 	}
 
@@ -459,7 +470,7 @@ func (r *RemediationJobReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	// Step 5+6+7: build, create, and dispatch the Job with no correlated findings.
-	return ctrl.Result{}, r.dispatch(ctx, &rjob, nil)
+	return r.callDispatch(ctx, &rjob, nil)
 }
 
 // DryRunCMName returns the name of the ConfigMap written by the agent at the
@@ -639,13 +650,24 @@ func (r *RemediationJobReconciler) dispatch(
 				return getErr
 			}
 			// If the existing Job is not owned by this rjob (stale from a prior rjob
-			// with the same name), delete it and requeue so the next reconcile creates
-			// a fresh one. This is a safety net; the primary guard is in Step 3.
+			// with the same name), delete it and signal an immediate requeue so the
+			// next reconcile creates a fresh one. Skip the delete if the Job is already
+			// terminating (DeletionTimestamp set) to avoid a spurious Conflict error.
+			// This is a safety net; the primary guard is in Step 3.
 			if !isOwnedBy(&existing, rjob.UID) {
-				if delErr := r.Delete(ctx, &existing, client.PropagationPolicy(metav1.DeletePropagationBackground)); delErr != nil && !apierrors.IsNotFound(delErr) {
-					return fmt.Errorf("deleting stale agent Job %s in dispatch: %w", existing.Name, delErr)
+				if existing.DeletionTimestamp.IsZero() {
+					if delErr := r.Delete(ctx, &existing, client.PropagationPolicy(metav1.DeletePropagationBackground)); delErr != nil && !apierrors.IsNotFound(delErr) {
+						return fmt.Errorf("deleting stale agent Job %s in dispatch: %w", existing.Name, delErr)
+					}
+					if r.Log != nil {
+						r.Log.Warn("deleted stale agent Job in dispatch; requeueing",
+							zap.String("job", existing.Name),
+							zap.String("remediationJob", rjob.Name),
+							zap.String("namespace", existing.Namespace),
+						)
+					}
 				}
-				return fmt.Errorf("stale agent Job %s deleted; requeueing for fresh dispatch", existing.Name)
+				return errRequeueNow
 			}
 			rjobCopy := rjob.DeepCopyObject().(*v1alpha1.RemediationJob)
 			rjob.Status.Phase = syncPhaseFromJob(&existing)
@@ -780,10 +802,26 @@ func (r *RemediationJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
+// callDispatch wraps dispatch() and converts errRequeueNow into an immediate
+// requeue result (no exponential backoff). This prevents the controller from
+// penalising itself with backoff when dispatch() merely needs to retry after
+// a stale agent Job has been deleted.
+func (r *RemediationJobReconciler) callDispatch(ctx context.Context, rjob *v1alpha1.RemediationJob, correlatedFindings []v1alpha1.FindingSpec) (ctrl.Result, error) {
+	if err := r.dispatch(ctx, rjob, correlatedFindings); err != nil {
+		if errors.Is(err, errRequeueNow) {
+			return ctrl.Result{Requeue: true}, nil
+		}
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{}, nil
+}
+
 // isOwnedBy reports whether job has a controller OwnerReference pointing to uid.
 // This is used to distinguish a legitimately owned batch/v1 Job from a stale Job
 // left over from a previous RemediationJob that happened to have the same name
 // (same fingerprint) but a different UID (e.g. from a prior deployment rollout).
+// Note: a Job with no OwnerReferences at all is also treated as not-owned (returns
+// false); callers that pre-create Jobs must set Controller:true on the OwnerReference.
 func isOwnedBy(job *batchv1.Job, uid types.UID) bool {
 	for _, ref := range job.OwnerReferences {
 		if ref.Controller != nil && *ref.Controller && ref.UID == uid {

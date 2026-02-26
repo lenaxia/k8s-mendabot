@@ -353,6 +353,21 @@ func TestRemediationJobReconciler_StaleJobFromPriorRJob(t *testing.T) {
 	if updated.Status.Phase == v1alpha1.PhaseSucceeded {
 		t.Errorf("phase = %q — stale Job's Succeeded status must NOT be copied to new rjob", updated.Status.Phase)
 	}
+	// RetryCount must not have been incremented by the stale Job's failure status.
+	if updated.Status.RetryCount != 0 {
+		t.Errorf("RetryCount = %d, want 0 — stale Job must not increment retry count", updated.Status.RetryCount)
+	}
+	// CompletedAt must not have been set from the stale Job.
+	if updated.Status.CompletedAt != nil {
+		t.Errorf("CompletedAt = %v, want nil — stale Job must not set completion timestamp", updated.Status.CompletedAt)
+	}
+	// JobRef pointing to the stale Job is only a bug if it also corrupted the phase.
+	// After a correct stale deletion + fresh dispatch, JobRef == staleJob.Name is
+	// expected because the fresh Job inherits the same name (same fingerprint).
+	// What we must NOT see is JobRef set while phase is still Succeeded (stale sync).
+	if updated.Status.Phase == v1alpha1.PhaseSucceeded && updated.Status.JobRef == staleJob.Name {
+		t.Errorf("JobRef = %q with Phase = Succeeded — stale Job contaminated rjob status", updated.Status.JobRef)
+	}
 
 	// A new Job with the same name should exist but its OwnerReference must point to the
 	// current rjob UID, not the old stale UID. The dispatch path creates a fresh Job after
