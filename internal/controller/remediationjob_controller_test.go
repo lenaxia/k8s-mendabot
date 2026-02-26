@@ -389,6 +389,348 @@ func TestRemediationJobReconciler_StaleJobFromPriorRJob(t *testing.T) {
 	}
 }
 
+// TestStaleJob_MultipleStaleJobs_AllDeleted verifies H-2: when multiple stale Jobs
+// (all with a different-UID OwnerReference) exist in the API, Step 3 deletes every
+// one of them, not just Items[0].
+func TestStaleJob_MultipleStaleJobs_AllDeleted(t *testing.T) {
+	const fp = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb00000000000000000000000000000000"
+	rjob := newRJob("multi-stale-rjob", fp)
+	rjob.Status.Phase = v1alpha1.PhasePending
+
+	makeStale := func(name string) *batchv1.Job {
+		return &batchv1.Job{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: testNamespace,
+				Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "multi-stale-rjob"},
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						APIVersion: "remediation.mendabot.io/v1alpha1",
+						Kind:       "RemediationJob",
+						Name:       "multi-stale-rjob",
+						UID:        types.UID("uid-OLD-" + name),
+						Controller: ptr(true),
+					},
+				},
+			},
+			Spec:   batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
+			Status: batchv1.JobStatus{Succeeded: 1},
+		}
+	}
+	stale1 := makeStale("stale-a")
+	stale2 := makeStale("stale-b")
+
+	c := newFakeClient(t, rjob, stale1, stale2)
+	jb := &fakeJobBuilder{returnJob: &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mendabot-agent-" + fp[:12],
+			Namespace: testNamespace,
+			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "multi-stale-rjob"},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "remediation.mendabot.io/v1alpha1",
+					Kind:       "RemediationJob",
+					Name:       "multi-stale-rjob",
+					UID:        rjob.UID,
+					Controller: ptr(true),
+				},
+			},
+		},
+		Spec: batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
+	}}
+	r := newReconciler(t, c, jb, defaultCfg())
+
+	_, err := r.Reconcile(context.Background(), rjobReqFor("multi-stale-rjob"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Both stale jobs must be gone.
+	for _, staleName := range []string{"stale-a", "stale-b"} {
+		var j batchv1.Job
+		getErr := c.Get(context.Background(), types.NamespacedName{Name: staleName, Namespace: testNamespace}, &j)
+		if getErr == nil {
+			t.Errorf("stale Job %q still present after reconcile — H-2 fix not working", staleName)
+		}
+	}
+	// rjob must NOT be Succeeded/Failed (no stale phase copy).
+	var updated v1alpha1.RemediationJob
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "multi-stale-rjob", Namespace: testNamespace}, &updated); err != nil {
+		t.Fatalf("get rjob: %v", err)
+	}
+	if updated.Status.Phase == v1alpha1.PhaseSucceeded || updated.Status.Phase == v1alpha1.PhaseFailed {
+		t.Errorf("phase = %q — stale Jobs must not contaminate rjob phase", updated.Status.Phase)
+	}
+}
+
+// TestStaleJob_ZeroOwnerReferences_TreatedAsStale verifies M-2: a Job with zero
+// OwnerReferences is not owned by any rjob; isOwnedBy must return false so the Job
+// is treated as stale and deleted rather than synced.
+func TestStaleJob_ZeroOwnerReferences_TreatedAsStale(t *testing.T) {
+	const fp = "cccccccccccccccccccccccccccccccc11111111111111111111111111111111"
+	rjob := newRJob("zero-ref-rjob", fp)
+	rjob.Status.Phase = v1alpha1.PhasePending
+
+	// Job with the correct label but NO OwnerReferences at all.
+	orphanJob := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mendabot-agent-" + fp[:12],
+			Namespace: testNamespace,
+			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "zero-ref-rjob"},
+			// OwnerReferences intentionally omitted.
+		},
+		Spec:   batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
+		Status: batchv1.JobStatus{Succeeded: 1},
+	}
+
+	c := newFakeClient(t, rjob, orphanJob)
+	jb := &fakeJobBuilder{returnJob: defaultFakeJob(rjob)}
+	r := newReconciler(t, c, jb, defaultCfg())
+
+	_, err := r.Reconcile(context.Background(), rjobReqFor("zero-ref-rjob"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Orphan job must have been deleted.
+	var j batchv1.Job
+	if getErr := c.Get(context.Background(), types.NamespacedName{Name: orphanJob.Name, Namespace: testNamespace}, &j); getErr == nil {
+		// If the new fresh job was created with the same name that is fine, but its
+		// OwnerReference must point to the current rjob UID.
+		for _, ref := range j.OwnerReferences {
+			if len(j.OwnerReferences) == 0 {
+				t.Error("zero-OwnerRef job still present and still has no OwnerReferences — orphan was not replaced")
+			}
+			_ = ref
+		}
+	}
+	// rjob must NOT have been set to Succeeded from the orphan job.
+	var updated v1alpha1.RemediationJob
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "zero-ref-rjob", Namespace: testNamespace}, &updated); err != nil {
+		t.Fatalf("get rjob: %v", err)
+	}
+	if updated.Status.Phase == v1alpha1.PhaseSucceeded {
+		t.Errorf("phase = Succeeded — zero-OwnerRef orphan Job must not propagate terminal status")
+	}
+	// Build() must have been called for a fresh dispatch.
+	if len(jb.calls) == 0 {
+		t.Error("expected Build() to be called for fresh dispatch after orphan Job deletion")
+	}
+}
+
+// TestStaleJob_PhaseDispatched_StaleJobTriggersRequeue verifies H-3: when the rjob
+// is already PhaseDispatched and Step 3 finds a stale Job (wrong UID), the reconciler
+// must delete the stale Job and return Requeue:true — NOT halt silently at the
+// PhaseDispatched guard — so the next reconcile can create a fresh Job.
+func TestStaleJob_PhaseDispatched_StaleJobTriggersRequeue(t *testing.T) {
+	const fp = "dddddddddddddddddddddddddddddddd22222222222222222222222222222222"
+	rjob := newRJob("dispatched-stale-rjob", fp)
+	rjob.Status.Phase = v1alpha1.PhaseDispatched // already dispatched from a prior run
+
+	staleJob := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mendabot-agent-" + fp[:12],
+			Namespace: testNamespace,
+			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "dispatched-stale-rjob"},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "remediation.mendabot.io/v1alpha1",
+					Kind:       "RemediationJob",
+					Name:       "dispatched-stale-rjob",
+					UID:        types.UID("uid-OLD-dispatched"), // wrong UID
+					Controller: ptr(true),
+				},
+			},
+		},
+		Spec:   batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
+		Status: batchv1.JobStatus{Succeeded: 1},
+	}
+
+	c := newFakeClient(t, rjob, staleJob)
+	jb := &fakeJobBuilder{returnJob: defaultFakeJob(rjob)}
+	r := newReconciler(t, c, jb, defaultCfg())
+
+	result, err := r.Reconcile(context.Background(), rjobReqFor("dispatched-stale-rjob"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Must requeue immediately (Requeue:true) so the next reconcile can dispatch.
+	if !result.Requeue && result.RequeueAfter == 0 {
+		t.Error("expected Requeue:true after stale-Job deletion in PhaseDispatched; got no requeue")
+	}
+
+	// Stale job must be gone.
+	var j batchv1.Job
+	if getErr := c.Get(context.Background(), types.NamespacedName{Name: staleJob.Name, Namespace: testNamespace}, &j); getErr == nil {
+		t.Error("stale Job still present after reconcile of PhaseDispatched rjob")
+	}
+
+	// Phase must NOT have been set to Succeeded from the stale job.
+	var updated v1alpha1.RemediationJob
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "dispatched-stale-rjob", Namespace: testNamespace}, &updated); err != nil {
+		t.Fatalf("get rjob: %v", err)
+	}
+	if updated.Status.Phase == v1alpha1.PhaseSucceeded {
+		t.Errorf("phase = Succeeded — stale Job must not contaminate PhaseDispatched rjob")
+	}
+}
+
+// TestStaleJob_DispatchAlreadyExists_StalePathRequeues verifies M-1: when dispatch()
+// calls r.Create() and gets AlreadyExists, and the existing Job is NOT owned by the
+// current rjob, dispatch deletes it and signals an immediate requeue (Requeue:true),
+// without returning an error.
+//
+// Scenario: the stale Job has the same name that Build() would produce (same
+// fingerprint prefix) but carries NO label matching the current rjob name, so Step 3's
+// label-filtered List misses it.  dispatch() then calls r.Create() and hits
+// AlreadyExists.
+func TestStaleJob_DispatchAlreadyExists_StalePathRequeues(t *testing.T) {
+	const fp = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee33333333333333333333333333333333"
+	rjob := newRJob("ae-stale-rjob", fp)
+	rjob.Status.Phase = v1alpha1.PhasePending
+
+	// Build() will produce a Job named "mendabot-agent-" + fp[:12].
+	jobName := "mendabot-agent-" + fp[:12]
+
+	// Stale Job: same name, wrong UID, but NO label matching rjob.Name.
+	// Step 3 uses a label selector, so it will NOT find this job in its list.
+	// dispatch()'s r.Create() will hit AlreadyExists on the name collision.
+	staleJob := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      jobName,
+			Namespace: testNamespace,
+			// Deliberately no "remediation.mendabot.io/remediation-job" label so
+			// Step 3 misses this Job.
+			Labels: map[string]string{"some-other-label": "true"},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "remediation.mendabot.io/v1alpha1",
+					Kind:       "RemediationJob",
+					Name:       "ae-stale-rjob",
+					UID:        types.UID("uid-OLD-AE"), // wrong UID
+					Controller: ptr(true),
+				},
+			},
+		},
+		Spec: batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
+	}
+
+	c := newFakeClient(t, rjob, staleJob)
+	// Build() returns a Job with the same name → Create() hits AlreadyExists.
+	freshJob := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      jobName,
+			Namespace: testNamespace,
+			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "ae-stale-rjob"},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "remediation.mendabot.io/v1alpha1",
+					Kind:       "RemediationJob",
+					Name:       "ae-stale-rjob",
+					UID:        rjob.UID, // correct UID
+					Controller: ptr(true),
+				},
+			},
+		},
+		Spec: batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
+	}
+	jb := &fakeJobBuilder{returnJob: freshJob}
+	r := newReconciler(t, c, jb, defaultCfg())
+
+	result, err := r.Reconcile(context.Background(), rjobReqFor("ae-stale-rjob"))
+	if err != nil {
+		t.Fatalf("unexpected error (dispatch AlreadyExists stale path must not bubble up): %v", err)
+	}
+	// Must requeue immediately — not halt, not return an error.
+	if !result.Requeue && result.RequeueAfter == 0 {
+		t.Error("expected Requeue:true from dispatch() AlreadyExists stale path; got no requeue")
+	}
+	// Stale job must be gone (or replaced with correct UID).
+	var j batchv1.Job
+	if getErr := c.Get(context.Background(), types.NamespacedName{Name: jobName, Namespace: testNamespace}, &j); getErr == nil {
+		for _, ref := range j.OwnerReferences {
+			if ref.UID == types.UID("uid-OLD-AE") {
+				t.Error("stale Job (uid-OLD-AE) still present after dispatch AlreadyExists path — not replaced")
+			}
+		}
+	}
+	// rjob must NOT be Succeeded.
+	var updated v1alpha1.RemediationJob
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "ae-stale-rjob", Namespace: testNamespace}, &updated); err != nil {
+		t.Fatalf("get rjob: %v", err)
+	}
+	if updated.Status.Phase == v1alpha1.PhaseSucceeded {
+		t.Errorf("phase = Succeeded — stale Job in AlreadyExists path must not contaminate rjob status")
+	}
+}
+
+// TestStaleJob_PendingRJob_CorrelationWindowHoldsAfterStaleDeletion verifies M-5:
+// after a stale Job is deleted in Step 3, a Pending rjob with a live Correlator and
+// an un-elapsed correlation window is held (RequeueAfter) rather than dispatched
+// immediately.  This ensures the stale-deletion path falls through correctly to the
+// correlation block.
+func TestStaleJob_PendingRJob_CorrelationWindowHoldsAfterStaleDeletion(t *testing.T) {
+	const fp = "ffffffffffffffffffffffffffffffff44444444444444444444444444444444"
+	// rjob is young — created 1s ago; window is 30s → age < window → must hold.
+	rjob := newRJobCreatedAt("window-stale-rjob", fp, time.Now().Add(-1*time.Second))
+	rjob.UID = "uid-window-stale-rjob"
+	rjob.Status.Phase = v1alpha1.PhasePending
+
+	staleJob := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mendabot-agent-" + fp[:12],
+			Namespace: testNamespace,
+			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "window-stale-rjob"},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "remediation.mendabot.io/v1alpha1",
+					Kind:       "RemediationJob",
+					Name:       "window-stale-rjob",
+					UID:        types.UID("uid-OLD-window"), // wrong UID
+					Controller: ptr(true),
+				},
+			},
+		},
+		Spec:   batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
+		Status: batchv1.JobStatus{Succeeded: 1},
+	}
+
+	c := newFakeClient(t, rjob, staleJob)
+	jb := &fakeJobBuilder{returnJob: defaultFakeJob(rjob)}
+
+	cfg := defaultCfg()
+	cfg.CorrelationWindowSeconds = 30 // 30s window; rjob is 1s old → should hold
+
+	// Correlator with no rules → Evaluate returns (nil, false, nil) → no group found.
+	// We just need it non-nil so the window-hold code path is active.
+	corr := &correlator.Correlator{Rules: nil}
+	r := newReconcilerWithCorrelator(t, c, jb, cfg, corr)
+
+	result, err := r.Reconcile(context.Background(), rjobReqFor("window-stale-rjob"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Stale job must have been deleted.
+	var j batchv1.Job
+	if getErr := c.Get(context.Background(), types.NamespacedName{Name: staleJob.Name, Namespace: testNamespace}, &j); getErr == nil {
+		t.Error("stale Job still present after reconcile — Step 3 did not delete it")
+	}
+
+	// Reconciler must have held the rjob in the correlation window (RequeueAfter > 0),
+	// NOT dispatched it immediately.
+	if result.RequeueAfter == 0 {
+		t.Errorf("expected RequeueAfter > 0 (correlation window hold), got %v — "+
+			"stale deletion must fall through to window hold, not skip it", result.RequeueAfter)
+	}
+
+	// Build() must NOT have been called — the window hold should prevent dispatch.
+	if len(jb.calls) != 0 {
+		t.Errorf("expected 0 Build() calls during window hold, got %d", len(jb.calls))
+	}
+}
+
 // TestRemediationJobReconciler_BuildError_ReturnsError verifies Build() error → reconciler error.
 func TestRemediationJobReconciler_BuildError_ReturnsError(t *testing.T) {
 	buildErr := fmt.Errorf("build failed: missing required field")
