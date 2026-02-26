@@ -34,7 +34,7 @@ failure mode.
 
 **STORY_01 is closed as done by inspection.** No Dockerfile change required.
 
-### STORY_02 — Prompt: Not Started
+### STORY_02 — Prompt: Complete
 
 **File to edit:** `charts/mendabot/files/prompts/core.txt`
 
@@ -86,20 +86,20 @@ helm template mendabot charts/mendabot | grep -A5 "agent-prompt-core"
 | Story | File | Status |
 |-------|------|--------|
 | Agent image — ensure kubeconform is installed | [STORY_01_agent_image_kubeconform.md](STORY_01_agent_image_kubeconform.md) | **Done** |
-| Prompt — promote validation to HARD RULE and add Kustomize/Helm variants | [STORY_02_prompt_hard_rule.md](STORY_02_prompt_hard_rule.md) | Not Started |
+| Prompt — promote validation to HARD RULE and add Kustomize/Helm variants | [STORY_02_prompt_hard_rule.md](STORY_02_prompt_hard_rule.md) | **Done** |
 
 ## Implementation Order
 
 ```
-STORY_01 (agent image) ─ DONE ──> STORY_02 (prompt) — ready to implement now
+STORY_01 (agent image) ─ DONE ──> STORY_02 (prompt) ─ DONE
 ```
 
 ## Definition of Done
 
 - [x] `docker/Dockerfile.agent` includes `kubeconform` installation (v0.7.0, lines 128–135)
-- [ ] Current rule `8` (untrusted input) renumbered to `9` in `charts/mendabot/files/prompts/core.txt`
-- [ ] New HARD RULE `10` added covering Case A (plain YAML), Case B (kustomize), Case C (helm template)
-- [ ] HARD RULE `10` specifies the fallback: no commit, empty-commit PR, `## Validation Errors` section, labels `validation-failed` + `needs-human-review`
-- [ ] STEP 7 updated to mark validation mandatory, add Helm case, and cross-reference HARD RULE 10
-- [ ] `helm template mendabot charts/mendabot | grep -A5 "agent-prompt-core"` renders without error
-- [ ] Worklog written
+- [x] Current rule `8` (untrusted input) renumbered to `9` in `charts/mendabot/files/prompts/core.txt`
+- [x] New HARD RULE `10` added covering Case A (plain YAML), Case B (kustomize), Case C (helm template)
+- [x] HARD RULE `10` specifies the fallback: no commit, empty-commit PR, `## Validation Errors` section, labels `validation-failed` + `needs-human-review`
+- [x] STEP 7 updated to mark validation mandatory, add Helm case, and cross-reference HARD RULE 10
+- [x] `helm template mendabot charts/mendabot | grep -A5 "agent-prompt-core"` renders without error
+- [x] Worklog written

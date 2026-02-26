@@ -230,9 +230,9 @@ k8s-mendabot/
 │   │   ├── epic11-self-remediation-cascade/ # (complete)
 │   │   ├── epic12-security-review/        # (complete)
 │   │   ├── epic13-multi-signal-correlation/ # (deferred)
-│   │   ├── epic18-manifest-validation/    # (not started)
+│   │   ├── epic18-manifest-validation/    # (complete)
 │   │   ├── epic20-dry-run-mode/           # (not started)
-│   │   ├── epic22-token-expiry-guard/     # (not started)
+│   │   ├── epic22-token-expiry-guard/     # (complete)
 │   │   ├── epic26-auto-close-resolved/    # (not started) auto-close PRs/issues on resolution
 │   │   ├── epic27-pr-feedback-iteration/  # (not started) iterate on reviewer comments
 │   │   └── epic28-manual-trigger/         # (not started) on-demand trigger abstraction

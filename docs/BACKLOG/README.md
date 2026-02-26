@@ -36,11 +36,11 @@ the epic and individual story files for each unit of work.
 | epic15 — Namespace Filtering | [epic15-namespace-filtering/](epic15-namespace-filtering/) | WATCH_NAMESPACES / EXCLUDE_NAMESPACES env vars to suppress system namespace noise | epic09 | Complete |
 | epic16 — Annotation Control | [epic16-annotation-control/](epic16-annotation-control/) | Per-resource mendabot.io/enabled, skip-until, priority annotations | epic09, epic15 | Complete |
 | epic17 — Dead-Letter Queue | [epic17-dead-letter-queue/](epic17-dead-letter-queue/) | RetryCount + MaxRetries + PermanentlyFailed phase; stops infinite retry loops | epic00.1, epic01, epic09 | Complete |
-| epic18 — Manifest Validation | [epic18-manifest-validation/](epic18-manifest-validation/) | Promote kubeconform to a HARD RULE in the agent prompt | epic05, epic03 | Not Started |
+| epic18 — Manifest Validation | [epic18-manifest-validation/](epic18-manifest-validation/) | Promote kubeconform to a HARD RULE in the agent prompt | epic05, epic03 | Complete |
 | epic19 — Secret Redaction (gap check) | [epic19-secret-redaction/](epic19-secret-redaction/) | Verify epic12 STORY_01 completeness; fill any gaps | epic12 | Complete |
 | epic20 — Dry-Run Mode | [epic20-dry-run-mode/](epic20-dry-run-mode/) | DRY_RUN=true; investigate but do not open PRs; write report to status.message | epic00, epic02, epic01, epic05 | Not Started |
 | epic21 — Kubernetes Events | [epic21-kubernetes-events/](epic21-kubernetes-events/) | EventRecorder in both reconcilers; lifecycle visible in kubectl describe rjob | epic01, epic09 | Complete |
-| epic22 — Token Expiry Guard | [epic22-token-expiry-guard/](epic22-token-expiry-guard/) | Fast-fail on expired GitHub App token in agent-entrypoint.sh | epic03 | Not Started |
+| epic22 — Token Expiry Guard | [epic22-token-expiry-guard/](epic22-token-expiry-guard/) | Fast-fail on expired GitHub App token in agent-entrypoint.sh | epic03 | Complete |
 | epic23 — Structured Audit Log (gap check) | [epic23-structured-audit-log/](epic23-structured-audit-log/) | Verify epic12 STORY_03 completeness; fill gaps from epics 15–22 | epic12, epic15–22 | Complete |
 | epic24 — Severity Tiers | [epic24-severity-tiers/](epic24-severity-tiers/) | Severity field on findings; MIN_SEVERITY filter; FINDING_SEVERITY in agent prompt | epic09, epic00.1 | Complete |
 | epic25 — Tool Output Redaction | [epic25-tool-output-redaction/](epic25-tool-output-redaction/) | cmd/redact binary + PATH-shadowing shell wrappers; all tool output redacted before LLM API | epic12, epic03 | Complete |
@@ -80,9 +80,9 @@ epic25-tool-output-redaction ✓
 
 Remaining (can be parallelised):
 epic13-multi-signal-correlation  DEFERRED (epic11-13-deferred branch; needs epic14 first)
-epic18-manifest-validation       Not Started
+epic18-manifest-validation       ✓
 epic20-dry-run-mode              Not Started
-epic22-token-expiry-guard        Not Started
+epic22-token-expiry-guard        ✓
 epic26-auto-close-resolved       Not Started (depends on epic01, epic04, epic09)
 epic27-pr-feedback-iteration     Not Started (depends on epic26)
 epic28-manual-trigger            Not Started (depends on epic01, epic02, epic26)
