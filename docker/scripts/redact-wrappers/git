@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# git wrapper — blocks write subcommands when DRY_RUN=true.
+# Pass-through for all read-only operations; does not redact stdout.
+# Does NOT use set -e: the real binary may exit non-zero legitimately.
+#
+# git is installed by apt to /usr/bin/git; renamed to /usr/bin/git.real by
+# Dockerfile.agent. This wrapper is installed at /usr/local/bin/git which
+# takes precedence in PATH.
+
+# Dry-run enforcement: block subcommands that write to the remote or local
+# repository history. Exit 0 so the LLM does not enter an error-recovery loop.
+if [ "${DRY_RUN:-false}" = "true" ]; then
+    case "${1:-}" in
+        push|commit)
+            echo "[DRY_RUN] git $* blocked — write operations are disabled in dry-run mode" >&2
+            exit 0
+            ;;
+        tag)
+            # Block annotated (-a) and signed (-s) tags; allow lightweight tags
+            # (used internally by some tools for version queries).
+            for _arg in "$@"; do
+                case "$_arg" in
+                    -a|-s|--annotate|--sign)
+                        echo "[DRY_RUN] git $* blocked — write operations are disabled in dry-run mode" >&2
+                        exit 0
+                        ;;
+                esac
+            done
+            ;;
+    esac
+fi
+
+exec /usr/bin/git.real "$@"

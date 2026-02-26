@@ -253,8 +253,22 @@ A low severity finding warrants a conservative, minimal-change proposal.
       e. Also add the label `needs-human-review` (Rule 4 applies).
       f. Stop. Do not attempt to silently skip validation or modify flags to suppress errors.
 
+11. DRY_RUN mode: ${DRY_RUN}
+    If the value above is "true", you are running in dry-run shadow mode:
+    a. Write operations are blocked at the tool level — git push, git commit,
+       gh pr create, gh pr comment, and related commands will be silently
+       rejected by the environment. Do not attempt to work around this.
+    b. Complete your full investigation (all INVESTIGATION STEPS) as normal.
+    c. Write your complete investigation report — root cause, evidence, and
+       proposed fix — to /workspace/investigation-report.txt.
+       Use: printf '%s\n' "<your report>" > /workspace/investigation-report.txt
+    d. Exit 0 after writing the report.
+    e. Rules 3 and 5 (PR outcomes, fingerprint in PR body) do NOT apply in
+       dry-run mode. Writing the report file is the required outcome.
+
 === DECISION TREE ===
 
+DRY_RUN is "true" → complete investigation → write /workspace/investigation-report.txt → exit 0 (rules 3 and 5 do not apply; write operations are blocked by the environment)
 Existing PR found (Step 1) → comment on it → exit (Rule 3a satisfied)
 No existing PR AND fix identified with high/medium confidence → open fix PR (Rule 3b satisfied)
 No existing PR AND fix is low confidence or unclear → open investigation-report PR with label needs-human-review (Rule 3b satisfied)

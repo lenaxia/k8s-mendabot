@@ -16,6 +16,8 @@ set -euo pipefail
 FINDING_DETAILS="${FINDING_DETAILS:-}"
 FINDING_PARENT="${FINDING_PARENT:-<none>}"
 : "${FINDING_SEVERITY:-}"
+# DRY_RUN is optional — defaults to "false"
+DRY_RUN="${DRY_RUN:-false}"
 
 # Build a kubeconfig from in-cluster credentials.
 #
@@ -122,5 +124,19 @@ fi
 # Substitute environment variables into the combined prompt template.
 # Restrict envsubst to known variable names to avoid corrupting content in
 # FINDING_ERRORS or FINDING_DETAILS that may contain literal $ signs.
-VARS='${FINDING_KIND}${FINDING_NAME}${FINDING_NAMESPACE}${FINDING_PARENT}${FINDING_FINGERPRINT}${FINDING_ERRORS}${FINDING_DETAILS}${FINDING_SEVERITY}${GITOPS_REPO}${GITOPS_MANIFEST_ROOT}'
+VARS='${FINDING_KIND}${FINDING_NAME}${FINDING_NAMESPACE}${FINDING_PARENT}${FINDING_FINGERPRINT}${FINDING_ERRORS}${FINDING_DETAILS}${FINDING_SEVERITY}${GITOPS_REPO}${GITOPS_MANIFEST_ROOT}${DRY_RUN}'
 printf '%s' "$COMBINED_PROMPT" | envsubst "$VARS" > /tmp/rendered-prompt.txt
+
+# emit_dry_run_report — called by per-agent entrypoints after the agent binary
+# returns in dry-run mode. Emits the sentinel and report content to stdout so
+# the watcher can extract the report via the Kubernetes pod logs API.
+emit_dry_run_report() {
+    if [ "${DRY_RUN:-false}" = "true" ]; then
+        echo "=== DRY_RUN INVESTIGATION REPORT ==="
+        if [ -f /workspace/investigation-report.txt ]; then
+            cat /workspace/investigation-report.txt
+        else
+            echo "(investigation-report.txt not found — agent may have exited without writing the report)"
+        fi
+    fi
+}

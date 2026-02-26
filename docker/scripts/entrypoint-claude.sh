@@ -20,8 +20,13 @@ source /usr/local/bin/entrypoint-common.sh
 
 # TODO: Map AGENT_PROVIDER_CONFIG to claude's settings mechanism.
 # Until this is implemented, this entrypoint exits with a clear error.
-echo "ERROR: Claude Code entrypoint is not yet implemented." >&2
-echo "The AGENT_PROVIDER_CONFIG and rendered prompt are available but" >&2
-echo "the exact 'claude' CLI invocation has not been verified." >&2
-echo "Set AGENT_TYPE=opencode to use the OpenCode runner instead." >&2
-exit 1
+if [ "${DRY_RUN:-false}" = "true" ]; then
+    # claude run "$(cat /tmp/rendered-prompt.txt)"   # TODO: verify invocation
+    echo "ERROR: Claude Code entrypoint is not yet implemented." >&2
+    exit 1
+    emit_dry_run_report
+else
+    echo "ERROR: Claude Code entrypoint is not yet implemented." >&2
+    exit 1
+    # exec claude run "$(cat /tmp/rendered-prompt.txt)"   # TODO: verify invocation
+fi

@@ -9,6 +9,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -95,15 +96,22 @@ func main() {
 		}
 		opts.Cache.DefaultNamespaces = defaultNS
 	}
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), opts)
+	restCfg := ctrl.GetConfigOrDie()
+	mgr, err := ctrl.NewManager(restCfg, opts)
 	if err != nil {
 		log.Fatalf("unable to start manager: %v", err)
+	}
+
+	kubeClient, err := kubernetes.NewForConfig(restCfg)
+	if err != nil {
+		logger.Fatal("failed to create kube client", zap.Error(err))
 	}
 
 	jb, err := jobbuilder.New(jobbuilder.Config{
 		AgentNamespace: cfg.AgentNamespace,
 		AgentType:      cfg.AgentType,
 		TTLSeconds:     int32(cfg.RemediationJobTTLSeconds),
+		DryRun:         cfg.DryRun,
 	})
 	if err != nil {
 		logger.Fatal("jobbuilder init failed", zap.Error(err))
@@ -149,6 +157,7 @@ func main() {
 		JobBuilder: jb,
 		Cfg:        cfg,
 		Recorder:   mgr.GetEventRecorderFor("mendabot-watcher"),
+		KubeClient: kubeClient,
 	}).SetupWithManager(mgr); err != nil {
 		logger.Fatal("RemediationJobReconciler setup failed", zap.Error(err))
 	}

@@ -19,7 +19,12 @@ grep -qxF 'export KUBECONFIG=/home/agent/.kube/config' /home/agent/.profile 2>/d
 # The operator is responsible for the content — mendabot does not interpret it.
 export OPENCODE_CONFIG_CONTENT="$AGENT_PROVIDER_CONFIG"
 
-# Run opencode with the rendered prompt. The prompt is passed as a single
-# quoted string argument — word-splitting is not a concern because the shell
-# expands "$(cat ...)" as one argument to `opencode run`.
-exec opencode run "$(cat /tmp/rendered-prompt.txt)"
+# Run opencode. In dry-run mode, do not use exec so the shell continues to
+# emit_dry_run_report after opencode exits. In normal mode, exec replaces the
+# shell (no overhead; correct exit code forwarding).
+if [ "${DRY_RUN:-false}" = "true" ]; then
+    opencode run "$(cat /tmp/rendered-prompt.txt)"
+    emit_dry_run_report
+else
+    exec opencode run "$(cat /tmp/rendered-prompt.txt)"
+fi

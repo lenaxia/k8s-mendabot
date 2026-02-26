@@ -2,7 +2,7 @@
 
 **Epic:** [epic20-dry-run-mode](README.md)
 **Priority:** High
-**Status:** Not Started
+**Status:** Complete
 **Estimated Effort:** 1.5 hours
 
 ---
@@ -65,22 +65,22 @@ appears in the agent's terminal output and in container logs, but does not pollu
 
 ## Acceptance Criteria
 
-- [ ] `docker/scripts/redact-wrappers/gh` blocks write subcommands when `DRY_RUN=true`
+- [x] `docker/scripts/redact-wrappers/gh` blocks write subcommands when `DRY_RUN=true`
   — exits 0 with `[DRY_RUN] gh <subcommand> blocked` on stderr
-- [ ] `docker/scripts/redact-wrappers/gh` passes all other calls through to `/usr/bin/gh`
+- [x] `docker/scripts/redact-wrappers/gh` passes all other calls through to `/usr/bin/gh`
   unchanged (including `gh auth`, `gh pr list`, `gh pr view`, etc.)
-- [ ] New `docker/scripts/redact-wrappers/git` wrapper exists
-- [ ] `git` wrapper blocks `push`, `commit`, `tag` (with `-a` or `-s` flags creating
+- [x] New `docker/scripts/redact-wrappers/git` wrapper exists
+- [x] `git` wrapper blocks `push`, `commit`, `tag` (with `-a` or `-s` flags creating
   annotated/signed tags), and `push --force` / `push --force-with-lease` when `DRY_RUN=true`
   — exits 0 with `[DRY_RUN] git <subcommand> blocked` on stderr
-- [ ] `git` wrapper passes all other subcommands (`clone`, `fetch`, `pull`, `log`, `diff`,
+- [x] `git` wrapper passes all other subcommands (`clone`, `fetch`, `pull`, `log`, `diff`,
   `show`, `status`, `checkout`, `branch`, `add`, `stash`, `merge`, `rebase`, etc.) through
   to `/usr/bin/git.real` unchanged, including stdout
-- [ ] `docker/Dockerfile.agent` renames `/usr/bin/git` to `/usr/bin/git.real` and installs
+- [x] `docker/Dockerfile.agent` renames `/usr/bin/git` to `/usr/bin/git.real` and installs
   the wrapper at `/usr/local/bin/git`
-- [ ] When `DRY_RUN` is unset or `false`, both wrappers behave identically to their
+- [x] When `DRY_RUN` is unset or `false`, both wrappers behave identically to their
   unmodified pre-epic behaviour
-- [ ] `docker/scripts/wrapper-test.sh` (or equivalent manual test) covers the blocking
+- [x] `docker/scripts/wrapper-test.sh` (or equivalent manual test) covers the blocking
   and pass-through cases
 
 ---
@@ -242,13 +242,13 @@ automated testing, or document them as manual verification steps.
 
 ## Tasks
 
-- [ ] Update `docker/scripts/redact-wrappers/gh` with dry-run blocking block
-- [ ] Create `docker/scripts/redact-wrappers/git` (new file)
-- [ ] Add `mv /usr/bin/git /usr/bin/git.real` to the Dockerfile rename `RUN` layer
-- [ ] Add `COPY --chmod=755 docker/scripts/redact-wrappers/git /usr/local/bin/git` to Dockerfile
-- [ ] Build the agent image locally and run the manual test cases above
-- [ ] Verify `DRY_RUN=false git push` still reaches the real git binary (pass-through)
-- [ ] Verify `DRY_RUN=true git log` still returns output (pass-through)
+- [x] Update `docker/scripts/redact-wrappers/gh` with dry-run blocking block
+- [x] Create `docker/scripts/redact-wrappers/git` (new file)
+- [x] Add `mv /usr/bin/git /usr/bin/git.real` to the Dockerfile rename `RUN` layer
+- [x] Add `COPY --chmod=755 docker/scripts/redact-wrappers/git /usr/local/bin/git` to Dockerfile
+- [x] Build the agent image locally and run the manual test cases above
+- [x] Verify `DRY_RUN=false git push` still reaches the real git binary (pass-through)
+- [x] Verify `DRY_RUN=true git log` still returns output (pass-through)
 
 ---
 
@@ -262,12 +262,12 @@ wrappers to read it; the wrappers read `$DRY_RUN` from the environment at call t
 
 ## Definition of Done
 
-- [ ] `docker/scripts/redact-wrappers/gh` has dry-run write-blocking section
-- [ ] `docker/scripts/redact-wrappers/git` exists and is executable
-- [ ] `docker/Dockerfile.agent` renames `/usr/bin/git` and installs the wrapper
-- [ ] Manual test: `DRY_RUN=true git push` exits 0 with `[DRY_RUN]` on stderr
-- [ ] Manual test: `DRY_RUN=true git log` passes through cleanly
-- [ ] Manual test: `DRY_RUN=true gh pr create` exits 0 with `[DRY_RUN]` on stderr
-- [ ] Manual test: `DRY_RUN=false git push` (in a repo with no remote) exits non-zero
+- [x] `docker/scripts/redact-wrappers/gh` has dry-run write-blocking section
+- [x] `docker/scripts/redact-wrappers/git` exists and is executable
+- [x] `docker/Dockerfile.agent` renames `/usr/bin/git` and installs the wrapper
+- [x] Manual test: `DRY_RUN=true git push` exits 0 with `[DRY_RUN]` on stderr
+- [x] Manual test: `DRY_RUN=true git log` passes through cleanly
+- [x] Manual test: `DRY_RUN=true gh pr create` exits 0 with `[DRY_RUN]` on stderr
+- [x] Manual test: `DRY_RUN=false git push` (in a repo with no remote) exits non-zero
   from the real git binary — confirming the wrapper does not block in non-dry-run mode
-- [ ] `THREAT_MODEL.md` AV-13 references this story as the control
+- [x] `THREAT_MODEL.md` AV-13 references this story as the control

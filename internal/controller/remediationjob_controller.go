@@ -3,6 +3,8 @@ package controller
 import (
 	"context"
 	"fmt"
+	"io"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -12,6 +14,7 @@ import (
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -24,6 +27,7 @@ import (
 //+kubebuilder:rbac:groups=remediation.mendabot.io,resources=remediationjobs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=remediation.mendabot.io,resources=remediationjobs/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=pods/log,verbs=get
 
 // RemediationJobReconciler watches RemediationJob objects and drives the Job lifecycle.
 // It is provider-agnostic — it acts on all RemediationJob objects regardless of source.
@@ -35,6 +39,9 @@ type RemediationJobReconciler struct {
 	// Cfg holds operator-wide configuration. MaxConcurrentJobs == 0 means unlimited.
 	Cfg      config.Config
 	Recorder record.EventRecorder
+	// KubeClient is the typed Kubernetes client used to fetch pod logs.
+	// Required when Cfg.DryRun is true; may be nil otherwise (log fetch is skipped).
+	KubeClient kubernetes.Interface
 }
 
 // Reconcile implements ctrl.Reconciler.
@@ -166,6 +173,11 @@ func (r *RemediationJobReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		if rjob.Status.JobRef == "" {
 			rjob.Status.JobRef = job.Name
 		}
+		if newPhase == v1alpha1.PhaseSucceeded &&
+			job.Annotations["mendabot.io/dry-run"] == "true" &&
+			rjob.Status.Message == "" {
+			rjob.Status.Message = r.fetchDryRunReport(ctx, job)
+		}
 		if err := r.Status().Patch(ctx, &rjob, client.MergeFrom(rjobCopy)); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -245,6 +257,54 @@ func (r *RemediationJobReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	return ctrl.Result{}, r.dispatch(ctx, &rjob)
+}
+
+const maxReportBytes = 10_000
+
+func (r *RemediationJobReconciler) fetchDryRunReport(ctx context.Context, job *batchv1.Job) string {
+	if r.KubeClient == nil {
+		return "dry-run report unavailable: KubeClient not configured"
+	}
+
+	var pods corev1.PodList
+	if err := r.Client.List(ctx, &pods,
+		client.InNamespace(r.Cfg.AgentNamespace),
+		client.MatchingLabels{"batch.kubernetes.io/job-name": job.Name},
+	); err != nil {
+		return fmt.Sprintf("dry-run report unavailable: list pods: %v", err)
+	}
+
+	var podName string
+	for i := range pods.Items {
+		if pods.Items[i].Status.Phase == corev1.PodSucceeded {
+			podName = pods.Items[i].Name
+			break
+		}
+	}
+	if podName == "" {
+		return "dry-run report unavailable: no succeeded pod found"
+	}
+
+	logOpts := &corev1.PodLogOptions{Container: "mendabot-agent"}
+	req := r.KubeClient.CoreV1().Pods(r.Cfg.AgentNamespace).GetLogs(podName, logOpts)
+	stream, err := req.Stream(ctx)
+	if err != nil {
+		return fmt.Sprintf("dry-run report unavailable: get logs: %v", err)
+	}
+	defer stream.Close()
+
+	limited := io.LimitReader(stream, maxReportBytes)
+	raw, err := io.ReadAll(limited)
+	if err != nil {
+		return fmt.Sprintf("dry-run report unavailable: read logs: %v", err)
+	}
+
+	const sentinel = "=== DRY_RUN INVESTIGATION REPORT ==="
+	logs := string(raw)
+	if idx := strings.Index(logs, sentinel); idx >= 0 {
+		return strings.TrimSpace(logs[idx+len(sentinel):])
+	}
+	return "(sentinel not found — raw log follows)\n" + logs
 }
 
 // syncPhaseFromJob maps the current state of a batch/v1 Job to a RemediationJobPhase.

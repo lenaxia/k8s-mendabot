@@ -180,7 +180,8 @@ RUN mv /usr/local/bin/kubectl       /usr/local/bin/kubectl.real       \
     && mv /usr/local/bin/kubeconform /usr/local/bin/kubeconform.real   \
     && mv /usr/local/bin/kustomize   /usr/local/bin/kustomize.real     \
     && mv /usr/local/bin/age         /usr/local/bin/age.real           \
-    && mv /usr/local/bin/age-keygen  /usr/local/bin/age-keygen.real
+    && mv /usr/local/bin/age-keygen  /usr/local/bin/age-keygen.real    \
+    && mv /usr/bin/git               /usr/bin/git.real
 
 COPY --chmod=755 --from=redact-builder /out/redact          /usr/local/bin/redact
 COPY --chmod=755 docker/scripts/redact-wrappers/kubectl     /usr/local/bin/kubectl
@@ -195,6 +196,7 @@ COPY --chmod=755 docker/scripts/redact-wrappers/kubeconform /usr/local/bin/kubec
 COPY --chmod=755 docker/scripts/redact-wrappers/kustomize   /usr/local/bin/kustomize
 COPY --chmod=755 docker/scripts/redact-wrappers/age         /usr/local/bin/age
 COPY --chmod=755 docker/scripts/redact-wrappers/age-keygen  /usr/local/bin/age-keygen
+COPY --chmod=755 docker/scripts/redact-wrappers/git         /usr/local/bin/git
 
 # Non-root user
 RUN useradd -u 1000 -m -s /bin/bash agent

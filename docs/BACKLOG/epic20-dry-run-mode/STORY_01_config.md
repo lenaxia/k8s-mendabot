@@ -2,7 +2,7 @@
 
 **Epic:** [epic20-dry-run-mode](README.md)
 **Priority:** High
-**Status:** Not Started
+**Status:** Complete
 **Estimated Effort:** 0.5 hours
 
 ---
@@ -41,17 +41,17 @@ handled.
 
 ## Acceptance Criteria
 
-- [ ] `config.Config` gains a `DryRun bool` field with the comment
+- [x] `config.Config` gains a `DryRun bool` field with the comment
   `// DRY_RUN — default false; set "true" or "1" to enable dry-run mode`
-- [ ] `config.FromEnv` reads `DRY_RUN`; accepted values and their results:
+- [x] `config.FromEnv` reads `DRY_RUN`; accepted values and their results:
   - `""` (unset) → `false` (default)
   - `"false"` → `false`
   - `"0"` → `false`
   - `"true"` → `true`
   - `"1"` → `true`
   - any other non-empty string → `return Config{}, fmt.Errorf("DRY_RUN must be 'true', 'false', '1', or '0', got %q", val)`
-- [ ] `config_test.go` contains five new test functions (see Test Cases below)
-- [ ] `go test -race ./internal/config/...` passes
+- [x] `config_test.go` contains five new test functions (see Test Cases below)
+- [x] `go test -race ./internal/config/...` passes
 
 ---
 
@@ -180,12 +180,12 @@ func TestFromEnv_DryRunInvalid(t *testing.T) {
 
 ## Tasks
 
-- [ ] Write all six test functions in `internal/config/config_test.go` (TDD — verify they
+- [x] Write all six test functions in `internal/config/config_test.go` (TDD — verify they
   fail before adding the field)
-- [ ] Add `DryRun bool` to `config.Config` struct
-- [ ] Add parsing block to `config.FromEnv`
-- [ ] Run `go test -race ./internal/config/...` — all pass
-- [ ] Run `go build ./...` — clean
+- [x] Add `DryRun bool` to `config.Config` struct
+- [x] Add parsing block to `config.FromEnv`
+- [x] Run `go test -race ./internal/config/...` — all pass
+- [x] Run `go build ./...` — clean
 
 ---
 
@@ -198,9 +198,9 @@ func TestFromEnv_DryRunInvalid(t *testing.T) {
 
 ## Definition of Done
 
-- [ ] All six new config tests pass with `-race`
-- [ ] Full test suite passes: `go test -timeout 120s -race ./...`
-- [ ] `go vet ./...` clean
-- [ ] `go build ./...` clean
-- [ ] `DRY_RUN` documented in `charts/mendabot/templates/deployment-watcher.yaml` env block
+- [x] All six new config tests pass with `-race`
+- [x] Full test suite passes: `go test -timeout 120s -race ./...`
+- [x] `go vet ./...` clean
+- [x] `go build ./...` clean
+- [x] `DRY_RUN` documented in `charts/mendabot/templates/deployment-watcher.yaml` env block
   (as a commented-out optional variable with its default `false`)

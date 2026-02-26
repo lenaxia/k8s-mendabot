@@ -522,7 +522,7 @@ that burns LLM quota and fills the namespace with failed Jobs.
 | FT-U5 | Slack / webhook notification on PR open | ★★ | ●● | Evaluated |
 | FT-U6 | kubectl plugin (`kubectl mendabot`) | ★ | ●●● | Deferred |
 | FT-U7 | Operator documentation site | ★★ | ●● | Idea |
-| FT-U8 | Dry-run mode (investigate but do not open PRs) | ★★★ | ● | Planned (epic20) |
+| FT-U8 | Dry-run mode (investigate but do not open PRs) | ★★★ | ● | Complete (epic20) |
 
 ---
 

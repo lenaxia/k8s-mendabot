@@ -2,7 +2,7 @@
 
 **Epic:** [epic20-dry-run-mode](README.md)
 **Priority:** High
-**Status:** Not Started
+**Status:** Complete
 **Estimated Effort:** 2 hours
 
 ---
@@ -105,8 +105,8 @@ The first succeeded pod is used.
 
 ## Acceptance Criteria
 
-- [ ] `RemediationJobReconciler` gains a `KubeClient kubernetes.Interface` field
-- [ ] When a Job succeeds (`job.Status.Succeeded > 0`) **and** has annotation
+- [x] `RemediationJobReconciler` gains a `KubeClient kubernetes.Interface` field
+- [x] When a Job succeeds (`job.Status.Succeeded > 0`) **and** has annotation
   `mendabot.io/dry-run: "true"`, the reconciler:
   1. Lists pods with label `batch.kubernetes.io/job-name: <job-name>` in `cfg.AgentNamespace`
   2. Selects the first pod with phase `Succeeded`
@@ -115,16 +115,16 @@ The first succeeded pod is used.
   5. Extracts text after the sentinel `=== DRY_RUN INVESTIGATION REPORT ===`; falls back to raw log with note if sentinel absent
   6. Stores the result in `rjob.Status.Message`
   7. Patches `rjob.Status` via `r.Status().Patch(...)`
-- [ ] If no succeeded pod is found, or if the log fetch fails, the reconciler logs a warning
+- [x] If no succeeded pod is found, or if the log fetch fails, the reconciler logs a warning
   and sets `rjob.Status.Message` to a descriptive error string — it does **not** return an
   error that would trigger a retry loop, since the Job itself succeeded
-- [ ] When `DRY_RUN` is not set (normal mode), `status.message` is never populated by this
+- [x] When `DRY_RUN` is not set (normal mode), `status.message` is never populated by this
   code path — it remains whatever it was (empty by default)
-- [ ] `entrypoint-common.sh` emits the sentinel and report to stdout in dry-run mode
+- [x] `entrypoint-common.sh` emits the sentinel and report to stdout in dry-run mode
   (confirmed implemented in STORY_03 — not implemented here)
-- [ ] `cmd/watcher/main.go` creates a `kubernetes.Clientset` and passes it as `KubeClient`
-- [ ] Unit tests cover the new log-fetch path using a fake `kubernetes.Interface`
-- [ ] `go test -race ./internal/controller/...` passes
+- [x] `cmd/watcher/main.go` creates a `kubernetes.Clientset` and passes it as `KubeClient`
+- [x] Unit tests cover the new log-fetch path using a fake `kubernetes.Interface`
+- [x] `go test -race ./internal/controller/...` passes
 
 ---
 
@@ -290,15 +290,15 @@ ImagePullBackOff — image not found.
 
 ## Tasks
 
-- [ ] Add `KubeClient kubernetes.Interface` to `RemediationJobReconciler` struct
-- [ ] Add `//+kubebuilder:rbac:groups="",resources=pods/log,verbs=get` marker
-- [ ] Implement `fetchDryRunReport` method with `io.LimitReader` and sentinel extraction
-- [ ] Add `maxReportBytes = 10_000` constant
-- [ ] Wire dry-run branch in reconcile loop (detect `mendabot.io/dry-run` annotation)
-- [ ] Add `KubeClient` wiring in `cmd/watcher/main.go`
-- [ ] Write the six controller tests
-- [ ] Run `go test -race ./internal/controller/...` — all pass
-- [ ] Run `go build ./...` — clean
+- [x] Add `KubeClient kubernetes.Interface` to `RemediationJobReconciler` struct
+- [x] Add `//+kubebuilder:rbac:groups="",resources=pods/log,verbs=get` marker
+- [x] Implement `fetchDryRunReport` method with `io.LimitReader` and sentinel extraction
+- [x] Add `maxReportBytes = 10_000` constant
+- [x] Wire dry-run branch in reconcile loop (detect `mendabot.io/dry-run` annotation)
+- [x] Add `KubeClient` wiring in `cmd/watcher/main.go`
+- [x] Write the six controller tests
+- [x] Run `go test -race ./internal/controller/...` — all pass
+- [x] Run `go build ./...` — clean
 
 ---
 
@@ -313,10 +313,10 @@ in dry-run mode via `emit_dry_run_report`; implemented in STORY_03, not here)
 
 ## Definition of Done
 
-- [ ] All six new controller tests pass with `-race`
-- [ ] Existing controller tests unchanged and still pass
-- [ ] Full test suite passes: `go test -timeout 120s -race ./...`
-- [ ] `go vet ./...` clean
-- [ ] `go build ./...` clean
-- [ ] `kubectl get rjob <name> -o jsonpath='{.status.message}'` shows the investigation
+- [x] All six new controller tests pass with `-race`
+- [x] Existing controller tests unchanged and still pass
+- [x] Full test suite passes: `go test -timeout 120s -race ./...`
+- [x] `go vet ./...` clean
+- [x] `go build ./...` clean
+- [x] `kubectl get rjob <name> -o jsonpath='{.status.message}'` shows the investigation
   report after a dry-run Job succeeds (manual verification in a test cluster)

@@ -2,7 +2,7 @@
 
 **Epic:** [epic20-dry-run-mode](README.md)
 **Priority:** High
-**Status:** Not Started
+**Status:** Complete
 **Estimated Effort:** 0.75 hours
 
 ---
@@ -76,17 +76,17 @@ When `b.cfg.DryRun == true`, a third entry is added:
 
 ## Acceptance Criteria
 
-- [ ] `jobbuilder.Config` gains `DryRun bool`
-- [ ] When `b.cfg.DryRun == true`:
+- [x] `jobbuilder.Config` gains `DryRun bool`
+- [x] When `b.cfg.DryRun == true`:
   - `job.Annotations["mendabot.io/dry-run"] == "true"`
   - The main container (`"mendabot-agent"`) has an env var `DRY_RUN` with value `"true"`
-- [ ] When `b.cfg.DryRun == false` (the default):
+- [x] When `b.cfg.DryRun == false` (the default):
   - `job.Annotations` does **not** contain key `"mendabot.io/dry-run"`
   - The main container does **not** have a `DRY_RUN` env var
-- [ ] The init container (`"git-token-clone"`) never has a `DRY_RUN` env var,
+- [x] The init container (`"git-token-clone"`) never has a `DRY_RUN` env var,
   regardless of the flag
-- [ ] `cmd/watcher/main.go` populates `jobbuilder.Config.DryRun` from `cfg.DryRun`
-- [ ] `go test -race ./internal/jobbuilder/...` passes
+- [x] `cmd/watcher/main.go` populates `jobbuilder.Config.DryRun` from `cfg.DryRun`
+- [x] `go test -race ./internal/jobbuilder/...` passes
 
 ---
 
@@ -232,14 +232,14 @@ func TestBuild_DryRun_InitContainerNoEnvVar(t *testing.T) {
 
 ## Tasks
 
-- [ ] Write all five test functions in `internal/jobbuilder/job_test.go` (TDD — verify they
+- [x] Write all five test functions in `internal/jobbuilder/job_test.go` (TDD — verify they
   fail before making changes)
-- [ ] Add `DryRun bool` to `jobbuilder.Config`
-- [ ] Add conditional env var append in `Build` (main container only)
-- [ ] Refactor annotation map to variable and add conditional third entry
-- [ ] Update `cmd/watcher/main.go` to pass `DryRun: cfg.DryRun`
-- [ ] Run `go test -race ./internal/jobbuilder/...` — all pass
-- [ ] Run `go build ./...` — clean
+- [x] Add `DryRun bool` to `jobbuilder.Config`
+- [x] Add conditional env var append in `Build` (main container only)
+- [x] Refactor annotation map to variable and add conditional third entry
+- [x] Update `cmd/watcher/main.go` to pass `DryRun: cfg.DryRun`
+- [x] Run `go test -race ./internal/jobbuilder/...` — all pass
+- [x] Run `go build ./...` — clean
 
 ---
 
@@ -252,8 +252,8 @@ func TestBuild_DryRun_InitContainerNoEnvVar(t *testing.T) {
 
 ## Definition of Done
 
-- [ ] All five new jobbuilder tests pass with `-race`
-- [ ] Existing jobbuilder tests unchanged and still pass
-- [ ] Full test suite passes: `go test -timeout 120s -race ./...`
-- [ ] `go vet ./...` clean
-- [ ] `go build ./...` clean
+- [x] All five new jobbuilder tests pass with `-race`
+- [x] Existing jobbuilder tests unchanged and still pass
+- [x] Full test suite passes: `go test -timeout 120s -race ./...`
+- [x] `go vet ./...` clean
+- [x] `go build ./...` clean

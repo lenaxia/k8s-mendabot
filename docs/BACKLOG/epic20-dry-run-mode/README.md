@@ -20,7 +20,7 @@ live PR creation. The key design principle: **dry-run enforcement is determinist
 probabilistic**. The prompt is updated to inform the LLM of the mode, but the wrappers
 are the actual enforcement layer.
 
-## Status: Not Started
+## Status: Complete
 
 ## Design: Why Wrappers, Not Just a Prompt Rule
 
@@ -110,11 +110,11 @@ map is at lines 244–247.
 
 | Story | File | Status |
 |-------|------|--------|
-| Config — DRY_RUN env var | [STORY_01_config.md](STORY_01_config.md) | Not Started |
-| JobBuilder — inject dry-run annotation and env var | [STORY_02_jobbuilder.md](STORY_02_jobbuilder.md) | Not Started |
-| Enforcement wrappers — gh and git dry-run blocking | [STORY_03b_wrappers.md](STORY_03b_wrappers.md) | Not Started |
-| Prompt — dry-run HARD RULE and entrypoint restructuring | [STORY_03_prompt.md](STORY_03_prompt.md) | Not Started |
-| RemediationJobReconciler — read investigation report from Job logs | [STORY_04_reconciler_report.md](STORY_04_reconciler_report.md) | Not Started |
+| Config — DRY_RUN env var | [STORY_01_config.md](STORY_01_config.md) | Complete |
+| JobBuilder — inject dry-run annotation and env var | [STORY_02_jobbuilder.md](STORY_02_jobbuilder.md) | Complete |
+| Enforcement wrappers — gh and git dry-run blocking | [STORY_03b_wrappers.md](STORY_03b_wrappers.md) | Complete |
+| Prompt — dry-run HARD RULE and entrypoint restructuring | [STORY_03_prompt.md](STORY_03_prompt.md) | Complete |
+| RemediationJobReconciler — read investigation report from Job logs | [STORY_04_reconciler_report.md](STORY_04_reconciler_report.md) | Complete |
 
 ## Implementation Order
 
@@ -146,18 +146,18 @@ after STORY_02. STORY_04 depends on both STORY_03 (entrypoint cat) and STORY_03b
 
 ## Definition of Done
 
-- [ ] `config.Config` gains `DryRun bool`; `FromEnv` parses `DRY_RUN`
-- [ ] `JobBuilder.Build()` adds `mendabot.io/dry-run: "true"` annotation when `cfg.DryRun == true`
-- [ ] When dry-run, agent Job env includes `DRY_RUN=true` (main container only)
-- [ ] `gh` wrapper blocks all write subcommands (`pr create`, `pr comment`, `pr edit`,
+- [x] `config.Config` gains `DryRun bool`; `FromEnv` parses `DRY_RUN`
+- [x] `JobBuilder.Build()` adds `mendabot.io/dry-run: "true"` annotation when `cfg.DryRun == true`
+- [x] When dry-run, agent Job env includes `DRY_RUN=true` (main container only)
+- [x] `gh` wrapper blocks all write subcommands (`pr create`, `pr comment`, `pr edit`,
   `issue create`, etc.) when `DRY_RUN=true`; exits 0 with a `[DRY_RUN]` log line to stderr
-- [ ] New `git` wrapper blocks `push`, `commit`, `tag -a`, `tag -s` when `DRY_RUN=true`;
+- [x] New `git` wrapper blocks `push`, `commit`, `tag -a`, `tag -s` when `DRY_RUN=true`;
   passes all read-only subcommands through unchanged; installed in Dockerfile via rename+COPY
-- [ ] `entrypoint-common.sh` has `${DRY_RUN}` in VARS; has report-cat block
-- [ ] `entrypoint-opencode.sh` and `entrypoint-claude.sh` restructured to support dry-run path
-- [ ] `charts/mendabot/files/prompts/core.txt` has HARD RULE 11; decision tree has dry-run branch
-- [ ] `RemediationJobReconciler` detects dry-run Jobs, fetches logs via KubeClient, extracts
+- [x] `entrypoint-common.sh` has `${DRY_RUN}` in VARS; has report-cat block
+- [x] `entrypoint-opencode.sh` and `entrypoint-claude.sh` restructured to support dry-run path
+- [x] `charts/mendabot/files/prompts/core.txt` has HARD RULE 11; decision tree has dry-run branch
+- [x] `RemediationJobReconciler` detects dry-run Jobs, fetches logs via KubeClient, extracts
   post-sentinel content, stores truncated report in `status.message`
-- [ ] `KubeClient` wired in `main.go` from `ctrl.GetConfigOrDie()` (reuse existing REST config)
-- [ ] All unit and integration tests pass with `-race`
-- [ ] Worklog written
+- [x] `KubeClient` wired in `main.go` from `ctrl.GetConfigOrDie()` (reuse existing REST config)
+- [x] All unit and integration tests pass with `-race`
+- [x] Worklog written

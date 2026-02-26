@@ -7,6 +7,22 @@ if ! command -v redact > /dev/null 2>&1; then
     exit 1
 fi
 
+# Dry-run enforcement: block write subcommands that create, modify, or comment on
+# GitHub resources. This is a deterministic control — the LLM cannot bypass it by
+# rephrasing a prompt instruction. Exit 0 so the LLM does not enter an error loop.
+if [ "${DRY_RUN:-false}" = "true" ]; then
+    case "${1:-}" in
+        pr|issue|release|gist)
+            case "${2:-}" in
+                create|edit|close|merge|delete|comment|reopen|label|lock|unlock|transfer)
+                    echo "[DRY_RUN] gh $* blocked — write operations are disabled in dry-run mode" >&2
+                    exit 0
+                    ;;
+            esac
+            ;;
+    esac
+fi
+
 _tmpfile=$(mktemp) || { echo "[ERROR] mktemp failed — aborting" >&2; exit 1; }
 trap 'rm -f "$_tmpfile"' EXIT
 

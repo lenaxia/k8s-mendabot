@@ -2,7 +2,7 @@
 
 **Epic:** [epic20-dry-run-mode](README.md)
 **Priority:** High
-**Status:** Not Started
+**Status:** Complete
 **Estimated Effort:** 1 hour
 
 ---
@@ -91,19 +91,19 @@ call it from each per-agent entrypoint after the agent binary returns.
 
 ## Acceptance Criteria
 
-- [ ] `${DRY_RUN}` is added to the `VARS` line in `docker/scripts/entrypoint-common.sh:106`
-- [ ] `DRY_RUN="${DRY_RUN:-false}"` default assignment added to
+- [x] `${DRY_RUN}` is added to the `VARS` line in `docker/scripts/entrypoint-common.sh:106`
+- [x] `DRY_RUN="${DRY_RUN:-false}"` default assignment added to
   `docker/scripts/entrypoint-common.sh` optional-variables block
-- [ ] `emit_dry_run_report` shell function defined in `entrypoint-common.sh` — emits the
+- [x] `emit_dry_run_report` shell function defined in `entrypoint-common.sh` — emits the
   sentinel `=== DRY_RUN INVESTIGATION REPORT ===` followed by the file contents to stdout
   when `DRY_RUN=true` and `/workspace/investigation-report.txt` exists
-- [ ] `entrypoint-opencode.sh` restructured: normal path uses `exec`; dry-run path does not
+- [x] `entrypoint-opencode.sh` restructured: normal path uses `exec`; dry-run path does not
   use `exec`, calls `emit_dry_run_report` after opencode returns
-- [ ] `entrypoint-claude.sh` receives the same structural change for consistency (claude path
+- [x] `entrypoint-claude.sh` receives the same structural change for consistency (claude path
   is a stub that currently exits 1, but the dry-run pattern should be present)
-- [ ] HARD RULE 11 appended to `charts/mendabot/files/prompts/core.txt` after rule 10
-- [ ] Decision tree in `core.txt` gains a dry-run branch prepended at the top
-- [ ] No other parts of the prompt are changed by this story
+- [x] HARD RULE 11 appended to `charts/mendabot/files/prompts/core.txt` after rule 10
+- [x] Decision tree in `core.txt` gains a dry-run branch prepended at the top
+- [x] No other parts of the prompt are changed by this story
 
 ---
 
@@ -254,16 +254,16 @@ The watcher truncates to 10,000 bytes after sentinel extraction before storing i
 
 ## Tasks
 
-- [ ] Add `DRY_RUN="${DRY_RUN:-false}"` default to `entrypoint-common.sh` optional-variables block
-- [ ] Add `${DRY_RUN}` to the VARS line in `entrypoint-common.sh:106`
-- [ ] Add `emit_dry_run_report` function to `entrypoint-common.sh`
-- [ ] Restructure `exec opencode` in `entrypoint-opencode.sh` for dry-run path
-- [ ] Apply equivalent structural change to `entrypoint-claude.sh` (stub remains `exit 1`)
-- [ ] Append HARD RULE 11 to `charts/mendabot/files/prompts/core.txt`
-- [ ] Prepend dry-run branch to `=== DECISION TREE ===` in `core.txt`
-- [ ] Manual smoke test: render the prompt with `envsubst` and confirm `${DRY_RUN}` is
+- [x] Add `DRY_RUN="${DRY_RUN:-false}"` default to `entrypoint-common.sh` optional-variables block
+- [x] Add `${DRY_RUN}` to the VARS line in `entrypoint-common.sh:106`
+- [x] Add `emit_dry_run_report` function to `entrypoint-common.sh`
+- [x] Restructure `exec opencode` in `entrypoint-opencode.sh` for dry-run path
+- [x] Apply equivalent structural change to `entrypoint-claude.sh` (stub remains `exit 1`)
+- [x] Append HARD RULE 11 to `charts/mendabot/files/prompts/core.txt`
+- [x] Prepend dry-run branch to `=== DECISION TREE ===` in `core.txt`
+- [x] Manual smoke test: render the prompt with `envsubst` and confirm `${DRY_RUN}` is
   substituted correctly with both `DRY_RUN=true` and `DRY_RUN=false`
-- [ ] Verify `emit_dry_run_report` is visible from `entrypoint-opencode.sh` after source
+- [x] Verify `emit_dry_run_report` is visible from `entrypoint-opencode.sh` after source
   (test: `source entrypoint-common.sh && type emit_dry_run_report`)
 
 ---
@@ -278,11 +278,11 @@ the agent can read it at runtime)
 
 ## Definition of Done
 
-- [ ] `entrypoint-common.sh` has `${DRY_RUN}` in VARS, default assignment, and `emit_dry_run_report`
-- [ ] `entrypoint-opencode.sh` has the dry-run/normal branch replacing bare `exec opencode`
-- [ ] `entrypoint-claude.sh` has the structural dry-run/normal branch (stub still exits 1)
-- [ ] HARD RULE 11 is present verbatim in `charts/mendabot/files/prompts/core.txt`
-- [ ] Decision tree has the dry-run branch prepended
-- [ ] `git diff --stat` shows only `entrypoint-common.sh`, `entrypoint-opencode.sh`,
+- [x] `entrypoint-common.sh` has `${DRY_RUN}` in VARS, default assignment, and `emit_dry_run_report`
+- [x] `entrypoint-opencode.sh` has the dry-run/normal branch replacing bare `exec opencode`
+- [x] `entrypoint-claude.sh` has the structural dry-run/normal branch (stub still exits 1)
+- [x] HARD RULE 11 is present verbatim in `charts/mendabot/files/prompts/core.txt`
+- [x] Decision tree has the dry-run branch prepended
+- [x] `git diff --stat` shows only `entrypoint-common.sh`, `entrypoint-opencode.sh`,
   `entrypoint-claude.sh`, and `charts/mendabot/files/prompts/core.txt` changed
-- [ ] Full test suite passes: `go test -timeout 120s -race ./...` (no Go changes in this story)
+- [x] Full test suite passes: `go test -timeout 120s -race ./...` (no Go changes in this story)

@@ -231,7 +231,7 @@ k8s-mendabot/
 │   │   ├── epic12-security-review/        # (complete)
 │   │   ├── epic13-multi-signal-correlation/ # (deferred)
 │   │   ├── epic18-manifest-validation/    # (complete)
-│   │   ├── epic20-dry-run-mode/           # (not started)
+│   │   ├── epic20-dry-run-mode/           # (complete)
 │   │   ├── epic22-token-expiry-guard/     # (complete)
 │   │   ├── epic26-auto-close-resolved/    # (not started) auto-close PRs/issues on resolution
 │   │   ├── epic27-pr-feedback-iteration/  # (not started) iterate on reviewer comments
@@ -866,6 +866,7 @@ kubectl apply -k deploy/kustomize/
 | Branch | Purpose | Status | Created |
 |--------|---------|--------|---------|
 | `main` | Stable code | Active | 2026-02-19 |
+| `feature/epic20-dry-run-mode` | Epic 20: Dry-Run Mode (FT-U8) | Active | 2026-02-25 |
 
 **Merged branches:**
 
