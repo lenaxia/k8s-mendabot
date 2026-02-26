@@ -859,6 +859,7 @@ kubectl apply -k deploy/kustomize/
 | Branch | Purpose | Status | Created |
 |--------|---------|--------|---------|
 | `main` | Stable code | Active | 2026-02-19 |
+| `feature/epic22-token-expiry-guard` | Epic 22: GitHub App token expiry guard (FT-R3) | Active | 2026-02-25 |
 
 **Merged branches:**
 

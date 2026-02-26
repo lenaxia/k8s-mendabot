@@ -331,7 +331,7 @@ extra scrutiny.
 |----|---------|-------|------------|--------|
 | FT-R1 | Dead-letter queue for permanently-failed jobs | ★★★ | ● | Complete (epic17) |
 | FT-R2 | Watcher leader election | ★★ | ● | Evaluated |
-| FT-R3 | GitHub App token expiry guard | ★★ | ● | Planned (epic22) |
+| FT-R3 | GitHub App token expiry guard | ★★ | ● | Complete (epic22) |
 | FT-R4 | Durable stabilisation window (restart-safe) | ★★ | ●● | Evaluated |
 | FT-R5 | Circuit breaker for LLM API failures | ★★ | ●● | Evaluated |
 | FT-R7 | Self-remediation cascade prevention | ★★★ | ●● | Complete (epic11) |

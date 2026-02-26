@@ -15,7 +15,7 @@ in `entrypoint-common.sh`.
 
 This is a **shell script change only** — zero Go code.
 
-## Status: Not Started
+## Status: Complete
 
 ## Deep-Dive Findings (2026-02-23)
 
@@ -90,8 +90,8 @@ bash built-ins or coreutils already present.
 
 | Story | File | Status |
 |-------|------|--------|
-| get-github-app-token.sh — write expiry timestamp alongside token | [STORY_01_token_expiry_file.md](STORY_01_token_expiry_file.md) | Not Started |
-| entrypoint-common.sh — pre-flight expiry check | [STORY_02_entrypoint_check.md](STORY_02_entrypoint_check.md) | Not Started |
+| get-github-app-token.sh — write expiry timestamp alongside token | [STORY_01_token_expiry_file.md](STORY_01_token_expiry_file.md) | Complete |
+| entrypoint-common.sh — pre-flight expiry check | [STORY_02_entrypoint_check.md](STORY_02_entrypoint_check.md) | Complete |
 
 ## Implementation Order
 
@@ -101,12 +101,12 @@ STORY_01 (write expiry file) ──> STORY_02 (entrypoint check)
 
 ## Definition of Done
 
-- [ ] `get-github-app-token.sh` captures API response into `RESPONSE`; writes `$((NOW + 3500))` to `/workspace/github-token-expiry` before printing token to stdout
-- [ ] Write of expiry file precedes stdout print (fail-fast on disk error via `set -euo pipefail`)
-- [ ] `entrypoint-common.sh` pre-flight block inserted between kubeconfig `fi` (line 71) and `gh auth login` (line 75)
-- [ ] When expiry file absent: WARNING to stderr, continue (backwards-compatible)
-- [ ] When `NOW >= EXPIRY - 60`: ERROR with EXPIRY and NOW values, `exit 1`
-- [ ] `exit 1` causes `batch/v1 Job` to enter `Failed` state
-- [ ] No LLM API calls when guard fires (`exec opencode` never reached)
-- [ ] Error message in `kubectl logs` is unambiguous (includes both timestamps)
-- [ ] Worklog written
+- [x] `get-github-app-token.sh` captures API response into `RESPONSE`; writes `$((NOW + 3500))` to `/workspace/github-token-expiry` before printing token to stdout
+- [x] Write of expiry file precedes stdout print (fail-fast on disk error via `set -euo pipefail`)
+- [x] `entrypoint-common.sh` pre-flight block inserted between kubeconfig `fi` (line 71) and `gh auth login` (line 75)
+- [x] When expiry file absent: WARNING to stderr, continue (backwards-compatible)
+- [x] When `NOW >= EXPIRY - 60`: ERROR with EXPIRY and NOW values, `exit 1`
+- [x] `exit 1` causes `batch/v1 Job` to enter `Failed` state
+- [x] No LLM API calls when guard fires (`exec opencode` never reached)
+- [x] Error message in `kubectl logs` is unambiguous (includes both timestamps)
+- [x] Worklog written
