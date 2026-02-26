@@ -176,6 +176,7 @@ func newIntegrationJob(rjob *v1alpha1.RemediationJob) *batchv1.Job {
 					Kind:       "RemediationJob",
 					Name:       rjob.Name,
 					UID:        rjob.UID,
+					Controller: ptr(true),
 				},
 			},
 			Labels: map[string]string{
@@ -301,12 +302,20 @@ func TestRemediationJobReconciler_SyncsStatus_Running(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = c.Delete(ctx, rjob) })
 
+	// Re-fetch to get server-assigned UID so OwnerReference on the Job is correct.
+	if err := c.Get(ctx, types.NamespacedName{Name: rjob.Name, Namespace: integrationCtrlNamespace}, rjob); err != nil {
+		t.Fatalf("re-fetch rjob for UID: %v", err)
+	}
+
 	existingJob := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "mendabot-agent-" + fp[:12],
 			Namespace: integrationCtrlNamespace,
 			Labels: map[string]string{
 				"remediation.mendabot.io/remediation-job": rjob.Name,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{APIVersion: "remediation.mendabot.io/v1alpha1", Kind: "RemediationJob", Name: rjob.Name, UID: rjob.UID, Controller: ptr(true)},
 			},
 		},
 		Spec:   batchv1.JobSpec{BackoffLimit: ptr(int32(1)), Template: minimalPodTemplateSpec()},
@@ -363,12 +372,20 @@ func TestRemediationJobReconciler_SyncsStatus_Succeeded(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = c.Delete(ctx, rjob) })
 
+	// Re-fetch to get server-assigned UID so OwnerReference on the Job is correct.
+	if err := c.Get(ctx, types.NamespacedName{Name: rjob.Name, Namespace: integrationCtrlNamespace}, rjob); err != nil {
+		t.Fatalf("re-fetch rjob for UID: %v", err)
+	}
+
 	existingJob := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "mendabot-agent-" + fp[:12],
 			Namespace: integrationCtrlNamespace,
 			Labels: map[string]string{
 				"remediation.mendabot.io/remediation-job": rjob.Name,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{APIVersion: "remediation.mendabot.io/v1alpha1", Kind: "RemediationJob", Name: rjob.Name, UID: rjob.UID, Controller: ptr(true)},
 			},
 		},
 		Spec:   batchv1.JobSpec{BackoffLimit: ptr(int32(1)), Template: minimalPodTemplateSpec()},
@@ -438,12 +455,20 @@ func TestRemediationJobReconciler_SyncsStatus_Failed(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = c.Delete(ctx, rjob) })
 
+	// Re-fetch to get server-assigned UID so OwnerReference on the Job is correct.
+	if err := c.Get(ctx, types.NamespacedName{Name: rjob.Name, Namespace: integrationCtrlNamespace}, rjob); err != nil {
+		t.Fatalf("re-fetch rjob for UID: %v", err)
+	}
+
 	existingJob := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "mendabot-agent-" + fp[:12],
 			Namespace: integrationCtrlNamespace,
 			Labels: map[string]string{
 				"remediation.mendabot.io/remediation-job": rjob.Name,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{APIVersion: "remediation.mendabot.io/v1alpha1", Kind: "RemediationJob", Name: rjob.Name, UID: rjob.UID, Controller: ptr(true)},
 			},
 		},
 		Spec:   batchv1.JobSpec{BackoffLimit: &backoffLimit, Template: minimalPodTemplateSpec()},
@@ -818,6 +843,9 @@ func TestRemediationJobReconciler_PermanentlyFailed(t *testing.T) {
 			Namespace: integrationCtrlNamespace,
 			Labels: map[string]string{
 				"remediation.mendabot.io/remediation-job": rjob.Name,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{APIVersion: "remediation.mendabot.io/v1alpha1", Kind: "RemediationJob", Name: rjob.Name, UID: rjob.UID, Controller: ptr(true)},
 			},
 		},
 		Spec: batchv1.JobSpec{BackoffLimit: &backoffLimit, Template: minimalPodTemplateSpec()},

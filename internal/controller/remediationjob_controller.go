@@ -158,120 +158,140 @@ func (r *RemediationJobReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	if len(ownedJobs.Items) > 0 {
 		job := &ownedJobs.Items[0]
-		newPhase := syncPhaseFromJob(job)
-		rjobCopy := rjob.DeepCopyObject().(*v1alpha1.RemediationJob)
-		rjob.Status.Phase = newPhase
-		var effectiveMaxRetries int32
-		if newPhase == v1alpha1.PhaseSucceeded || newPhase == v1alpha1.PhaseFailed {
-			if newPhase == v1alpha1.PhaseFailed {
-				// Only increment RetryCount when transitioning *into* Failed for the
-				// first time (not on subsequent reconciles of an already-Failed rjob).
-				// rjobCopy holds the pre-mutation phase; rjob.Status.Phase has already
-				// been set to newPhase above, so compare against the copy.
-				if rjobCopy.Status.Phase != v1alpha1.PhaseFailed {
-					rjob.Status.RetryCount++
-				}
-				maxRetries := rjob.Spec.MaxRetries
-				if maxRetries <= 0 {
-					maxRetries = 3
-				}
-				effectiveMaxRetries = maxRetries
-				if rjob.Status.RetryCount >= maxRetries {
-					rjob.Status.Phase = v1alpha1.PhasePermanentlyFailed
-					apimeta.SetStatusCondition(&rjob.Status.Conditions, metav1.Condition{
-						Type:               v1alpha1.ConditionPermanentlyFailed,
-						Status:             metav1.ConditionTrue,
-						Reason:             "RetryCapReached",
-						Message:            fmt.Sprintf("RetryCount %d reached MaxRetries %d", rjob.Status.RetryCount, maxRetries),
-						LastTransitionTime: metav1.Now(),
-					})
+		// Guard against stale Jobs from a previous RemediationJob that had the
+		// same name (e.g. after a deployment rollout that preserved fingerprints).
+		// The batch/v1 Job carries an OwnerReference with the exact rjob UID that
+		// created it. If the UID doesn't match the current rjob we must not copy
+		// its terminal phase — doing so would skip the Pending → correlation window
+		// → Dispatched flow entirely.  Delete the stale Job so the name is free for
+		// the new dispatch, then fall through to the correlation block.
+		if !isOwnedBy(job, rjob.UID) {
+			if delErr := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); delErr != nil && !apierrors.IsNotFound(delErr) {
+				return ctrl.Result{}, fmt.Errorf("deleting stale agent Job %s: %w", job.Name, delErr)
+			}
+			if r.Log != nil {
+				r.Log.Info("deleted stale agent Job owned by previous RemediationJob",
+					zap.String("job", job.Name),
+					zap.String("remediationJob", rjob.Name),
+					zap.String("namespace", job.Namespace),
+				)
+			}
+		} else {
+			newPhase := syncPhaseFromJob(job)
+			rjobCopy := rjob.DeepCopyObject().(*v1alpha1.RemediationJob)
+			rjob.Status.Phase = newPhase
+			var effectiveMaxRetries int32
+			if newPhase == v1alpha1.PhaseSucceeded || newPhase == v1alpha1.PhaseFailed {
+				if newPhase == v1alpha1.PhaseFailed {
+					// Only increment RetryCount when transitioning *into* Failed for the
+					// first time (not on subsequent reconciles of an already-Failed rjob).
+					// rjobCopy holds the pre-mutation phase; rjob.Status.Phase has already
+					// been set to newPhase above, so compare against the copy.
+					if rjobCopy.Status.Phase != v1alpha1.PhaseFailed {
+						rjob.Status.RetryCount++
+					}
+					maxRetries := rjob.Spec.MaxRetries
+					if maxRetries <= 0 {
+						maxRetries = 3
+					}
+					effectiveMaxRetries = maxRetries
+					if rjob.Status.RetryCount >= maxRetries {
+						rjob.Status.Phase = v1alpha1.PhasePermanentlyFailed
+						apimeta.SetStatusCondition(&rjob.Status.Conditions, metav1.Condition{
+							Type:               v1alpha1.ConditionPermanentlyFailed,
+							Status:             metav1.ConditionTrue,
+							Reason:             "RetryCapReached",
+							Message:            fmt.Sprintf("RetryCount %d reached MaxRetries %d", rjob.Status.RetryCount, maxRetries),
+							LastTransitionTime: metav1.Now(),
+						})
+					} else {
+						apimeta.SetStatusCondition(&rjob.Status.Conditions, metav1.Condition{
+							Type:               v1alpha1.ConditionJobFailed,
+							Status:             metav1.ConditionTrue,
+							Reason:             string(newPhase),
+							LastTransitionTime: metav1.Now(),
+						})
+					}
 				} else {
 					apimeta.SetStatusCondition(&rjob.Status.Conditions, metav1.Condition{
-						Type:               v1alpha1.ConditionJobFailed,
+						Type:               v1alpha1.ConditionJobComplete,
 						Status:             metav1.ConditionTrue,
 						Reason:             string(newPhase),
 						LastTransitionTime: metav1.Now(),
 					})
 				}
-			} else {
-				apimeta.SetStatusCondition(&rjob.Status.Conditions, metav1.Condition{
-					Type:               v1alpha1.ConditionJobComplete,
-					Status:             metav1.ConditionTrue,
-					Reason:             string(newPhase),
-					LastTransitionTime: metav1.Now(),
-				})
-			}
 
-			if rjob.Status.CompletedAt == nil {
-				now := metav1.Now()
-				rjob.Status.CompletedAt = &now
-			}
-		}
-		if rjob.Status.JobRef == "" {
-			rjob.Status.JobRef = job.Name
-		}
-		if newPhase == v1alpha1.PhaseSucceeded &&
-			job.Annotations["mendabot.io/dry-run"] == "true" &&
-			rjob.Status.Message == "" {
-			rjob.Status.Message = r.fetchDryRunReport(ctx, &rjob)
-		}
-		if err := r.Status().Patch(ctx, &rjob, client.MergeFrom(rjobCopy)); err != nil {
-			return ctrl.Result{}, err
-		}
-		if r.Log != nil && (newPhase == v1alpha1.PhaseSucceeded || newPhase == v1alpha1.PhaseFailed) {
-			switch {
-			case newPhase == v1alpha1.PhaseSucceeded:
-				r.Log.Info("agent job terminal",
-					zap.Bool("audit", true),
-					zap.String("event", "job.succeeded"),
-					zap.String("remediationJob", rjob.Name),
-					zap.String("job", job.Name),
-					zap.String("namespace", rjob.Namespace),
-					zap.String("prRef", rjob.Status.PRRef),
-				)
-			case rjob.Status.Phase == v1alpha1.PhasePermanentlyFailed:
-				r.Log.Info("agent job permanently failed",
-					zap.Bool("audit", true),
-					zap.String("event", "job.permanently_failed"),
-					zap.String("remediationJob", rjob.Name),
-					zap.String("job", job.Name),
-					zap.String("namespace", rjob.Namespace),
-					zap.Int32("retryCount", rjob.Status.RetryCount),
-					zap.Int32("maxRetries", effectiveMaxRetries),
-				)
-			case newPhase == v1alpha1.PhaseFailed:
-				r.Log.Info("agent job terminal",
-					zap.Bool("audit", true),
-					zap.String("event", "job.failed"),
-					zap.String("remediationJob", rjob.Name),
-					zap.String("job", job.Name),
-					zap.String("namespace", rjob.Namespace),
-					zap.String("prRef", rjob.Status.PRRef),
-				)
-			}
-		}
-		if r.Recorder != nil {
-			switch newPhase {
-			case v1alpha1.PhaseSucceeded:
-				prRef := rjob.Status.PRRef
-				if prRef != "" {
-					r.Recorder.Eventf(&rjob, corev1.EventTypeNormal, "JobSucceeded",
-						"Agent Job completed; PR: %s", prRef)
-				} else {
-					r.Recorder.Event(&rjob, corev1.EventTypeNormal, "JobSucceeded",
-						"Agent Job completed")
-				}
-			case v1alpha1.PhaseFailed:
-				if rjob.Status.Phase == v1alpha1.PhasePermanentlyFailed {
-					r.Recorder.Eventf(&rjob, corev1.EventTypeWarning, "JobPermanentlyFailed",
-						"Agent Job permanently failed after %d attempt(s); no further retries", rjob.Status.RetryCount)
-				} else {
-					r.Recorder.Eventf(&rjob, corev1.EventTypeWarning, "JobFailed",
-						"Agent Job failed after %d attempt(s)", job.Status.Failed)
+				if rjob.Status.CompletedAt == nil {
+					now := metav1.Now()
+					rjob.Status.CompletedAt = &now
 				}
 			}
-		}
-		return ctrl.Result{}, nil
+			if rjob.Status.JobRef == "" {
+				rjob.Status.JobRef = job.Name
+			}
+			if newPhase == v1alpha1.PhaseSucceeded &&
+				job.Annotations["mendabot.io/dry-run"] == "true" &&
+				rjob.Status.Message == "" {
+				rjob.Status.Message = r.fetchDryRunReport(ctx, &rjob)
+			}
+			if err := r.Status().Patch(ctx, &rjob, client.MergeFrom(rjobCopy)); err != nil {
+				return ctrl.Result{}, err
+			}
+			if r.Log != nil && (newPhase == v1alpha1.PhaseSucceeded || newPhase == v1alpha1.PhaseFailed) {
+				switch {
+				case newPhase == v1alpha1.PhaseSucceeded:
+					r.Log.Info("agent job terminal",
+						zap.Bool("audit", true),
+						zap.String("event", "job.succeeded"),
+						zap.String("remediationJob", rjob.Name),
+						zap.String("job", job.Name),
+						zap.String("namespace", rjob.Namespace),
+						zap.String("prRef", rjob.Status.PRRef),
+					)
+				case rjob.Status.Phase == v1alpha1.PhasePermanentlyFailed:
+					r.Log.Info("agent job permanently failed",
+						zap.Bool("audit", true),
+						zap.String("event", "job.permanently_failed"),
+						zap.String("remediationJob", rjob.Name),
+						zap.String("job", job.Name),
+						zap.String("namespace", rjob.Namespace),
+						zap.Int32("retryCount", rjob.Status.RetryCount),
+						zap.Int32("maxRetries", effectiveMaxRetries),
+					)
+				case newPhase == v1alpha1.PhaseFailed:
+					r.Log.Info("agent job terminal",
+						zap.Bool("audit", true),
+						zap.String("event", "job.failed"),
+						zap.String("remediationJob", rjob.Name),
+						zap.String("job", job.Name),
+						zap.String("namespace", rjob.Namespace),
+						zap.String("prRef", rjob.Status.PRRef),
+					)
+				}
+			}
+			if r.Recorder != nil {
+				switch newPhase {
+				case v1alpha1.PhaseSucceeded:
+					prRef := rjob.Status.PRRef
+					if prRef != "" {
+						r.Recorder.Eventf(&rjob, corev1.EventTypeNormal, "JobSucceeded",
+							"Agent Job completed; PR: %s", prRef)
+					} else {
+						r.Recorder.Event(&rjob, corev1.EventTypeNormal, "JobSucceeded",
+							"Agent Job completed")
+					}
+				case v1alpha1.PhaseFailed:
+					if rjob.Status.Phase == v1alpha1.PhasePermanentlyFailed {
+						r.Recorder.Eventf(&rjob, corev1.EventTypeWarning, "JobPermanentlyFailed",
+							"Agent Job permanently failed after %d attempt(s); no further retries", rjob.Status.RetryCount)
+					} else {
+						r.Recorder.Eventf(&rjob, corev1.EventTypeWarning, "JobFailed",
+							"Agent Job failed after %d attempt(s)", job.Status.Failed)
+					}
+				}
+			}
+			return ctrl.Result{}, nil
+		} // end else isOwnedBy
 	}
 
 	// Guard: PhaseDispatched / PhaseRunning jobs whose owned batch/v1 Job has been
@@ -618,6 +638,15 @@ func (r *RemediationJobReconciler) dispatch(
 			if getErr := r.Get(ctx, client.ObjectKeyFromObject(job), &existing); getErr != nil {
 				return getErr
 			}
+			// If the existing Job is not owned by this rjob (stale from a prior rjob
+			// with the same name), delete it and requeue so the next reconcile creates
+			// a fresh one. This is a safety net; the primary guard is in Step 3.
+			if !isOwnedBy(&existing, rjob.UID) {
+				if delErr := r.Delete(ctx, &existing, client.PropagationPolicy(metav1.DeletePropagationBackground)); delErr != nil && !apierrors.IsNotFound(delErr) {
+					return fmt.Errorf("deleting stale agent Job %s in dispatch: %w", existing.Name, delErr)
+				}
+				return fmt.Errorf("stale agent Job %s deleted; requeueing for fresh dispatch", existing.Name)
+			}
 			rjobCopy := rjob.DeepCopyObject().(*v1alpha1.RemediationJob)
 			rjob.Status.Phase = syncPhaseFromJob(&existing)
 			if rjob.Status.JobRef == "" {
@@ -749,4 +778,17 @@ func (r *RemediationJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&v1alpha1.RemediationJob{}).
 		Owns(&batchv1.Job{}).
 		Complete(r)
+}
+
+// isOwnedBy reports whether job has a controller OwnerReference pointing to uid.
+// This is used to distinguish a legitimately owned batch/v1 Job from a stale Job
+// left over from a previous RemediationJob that happened to have the same name
+// (same fingerprint) but a different UID (e.g. from a prior deployment rollout).
+func isOwnedBy(job *batchv1.Job, uid types.UID) bool {
+	for _, ref := range job.OwnerReferences {
+		if ref.Controller != nil && *ref.Controller && ref.UID == uid {
+			return true
+		}
+	}
+	return false
 }

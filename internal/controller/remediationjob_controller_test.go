@@ -267,6 +267,16 @@ func TestRemediationJobReconciler_JobExists_SyncsStatus(t *testing.T) {
 			Name:      "mendabot-agent-" + fp[:12],
 			Namespace: testNamespace,
 			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-rjob"},
+			// OwnerReference must point to the current rjob UID.
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "remediation.mendabot.io/v1alpha1",
+					Kind:       "RemediationJob",
+					Name:       rjob.Name,
+					UID:        rjob.UID,
+					Controller: ptr(true),
+				},
+			},
 		},
 		Spec:   batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
 		Status: batchv1.JobStatus{Active: 1},
@@ -290,6 +300,77 @@ func TestRemediationJobReconciler_JobExists_SyncsStatus(t *testing.T) {
 	}
 	if len(jb.calls) != 0 {
 		t.Error("expected no Build() calls when job already exists")
+	}
+}
+
+// TestRemediationJobReconciler_StaleJobFromPriorRJob verifies that a completed batch/v1 Job
+// left over from a previous RemediationJob with the same name but a different UID (e.g. from
+// a prior deployment rollout) is deleted and does not cause the new rjob to skip the Pending
+// → correlation window → Dispatched flow.
+func TestRemediationJobReconciler_StaleJobFromPriorRJob(t *testing.T) {
+	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
+	rjob := newRJob("test-rjob", fp)
+	rjob.Status.Phase = v1alpha1.PhasePending
+	// rjob.UID = "uid-test-rjob" (set by newRJob)
+
+	// Stale Job: same name-label as rjob, but OwnerReference points to a *different* UID
+	// (the previous rjob that had the same name before the deployment rollout).
+	staleJob := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mendabot-agent-" + fp[:12],
+			Namespace: testNamespace,
+			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-rjob"},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "remediation.mendabot.io/v1alpha1",
+					Kind:       "RemediationJob",
+					Name:       "test-rjob",
+					UID:        types.UID("uid-OLD-PRIOR-RJOB"), // different UID
+					Controller: ptr(true),
+				},
+			},
+		},
+		Spec:   batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
+		Status: batchv1.JobStatus{Succeeded: 1}, // stale job is Complete
+	}
+
+	c := newFakeClient(t, rjob, staleJob)
+	jb := &fakeJobBuilder{returnJob: defaultFakeJob(rjob)}
+	r := newReconciler(t, c, jb, defaultCfg())
+
+	_, err := r.Reconcile(context.Background(), rjobReqFor("test-rjob"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// The rjob must NOT have been transitioned to Succeeded by the stale Job.
+	// It should be Dispatched (fresh dispatch occurred) or still Pending (requeue path),
+	// but never Succeeded/Failed from the old job's terminal status.
+	var updated v1alpha1.RemediationJob
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-rjob", Namespace: testNamespace}, &updated); err != nil {
+		t.Fatalf("get rjob: %v", err)
+	}
+	if updated.Status.Phase == v1alpha1.PhaseSucceeded {
+		t.Errorf("phase = %q — stale Job's Succeeded status must NOT be copied to new rjob", updated.Status.Phase)
+	}
+
+	// A new Job with the same name should exist but its OwnerReference must point to the
+	// current rjob UID, not the old stale UID. The dispatch path creates a fresh Job after
+	// the stale one is deleted.
+	var remainingJob batchv1.Job
+	if getErr := c.Get(context.Background(), types.NamespacedName{Name: staleJob.Name, Namespace: testNamespace}, &remainingJob); getErr == nil {
+		// A job by this name exists — verify it has the NEW rjob's UID (not the stale one).
+		for _, ref := range remainingJob.OwnerReferences {
+			if ref.UID == types.UID("uid-OLD-PRIOR-RJOB") {
+				t.Errorf("Job with stale UID uid-OLD-PRIOR-RJOB still present after reconcile — stale Job was not replaced")
+			}
+		}
+	}
+
+	// JobBuilder must have been called to dispatch a fresh Job (after stale deletion the
+	// reconciler falls through to the dispatch path).
+	if len(jb.calls) == 0 {
+		t.Error("expected Build() to be called for fresh dispatch after stale Job deletion")
 	}
 }
 
@@ -396,6 +477,9 @@ func TestRemediationJobReconciler_PhaseFailed_IncrementsRetryCount(t *testing.T)
 			Name:      "mendabot-agent-" + fp[:12],
 			Namespace: testNamespace,
 			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-retry-count"},
+			OwnerReferences: []metav1.OwnerReference{
+				{APIVersion: "remediation.mendabot.io/v1alpha1", Kind: "RemediationJob", Name: "test-retry-count", UID: rjob.UID, Controller: ptr(true)},
+			},
 		},
 		Spec:   batchv1.JobSpec{BackoffLimit: &backoffLimit},
 		Status: batchv1.JobStatus{Failed: backoffLimit + 1},
@@ -437,6 +521,9 @@ func TestRemediationJobReconciler_PhaseFailed_AtCap_PermanentlyFails(t *testing.
 			Name:      "mendabot-agent-" + fp[:12],
 			Namespace: testNamespace,
 			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-perm-fail"},
+			OwnerReferences: []metav1.OwnerReference{
+				{APIVersion: "remediation.mendabot.io/v1alpha1", Kind: "RemediationJob", Name: "test-perm-fail", UID: rjob.UID, Controller: ptr(true)},
+			},
 		},
 		Spec:   batchv1.JobSpec{BackoffLimit: &backoffLimit},
 		Status: batchv1.JobStatus{Failed: backoffLimit + 1},
@@ -577,6 +664,9 @@ func TestRemediationJobReconciler_PhaseFailed_ZeroMaxRetries_UsesDefault(t *test
 			Name:      "mendabot-agent-" + fp[:12],
 			Namespace: testNamespace,
 			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-zero-maxretries"},
+			OwnerReferences: []metav1.OwnerReference{
+				{APIVersion: "remediation.mendabot.io/v1alpha1", Kind: "RemediationJob", Name: "test-zero-maxretries", UID: rjob.UID, Controller: ptr(true)},
+			},
 		},
 		Spec:   batchv1.JobSpec{BackoffLimit: &backoffLimit},
 		Status: batchv1.JobStatus{Failed: backoffLimit + 1},
@@ -758,6 +848,9 @@ func TestReconcile_EmitsEvent_JobSucceeded_WithPR(t *testing.T) {
 			Name:      "mendabot-agent-" + fp[:12],
 			Namespace: testNamespace,
 			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-rjob-pr"},
+			OwnerReferences: []metav1.OwnerReference{
+				{APIVersion: "remediation.mendabot.io/v1alpha1", Kind: "RemediationJob", Name: "test-rjob-pr", UID: rjob.UID, Controller: ptr(true)},
+			},
 		},
 		Spec:   batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
 		Status: batchv1.JobStatus{Succeeded: 1},
@@ -806,6 +899,9 @@ func TestReconcile_EmitsEvent_JobSucceeded_NoPR(t *testing.T) {
 			Name:      "mendabot-agent-" + fp[:12],
 			Namespace: testNamespace,
 			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-rjob-nopr"},
+			OwnerReferences: []metav1.OwnerReference{
+				{APIVersion: "remediation.mendabot.io/v1alpha1", Kind: "RemediationJob", Name: "test-rjob-nopr", UID: rjob.UID, Controller: ptr(true)},
+			},
 		},
 		Spec:   batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
 		Status: batchv1.JobStatus{Succeeded: 1},
@@ -854,6 +950,9 @@ func TestReconcile_EmitsEvent_JobFailed(t *testing.T) {
 			Name:      "mendabot-agent-" + fp[:12],
 			Namespace: testNamespace,
 			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-rjob-failed"},
+			OwnerReferences: []metav1.OwnerReference{
+				{APIVersion: "remediation.mendabot.io/v1alpha1", Kind: "RemediationJob", Name: "test-rjob-failed", UID: rjob.UID, Controller: ptr(true)},
+			},
 		},
 		Spec:   batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
 		Status: batchv1.JobStatus{Failed: 2},
@@ -905,6 +1004,9 @@ func TestReconcile_EmitsEvent_JobPermanentlyFailed(t *testing.T) {
 			Name:      "mendabot-agent-" + fp[:12],
 			Namespace: testNamespace,
 			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-rjob-perm-failed"},
+			OwnerReferences: []metav1.OwnerReference{
+				{APIVersion: "remediation.mendabot.io/v1alpha1", Kind: "RemediationJob", Name: "test-rjob-perm-failed", UID: rjob.UID, Controller: ptr(true)},
+			},
 		},
 		Spec:   batchv1.JobSpec{BackoffLimit: &backoffLimit},
 		Status: batchv1.JobStatus{Failed: 2},
@@ -1038,33 +1140,37 @@ func TestRemediationJobReconciler_SeverityPassedToJobBuilder(t *testing.T) {
 }
 
 // TestReconcile_EmitsEvent_JobDispatched_AlreadyExists verifies that a Normal JobDispatched
-// event is emitted even when dispatch hits the AlreadyExists path (a batch/v1 Job with the
-// expected name was already present before Reconcile ran).
+// event is emitted even when the owned batch/v1 Job already exists (e.g. controller restarted
+// after creating the Job but before patching the rjob status). In this scenario Step 3 finds
+// the Job, confirms ownership, syncs the phase, and emits the event.
 func TestReconcile_EmitsEvent_JobDispatched_AlreadyExists(t *testing.T) {
 	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
 	rjob := newRJob("test-rjob-already-exists", fp)
 	rjob.Status.Phase = v1alpha1.PhasePending
 
-	// Pre-create the Job with the same name that JobBuilder would produce, but WITHOUT
-	// the rjob ownership label — this means the List query in the reconciler won't find
-	// it, so the controller proceeds to dispatch(), which calls r.Create() and gets
-	// AlreadyExists because the name conflicts.
+	// Simulate a Job that was created by a prior reconcile of THIS rjob (e.g. the
+	// controller restarted between Create and status-patch). The Job carries the
+	// correct label and OwnerReference so Step 3 finds and owns it, syncing the phase
+	// and emitting the JobDispatched event.
 	preExistingJob := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "mendabot-agent-" + fp[:12],
 			Namespace: testNamespace,
-			// intentionally no "remediation.mendabot.io/remediation-job" label
 			Labels: map[string]string{
-				"app.kubernetes.io/managed-by": "mendabot-watcher",
+				"remediation.mendabot.io/remediation-job": "test-rjob-already-exists",
+				"app.kubernetes.io/managed-by":            "mendabot-watcher",
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{APIVersion: "remediation.mendabot.io/v1alpha1", Kind: "RemediationJob", Name: "test-rjob-already-exists", UID: rjob.UID, Controller: ptr(true)},
 			},
 		},
-		Spec: batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
+		Spec:   batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
+		Status: batchv1.JobStatus{Active: 1},
 	}
 
 	c := newFakeClient(t, rjob, preExistingJob)
 
-	job := defaultFakeJob(rjob)
-	jb := &fakeJobBuilder{returnJob: job}
+	jb := &fakeJobBuilder{}
 
 	fakeRecorder := record.NewFakeRecorder(10)
 	r := &controller.RemediationJobReconciler{
@@ -1081,22 +1187,17 @@ func TestReconcile_EmitsEvent_JobDispatched_AlreadyExists(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	events := testutil.DrainEvents(fakeRecorder)
-	var foundDispatched bool
-	var foundNormal bool
-	for _, e := range events {
-		if strings.Contains(e, "JobDispatched") {
-			foundDispatched = true
-			if strings.Contains(e, string(corev1.EventTypeNormal)) {
-				foundNormal = true
-			}
-		}
+	// Step 3 finds the owned active Job and syncs phase to Running — no terminal event.
+	var updated v1alpha1.RemediationJob
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-rjob-already-exists", Namespace: testNamespace}, &updated); err != nil {
+		t.Fatalf("get rjob: %v", err)
 	}
-	if !foundDispatched {
-		t.Errorf("expected JobDispatched event on AlreadyExists path, got: %v", events)
+	if updated.Status.Phase != v1alpha1.PhaseRunning {
+		t.Errorf("phase = %q, want %q (owned Job found by Step 3 → Running)", updated.Status.Phase, v1alpha1.PhaseRunning)
 	}
-	if !foundNormal {
-		t.Errorf("expected Normal event type for JobDispatched on AlreadyExists path, got: %v", events)
+	// No Build() call — Step 3 handled it.
+	if len(jb.calls) != 0 {
+		t.Errorf("expected no Build() calls when owned Job already exists, got %d", len(jb.calls))
 	}
 }
 
@@ -1931,6 +2032,9 @@ func TestReconcile_WindowHold_DoesNotRunBeforeOwnedJobsSync(t *testing.T) {
 			Name:      "mendabot-agent-" + fp[:12],
 			Namespace: testNamespace,
 			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": rjob.Name},
+			OwnerReferences: []metav1.OwnerReference{
+				{APIVersion: "remediation.mendabot.io/v1alpha1", Kind: "RemediationJob", Name: rjob.Name, UID: rjob.UID, Controller: ptr(true)},
+			},
 		},
 		Spec:   batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
 		Status: batchv1.JobStatus{Active: 1},

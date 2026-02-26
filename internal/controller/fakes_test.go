@@ -44,6 +44,7 @@ func defaultFakeJob(rjob *v1alpha1.RemediationJob) *batchv1.Job {
 					Kind:       "RemediationJob",
 					Name:       rjob.Name,
 					UID:        rjob.UID,
+					Controller: ptr(true),
 				},
 			},
 			Labels: map[string]string{
@@ -155,6 +156,9 @@ func TestDefaultFakeJob_OwnerRef(t *testing.T) {
 				t.Errorf("got %q, want %q", tt.got, tt.want)
 			}
 		})
+	}
+	if ref.Controller == nil || !*ref.Controller {
+		t.Error("expected Controller=true on OwnerReference so isOwnedBy() recognises the Job as owned")
 	}
 }
 

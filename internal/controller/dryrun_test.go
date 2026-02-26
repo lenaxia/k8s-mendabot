@@ -41,6 +41,15 @@ func newDryRunRJobWithJob(
 			Namespace:   testNamespace,
 			Labels:      map[string]string{"remediation.mendabot.io/remediation-job": rjobName},
 			Annotations: jobAnnotations,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "remediation.mendabot.io/v1alpha1",
+					Kind:       "RemediationJob",
+					Name:       rjobName,
+					UID:        types.UID("uid-" + rjobName),
+					Controller: ptr(true),
+				},
+			},
 		},
 		Spec:   batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
 		Status: batchv1.JobStatus{Succeeded: 1},
