@@ -1393,17 +1393,39 @@ func TestFromEnv_DryRunInvalid(t *testing.T) {
 	}
 }
 
-// TestFromEnv_CorrelationWindowDefault verifies CORRELATION_WINDOW_SECONDS defaults to 30.
+// TestFromEnv_CorrelationWindowDefault verifies CORRELATION_WINDOW_SECONDS defaults to
+// StabilisationWindow so that the correlation window is always wide enough for peer
+// rjobs (which must survive their own stabilisation window before being created) to
+// exist when the correlator fires.
 func TestFromEnv_CorrelationWindowDefault(t *testing.T) {
 	setRequiredEnv(t)
+	os.Unsetenv("CORRELATION_WINDOW_SECONDS")
+	os.Unsetenv("STABILISATION_WINDOW_SECONDS") // default 120s
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Default stabilisation window is 120s; correlation window must match.
+	if cfg.CorrelationWindowSeconds != 120 {
+		t.Errorf("CorrelationWindowSeconds default: got %d, want 120 (== StabilisationWindow)", cfg.CorrelationWindowSeconds)
+	}
+}
+
+// TestFromEnv_CorrelationWindowDefaultMatchesCustomStabilisation verifies that when
+// STABILISATION_WINDOW_SECONDS is set to a custom value, the correlation window
+// default tracks it rather than staying at 120.
+func TestFromEnv_CorrelationWindowDefaultMatchesCustomStabilisation(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("STABILISATION_WINDOW_SECONDS", "60")
 	os.Unsetenv("CORRELATION_WINDOW_SECONDS")
 
 	cfg, err := config.FromEnv()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if cfg.CorrelationWindowSeconds != 30 {
-		t.Errorf("CorrelationWindowSeconds default: got %d, want 30", cfg.CorrelationWindowSeconds)
+	if cfg.CorrelationWindowSeconds != 60 {
+		t.Errorf("CorrelationWindowSeconds default: got %d, want 60 (== StabilisationWindow)", cfg.CorrelationWindowSeconds)
 	}
 }
 

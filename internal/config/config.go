@@ -66,8 +66,10 @@ type Config struct {
 	DryRun bool
 
 	// CorrelationWindowSeconds is how long (in seconds) a Pending RemediationJob
-	// is held before the correlator evaluates it. Default 30; 0 disables the hold.
-	CorrelationWindowSeconds int // CORRELATION_WINDOW_SECONDS — default 30
+	// is held before the correlator evaluates it. Defaults to StabilisationWindow
+	// so that peer rjobs (which must survive their own stabilisation window before
+	// being created) are always visible when the correlator fires. 0 disables the hold.
+	CorrelationWindowSeconds int // CORRELATION_WINDOW_SECONDS — default: StabilisationWindow
 	// DisableCorrelation skips the correlation window and correlator entirely,
 	// restoring immediate-dispatch behaviour.
 	DisableCorrelation bool // DISABLE_CORRELATION — default false
@@ -311,9 +313,14 @@ func FromEnv() (Config, error) {
 	}
 
 	// Correlation window — how long to hold Pending jobs before dispatching.
+	// Default: match StabilisationWindow so that peer rjobs created at the
+	// tail of the stabilisation window are always visible when the correlator
+	// fires.  A window shorter than StabilisationWindow causes the primary rjob
+	// to evaluate peers before they exist (they haven't survived their own
+	// stabilisation window yet), resulting in zero peers and solo dispatch.
 	corrWindowStr := os.Getenv("CORRELATION_WINDOW_SECONDS")
 	if corrWindowStr == "" {
-		cfg.CorrelationWindowSeconds = 30
+		cfg.CorrelationWindowSeconds = int(cfg.StabilisationWindow.Seconds())
 	} else {
 		n, err := strconv.Atoi(corrWindowStr)
 		if err != nil {
