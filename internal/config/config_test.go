@@ -1203,3 +1203,81 @@ func TestFromEnv_SelfRemediationCooldown_NonInteger(t *testing.T) {
 		t.Error("expected error for non-integer SELF_REMEDIATION_COOLDOWN_SECONDS, got nil")
 	}
 }
+
+func TestFromEnv_DryRunDefault(t *testing.T) {
+	setRequiredEnv(t)
+	os.Unsetenv("DRY_RUN")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.DryRun != false {
+		t.Errorf("DryRun default: got %v, want false", cfg.DryRun)
+	}
+}
+
+func TestFromEnv_DryRunFalse(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("DRY_RUN", "false")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.DryRun {
+		t.Error("DryRun 'false': got true, want false")
+	}
+}
+
+func TestFromEnv_DryRunZero(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("DRY_RUN", "0")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.DryRun {
+		t.Error("DryRun '0': got true, want false")
+	}
+}
+
+func TestFromEnv_DryRunTrue(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("DRY_RUN", "true")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg.DryRun {
+		t.Error("DryRun: got false, want true")
+	}
+}
+
+func TestFromEnv_DryRunOne(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("DRY_RUN", "1")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg.DryRun {
+		t.Error("DryRun '1': got false, want true")
+	}
+}
+
+func TestFromEnv_DryRunInvalid(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("DRY_RUN", "yes")
+
+	_, err := config.FromEnv()
+	if err == nil {
+		t.Fatal("expected error for DRY_RUN=yes, got nil")
+	}
+	if !strings.Contains(err.Error(), "DRY_RUN") {
+		t.Errorf("error should mention DRY_RUN, got: %v", err)
+	}
+}

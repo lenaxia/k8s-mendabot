@@ -58,6 +58,9 @@ type Config struct {
 	// SelfRemediationCooldown is the minimum time between allowed self-remediations.
 	// 0 disables the circuit breaker. Default: 300s.
 	SelfRemediationCooldown time.Duration // SELF_REMEDIATION_COOLDOWN_SECONDS — default 300s; 0 = disabled
+
+	// DRY_RUN — default false; set "true" or "1" to enable dry-run mode
+	DryRun bool
 }
 
 // FromEnv reads configuration from environment variables and returns a Config.
@@ -276,6 +279,16 @@ func FromEnv() (Config, error) {
 			return Config{}, fmt.Errorf("SELF_REMEDIATION_COOLDOWN_SECONDS must be >= 0, got %d", n)
 		}
 		cfg.SelfRemediationCooldown = time.Duration(n) * time.Second
+	}
+
+	dryRunStr := os.Getenv("DRY_RUN")
+	switch dryRunStr {
+	case "", "false", "0":
+		cfg.DryRun = false
+	case "true", "1":
+		cfg.DryRun = true
+	default:
+		return Config{}, fmt.Errorf("DRY_RUN must be 'true', 'false', '1', or '0', got %q", dryRunStr)
 	}
 
 	return cfg, nil
