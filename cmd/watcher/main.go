@@ -104,6 +104,7 @@ func main() {
 		AgentNamespace: cfg.AgentNamespace,
 		AgentType:      cfg.AgentType,
 		TTLSeconds:     int32(cfg.RemediationJobTTLSeconds),
+		DryRun:         cfg.DryRun,
 	})
 	if err != nil {
 		logger.Fatal("jobbuilder init failed", zap.Error(err))

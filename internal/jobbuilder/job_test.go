@@ -1016,3 +1016,66 @@ func TestBuild_FindingSeverity_EmptyStringLegacy(t *testing.T) {
 		t.Errorf("FINDING_SEVERITY = %q, want empty string for legacy object", val)
 	}
 }
+
+func buildDryRunJob(t *testing.T) *batchv1.Job {
+	t.Helper()
+	b, err := New(Config{AgentNamespace: "mendabot", DryRun: true})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	job, err := b.Build(testRJob, nil)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	return job
+}
+
+func TestBuild_DryRun_AnnotationPresent(t *testing.T) {
+	job := buildDryRunJob(t)
+	if got, ok := job.Annotations["mendabot.io/dry-run"]; !ok {
+		t.Error("annotation mendabot.io/dry-run missing")
+	} else if got != "true" {
+		t.Errorf("annotation mendabot.io/dry-run = %q, want %q", got, "true")
+	}
+}
+
+func TestBuild_DryRun_EnvVarPresent(t *testing.T) {
+	job := buildDryRunJob(t)
+	main := job.Spec.Template.Spec.Containers[0]
+	val, ok := getEnv(main, "DRY_RUN")
+	if !ok {
+		t.Fatal("DRY_RUN env var missing from main container")
+	}
+	if val != "true" {
+		t.Errorf("DRY_RUN = %q, want %q", val, "true")
+	}
+}
+
+func TestBuild_NoDryRun_AnnotationAbsent(t *testing.T) {
+	job := buildJob(t)
+	if _, ok := job.Annotations["mendabot.io/dry-run"]; ok {
+		t.Error("annotation mendabot.io/dry-run must not be present when DryRun=false")
+	}
+}
+
+func TestBuild_NoDryRun_EnvVarAbsent(t *testing.T) {
+	job := buildJob(t)
+	main := job.Spec.Template.Spec.Containers[0]
+	if _, ok := getEnv(main, "DRY_RUN"); ok {
+		t.Error("DRY_RUN env var must not be present when DryRun=false")
+	}
+}
+
+func TestBuild_DryRun_InitContainerNoEnvVar(t *testing.T) {
+	job := buildDryRunJob(t)
+	var init corev1.Container
+	for _, c := range job.Spec.Template.Spec.InitContainers {
+		if c.Name == "git-token-clone" {
+			init = c
+			break
+		}
+	}
+	if _, ok := getEnv(init, "DRY_RUN"); ok {
+		t.Error("DRY_RUN must not be injected into the git-token-clone init container")
+	}
+}

@@ -21,6 +21,7 @@ type Config struct {
 	// TTLSeconds controls TTLSecondsAfterFinished on the batch/v1 Job.
 	// Zero means use the default (86400 = 24h).
 	TTLSeconds int32
+	DryRun     bool
 }
 
 const defaultTTLSeconds int32 = 86400
@@ -184,6 +185,13 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 		mainContainer.Env = append(mainContainer.Env, corev1.EnvVar{Name: "FINDING_CORRELATED_FINDINGS", Value: string(raw)})
 	}
 
+	if b.cfg.DryRun {
+		mainContainer.Env = append(mainContainer.Env, corev1.EnvVar{
+			Name:  "DRY_RUN",
+			Value: "true",
+		})
+	}
+
 	volumes := []corev1.Volume{
 		{
 			Name: "shared-workspace",
@@ -231,6 +239,14 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 		},
 	}
 
+	annotations := map[string]string{
+		"remediation.mendabot.io/fingerprint-full": rjob.Spec.Fingerprint,
+		"remediation.mendabot.io/finding-parent":   rjob.Spec.Finding.ParentObject,
+	}
+	if b.cfg.DryRun {
+		annotations["mendabot.io/dry-run"] = "true"
+	}
+
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      jobName,
@@ -241,10 +257,7 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 				"remediation.mendabot.io/remediation-job": rjob.Name,
 				"remediation.mendabot.io/finding-kind":    rjob.Spec.Finding.Kind,
 			},
-			Annotations: map[string]string{
-				"remediation.mendabot.io/fingerprint-full": rjob.Spec.Fingerprint,
-				"remediation.mendabot.io/finding-parent":   rjob.Spec.Finding.ParentObject,
-			},
+			Annotations: annotations,
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion:         "remediation.mendabot.io/v1alpha1",
