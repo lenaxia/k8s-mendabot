@@ -2,8 +2,8 @@ apiVersion: v2
 name: mendabot
 description: Kubernetes-native SRE remediation bot — watches cluster failures, spawns an LLM agent, and opens GitOps pull requests with proposed fixes.
 type: application
-version: 0.3.22
-appVersion: v0.3.22
+version: 0.3.23
+appVersion: v0.3.23
 kubeVersion: ">=1.28.0-0"
 keywords:
   - kubernetes
