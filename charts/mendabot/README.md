@@ -1,6 +1,6 @@
 # mendabot
 
-![Version: 0.3.13](https://img.shields.io/badge/Version-0.3.13-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v0.3.13](https://img.shields.io/badge/AppVersion-v0.3.13-informational?style=flat-square)
+![Version: 0.3.23](https://img.shields.io/badge/Version-0.3.23-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v0.3.23](https://img.shields.io/badge/AppVersion-v0.3.23-informational?style=flat-square)
 
 Kubernetes-native SRE remediation bot — watches cluster failures, spawns an LLM agent, and opens GitOps pull requests with proposed fixes.
 
@@ -90,14 +90,20 @@ kubectl delete crd remediationjobs.remediation.mendabot.io
 | prompt.coreOverride | string | `""` | Full core prompt content override. When non-empty, replaces the built-in core prompt mounted from the ConfigMap. |
 | rbac.create | bool | `true` | Create RBAC resources. Set to `false` if you manage RBAC externally. |
 | secrets | object | `{}` | Pre-existing Secrets that must be created before `helm install`. The chart never creates Secret content. Secret names are derived from `agentType` at runtime: `llm-credentials-<agentType>`. Required Secrets: `github-app` (keys: `app-id`, `installation-id`, `private-key`), `llm-credentials-opencode` (key: `provider-config`). |
+| selfRemediation.cooldownSeconds | int | `300` | Minimum seconds between successive self-remediation attempts (circuit breaker).    0 disables the circuit breaker. |
+| selfRemediation.maxDepth | int | `2` | Maximum allowed self-remediation chain depth. 0 disables self-remediation entirely. |
 | watcher.agentRBACScope | string | `"cluster"` | RBAC scope for the agent Job. One of `"cluster"` (default) or `"namespace"`. When `"namespace"`, `agentWatchNamespaces` must also be set. |
 | watcher.agentWatchNamespaces | string | `""` | Comma-separated list of namespaces for namespace-scoped agent RBAC. Required when `agentRBACScope=namespace`. Example: `"production,staging"`. |
+| watcher.correlationWindowSeconds | int | `120` | Seconds to hold Pending jobs before dispatching (correlation window). Set to 0 to    dispatch immediately without correlation. Defaults to stabilisationWindowSeconds    when unset so the window is always wide enough for peer rjobs to exist. |
+| watcher.disableCorrelation | bool | `false` | Disable all correlation logic and dispatch immediately. Default is false. |
+| watcher.dryRun | bool | `false` | Enable dry-run shadow mode. When true, write operations are blocked and investigation reports are stored in RemediationJob.status.message. |
 | watcher.excludeNamespaces | string | `""` | Comma-separated list of namespaces the watcher ignores. Empty means no exclusions. Example: `"kube-system,monitoring"`. |
 | watcher.injectionDetectionAction | string | `"log"` | Action when a prompt injection heuristic fires. One of `"log"` (default) or `"suppress"` (silently drops the finding). |
 | watcher.llmProvider | string | `"openai"` | LLM readiness gate. Set to `"openai"` to block RemediationJob creation until the `llm-credentials-<agentType>` Secret exists. Leave empty to disable. |
 | watcher.logLevel | string | `"info"` | Zap log level. One of `debug`, `info`, `warn`, `error`. |
 | watcher.maxConcurrentJobs | int | `3` | Maximum number of agent Jobs running concurrently. |
 | watcher.maxInvestigationRetries | string | `"3"` | Maximum number of investigation retries per RemediationJob before permanently failing. |
+| watcher.multiPodThreshold | int | `3` | Minimum number of pods failing on the same node to trigger MultiPodSameNodeRule.    Default is 3. |
 | watcher.remediationJobTTLSeconds | int | `604800` | Time-to-live for completed RemediationJob objects in seconds. Default is 7 days. |
 | watcher.sinkType | string | `"github"` | Sink type for PR creation. Currently only `"github"` is supported. |
 | watcher.stabilisationWindowSeconds | int | `120` | Seconds to wait after first detecting a failure before creating a RemediationJob. Set to `0` to dispatch immediately. |

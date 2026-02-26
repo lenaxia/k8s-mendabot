@@ -94,6 +94,7 @@ _Appears in:_
 | `Failed` | PhaseFailed means the batch/v1 Job failed (all retries exhausted or deadline exceeded).<br /> |
 | `Cancelled` | PhaseCancelled means the RemediationJob was deleted before it could complete<br />because its source Result was deleted while the job was Pending or Running.<br /> |
 | `PermanentlyFailed` | PhasePermanentlyFailed means RetryCount has reached MaxRetries.<br />The RemediationJob will never be re-dispatched. The SourceProviderReconciler<br />treats this phase as a terminal tombstone and does not delete-and-recreate.<br /> |
+| `Suppressed` | PhaseSuppressed means the RemediationJob was grouped with a correlated finding<br />and will not be dispatched independently. A separate primary job covers the group.<br /> |
 
 
 #### RemediationJobSpec
@@ -135,11 +136,12 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `phase` _[RemediationJobPhase](#remediationjobphase)_ | Phase is the current lifecycle phase of this RemediationJob. |  | Enum: [Pending Dispatched Running Succeeded Failed Cancelled PermanentlyFailed] <br /> |
+| `phase` _[RemediationJobPhase](#remediationjobphase)_ | Phase is the current lifecycle phase of this RemediationJob. |  | Enum: [Pending Dispatched Running Succeeded Failed Cancelled PermanentlyFailed Suppressed] <br /> |
 | `jobRef` _string_ | JobRef is the name of the batch/v1 Job created for this remediation.<br />Set once the Job has been created. |  |  |
 | `prRef` _string_ | PRRef is the GitHub PR URL opened or commented on by the agent.<br />Set by the agent via a status patch before it exits (best-effort). |  |  |
 | `message` _string_ | Message is a human-readable description of the current state,<br />e.g. an error message if Phase is Failed. |  |  |
 | `retryCount` _integer_ | RetryCount is the number of times the owned batch/v1 Job has entered the<br />Failed state. Incremented by RemediationJobReconciler each time the job<br />transitions to PhaseFailed. Read by SourceProviderReconciler to decide<br />whether to re-dispatch or tombstone. |  |  |
+| `correlationGroupID` _string_ | CorrelationGroupID is set when this job is part of a correlated group.<br />Empty when not correlated.<br />Design note: STORY_00 also specified RelatedFindings, CorrelationRole, and<br />CorrelationRule as spec/status fields. The implementation intentionally stores<br />these as labels (mendabot.io/correlation-group-id, mendabot.io/correlation-role)<br />and passes correlated findings as a runtime slice to dispatch() rather than<br />persisting them. The labels are searchable via kubectl and the recovery path<br />(controller.go) reconstructs AllFindings from suppressed peers on restart.<br />CorrelationGroupID here is the only status field needed for recovery. |  |  |
 
 
 #### ResultRef
