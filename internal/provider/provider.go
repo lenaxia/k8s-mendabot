@@ -85,15 +85,18 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 				continue
 			}
 			phase := rjob.Status.Phase
-			// Cancel Pending, Dispatched, and Running jobs. Also cancel Phase==""
-			// (blank) because there is a real race window between client.Create()
-			// and the RemediationJobReconciler's first reconcile that transitions
-			// "" → Pending. A source deletion arriving in that window must still
-			// cancel the job. Do NOT remove the phase != "" check even though the
+			// Cancel Pending, Dispatched, Running, Suppressed, and Phase=="" jobs.
+			// Suppressed jobs must also be cancelled: when their source object is
+			// deleted, the correlated investigation is permanently moot and the job
+			// must not leak indefinitely (TTL only applies to Succeeded).
+			// Also cancel Phase=="" (blank) because there is a real race window between
+			// client.Create() and the RemediationJobReconciler's first reconcile that
+			// transitions "" → Pending. A source deletion arriving in that window must
+			// still cancel the job. Do NOT remove the phase != "" check even though the
 			// controller now initialises phase immediately — the race window exists
 			// and removing this will silently reintroduce the bug.
 			if phase != v1alpha1.PhasePending && phase != v1alpha1.PhaseDispatched &&
-				phase != v1alpha1.PhaseRunning && phase != "" {
+				phase != v1alpha1.PhaseRunning && phase != v1alpha1.PhaseSuppressed && phase != "" {
 				continue
 			}
 			// Patch phase to Cancelled before deleting so observers see the terminal state.
@@ -461,6 +464,10 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			MaxRetries:         r.Cfg.MaxInvestigationRetries,
 			Severity:           string(finding.Severity),
 		},
+	}
+
+	if finding.NodeName != "" {
+		rjob.Annotations[domain.NodeNameAnnotation] = finding.NodeName
 	}
 
 	if err := r.Create(ctx, rjob); err != nil {

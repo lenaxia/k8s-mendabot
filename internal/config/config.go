@@ -22,17 +22,20 @@ const (
 // Config holds all runtime configuration for the mendabot-watcher controller.
 // All fields are populated from environment variables at startup via FromEnv.
 type Config struct {
-	GitOpsRepo               string        // GITOPS_REPO — required
-	GitOpsManifestRoot       string        // GITOPS_MANIFEST_ROOT — required
-	AgentImage               string        // AGENT_IMAGE — required
-	AgentNamespace           string        // AGENT_NAMESPACE — required; must equal watcher namespace
-	AgentSA                  string        // AGENT_SA — required
-	AgentType                AgentType     // AGENT_TYPE — default "opencode"
-	SinkType                 string        // SINK_TYPE — default "github"
-	LogLevel                 string        // LOG_LEVEL — default "info"
-	MaxConcurrentJobs        int           // MAX_CONCURRENT_JOBS — default 3
-	RemediationJobTTLSeconds int           // REMEDIATION_JOB_TTL_SECONDS — default 604800 (7 days)
-	StabilisationWindow      time.Duration // STABILISATION_WINDOW_SECONDS — default 120s; 0 disables
+	GitOpsRepo                string        // GITOPS_REPO — required
+	GitOpsManifestRoot        string        // GITOPS_MANIFEST_ROOT — required
+	AgentImage                string        // AGENT_IMAGE — required
+	AgentNamespace            string        // AGENT_NAMESPACE — required; must equal watcher namespace
+	AgentSA                   string        // AGENT_SA — required
+	AgentType                 AgentType     // AGENT_TYPE — default "opencode"
+	SinkType                  string        // SINK_TYPE — default "github"
+	LogLevel                  string        // LOG_LEVEL — default "info"
+	MaxConcurrentJobs         int           // MAX_CONCURRENT_JOBS — default 3
+	RemediationJobTTLSeconds  int           // REMEDIATION_JOB_TTL_SECONDS — default 604800 (7 days)
+	StabilisationWindow       time.Duration // STABILISATION_WINDOW_SECONDS — default 120s; 0 disables
+	DisableCascadeCheck       bool          // DISABLE_CASCADE_CHECK — default false
+	CascadeNamespaceThreshold int           // CASCADE_NAMESPACE_THRESHOLD — default 50
+	CascadeNodeCacheTTL       time.Duration // CASCADE_NODE_CACHE_TTL_SECONDS — default 30s
 	// LLMProvider selects the LLM readiness checker used to gate RemediationJob
 	// creation. Accepted values: "openai". Empty (default) disables the check.
 	LLMProvider              string   // LLM_PROVIDER — default "" (disabled)
@@ -61,6 +64,16 @@ type Config struct {
 
 	// DRY_RUN — default false; set "true" or "1" to enable dry-run mode
 	DryRun bool
+
+	// CorrelationWindowSeconds is how long (in seconds) a Pending RemediationJob
+	// is held before the correlator evaluates it. Default 30; 0 disables the hold.
+	CorrelationWindowSeconds int // CORRELATION_WINDOW_SECONDS — default 30
+	// DisableCorrelation skips the correlation window and correlator entirely,
+	// restoring immediate-dispatch behaviour.
+	DisableCorrelation bool // DISABLE_CORRELATION — default false
+	// MultiPodThreshold is the minimum number of pod findings on the same node
+	// required for MultiPodSameNodeRule to fire.
+	MultiPodThreshold int // CORRELATION_MULTI_POD_THRESHOLD — default 3
 }
 
 // FromEnv reads configuration from environment variables and returns a Config.
@@ -264,6 +277,9 @@ func FromEnv() (Config, error) {
 		if n < 0 {
 			return Config{}, fmt.Errorf("SELF_REMEDIATION_MAX_DEPTH must be >= 0, got %d", n)
 		}
+		if n > 10 {
+			return Config{}, fmt.Errorf("SELF_REMEDIATION_MAX_DEPTH=%d exceeds maximum reasonable value of 10; use a lower value to prevent infinite remediation chains", n)
+		}
 		cfg.SelfRemediationMaxDepth = n
 	}
 
@@ -278,6 +294,9 @@ func FromEnv() (Config, error) {
 		if n < 0 {
 			return Config{}, fmt.Errorf("SELF_REMEDIATION_COOLDOWN_SECONDS must be >= 0, got %d", n)
 		}
+		if n > 3600 {
+			return Config{}, fmt.Errorf("SELF_REMEDIATION_COOLDOWN_SECONDS=%d exceeds maximum reasonable value of 3600 (1 hour); use a lower value", n)
+		}
 		cfg.SelfRemediationCooldown = time.Duration(n) * time.Second
 	}
 
@@ -289,6 +308,62 @@ func FromEnv() (Config, error) {
 		cfg.DryRun = true
 	default:
 		return Config{}, fmt.Errorf("DRY_RUN must be 'true', 'false', '1', or '0', got %q", dryRunStr)
+	}
+
+	// LLM provider selection — empty string disables the LLM readiness check.
+	// bedrock and vertex are reserved for future implementation; configuring them
+	// is a startup error rather than a silent runtime block.
+	cfg.LLMProvider = os.Getenv("LLM_PROVIDER")
+	switch cfg.LLMProvider {
+	case "", "openai":
+		// valid
+	case "bedrock", "vertex":
+		return Config{}, fmt.Errorf(
+			"LLM_PROVIDER=%q is not yet implemented; set LLM_PROVIDER=openai or leave it unset to disable the LLM readiness check",
+			cfg.LLMProvider,
+		)
+	default:
+		return Config{}, fmt.Errorf(
+			"LLM_PROVIDER %q is not supported; accepted values: openai (or unset to disable)",
+			cfg.LLMProvider,
+		)
+	}
+
+	// Correlation window — how long to hold Pending jobs before dispatching.
+	corrWindowStr := os.Getenv("CORRELATION_WINDOW_SECONDS")
+	if corrWindowStr == "" {
+		cfg.CorrelationWindowSeconds = 30
+	} else {
+		n, err := strconv.Atoi(corrWindowStr)
+		if err != nil {
+			return Config{}, fmt.Errorf("CORRELATION_WINDOW_SECONDS must be an integer: %w", err)
+		}
+		if n < 0 {
+			return Config{}, fmt.Errorf("CORRELATION_WINDOW_SECONDS must be >= 0, got %d", n)
+		}
+		if n > 3600 {
+			return Config{}, fmt.Errorf("CORRELATION_WINDOW_SECONDS=%d exceeds maximum reasonable value of 3600 (1 hour); set DISABLE_CORRELATION=true to skip correlation entirely", n)
+		}
+		cfg.CorrelationWindowSeconds = n
+	}
+
+	// Disable correlation entirely — restores immediate-dispatch behaviour.
+	disableCorrStr := os.Getenv("DISABLE_CORRELATION")
+	cfg.DisableCorrelation = disableCorrStr == "true" || disableCorrStr == "1"
+
+	// MultiPodSameNodeRule threshold.
+	multiPodStr := os.Getenv("CORRELATION_MULTI_POD_THRESHOLD")
+	if multiPodStr == "" {
+		cfg.MultiPodThreshold = 3
+	} else {
+		n, err := strconv.Atoi(multiPodStr)
+		if err != nil {
+			return Config{}, fmt.Errorf("CORRELATION_MULTI_POD_THRESHOLD must be an integer: %w", err)
+		}
+		if n <= 0 {
+			return Config{}, fmt.Errorf("CORRELATION_MULTI_POD_THRESHOLD must be a positive integer, got %d", n)
+		}
+		cfg.MultiPodThreshold = n
 	}
 
 	return cfg, nil

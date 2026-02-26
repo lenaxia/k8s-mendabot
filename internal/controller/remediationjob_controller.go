@@ -20,6 +20,7 @@ import (
 
 	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
 	"github.com/lenaxia/k8s-mendabot/internal/config"
+	"github.com/lenaxia/k8s-mendabot/internal/correlator"
 	"github.com/lenaxia/k8s-mendabot/internal/domain"
 )
 
@@ -43,6 +44,9 @@ type RemediationJobReconciler struct {
 	// has not yet propagated to the local cache by the time the reconciler runs.
 	// If nil, falls back to r.Client (cache-backed) — acceptable in test environments.
 	APIReader client.Reader
+	// Correlator holds jobs for the correlation window before dispatching.
+	// nil disables correlation entirely (escape hatch).
+	Correlator *correlator.Correlator
 }
 
 // Reconcile implements ctrl.Reconciler.
@@ -101,7 +105,16 @@ func (r *RemediationJobReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 				zap.String("prRef", rjob.Status.PRRef),
 			)
 		}
-		return ctrl.Result{}, nil
+		// CompletedAt is nil — the terminal status-patch for this job failed in a
+		// prior reconcile (the owned-jobs sync set Phase=Succeeded but couldn't write
+		// CompletedAt). Patch it now so the TTL clock can start on the next reconcile.
+		rjobCopy := rjob.DeepCopyObject().(*v1alpha1.RemediationJob)
+		now := metav1.Now()
+		rjob.Status.CompletedAt = &now
+		if err := r.Status().Patch(ctx, &rjob, client.MergeFrom(rjobCopy)); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{Requeue: true}, nil
 
 	case v1alpha1.PhaseFailed:
 		return ctrl.Result{}, nil
@@ -111,9 +124,21 @@ func (r *RemediationJobReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	case v1alpha1.PhaseCancelled:
 		return ctrl.Result{}, nil
+
+	case v1alpha1.PhaseSuppressed:
+		return ctrl.Result{}, nil
+
+	case v1alpha1.PhaseDispatched, v1alpha1.PhaseRunning:
+		// Fall through to Step 3 (owned-jobs sync). If the owned batch/v1 Job still
+		// exists, Step 3 updates the phase from it and returns. If the owned job has
+		// been GC'd, Step 3 finds no jobs and returns; the explicit guard below Step 3
+		// then returns ctrl.Result{} to prevent double-dispatch.
 	}
 
-	// List owned Jobs by label.
+	// Step 3: list owned Jobs by label. This must run before the correlation block so
+	// that jobs that already have an owned batch/v1 Job (e.g. dispatched, running, or
+	// completed) are synced from that job's status immediately, without waiting for the
+	// correlation window to elapse.
 	var ownedJobs batchv1.JobList
 	if err := r.List(ctx, &ownedJobs,
 		client.InNamespace(r.Cfg.AgentNamespace),
@@ -128,10 +153,6 @@ func (r *RemediationJobReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		rjob.Status.Phase = newPhase
 		var effectiveMaxRetries int32
 		if newPhase == v1alpha1.PhaseSucceeded || newPhase == v1alpha1.PhaseFailed {
-			if rjob.Status.CompletedAt == nil {
-				now := metav1.Now()
-				rjob.Status.CompletedAt = &now
-			}
 			if newPhase == v1alpha1.PhaseFailed {
 				// Only increment RetryCount when transitioning *into* Failed for the
 				// first time (not on subsequent reconciles of an already-Failed rjob).
@@ -169,6 +190,11 @@ func (r *RemediationJobReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 					Reason:             string(newPhase),
 					LastTransitionTime: metav1.Now(),
 				})
+			}
+
+			if rjob.Status.CompletedAt == nil {
+				now := metav1.Now()
+				rjob.Status.CompletedAt = &now
 			}
 		}
 		if rjob.Status.JobRef == "" {
@@ -238,26 +264,157 @@ func (r *RemediationJobReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, nil
 	}
 
-	// Check MAX_CONCURRENT_JOBS.
-	var allJobs batchv1.JobList
-	if err := r.List(ctx, &allJobs,
-		client.InNamespace(r.Cfg.AgentNamespace),
-		client.MatchingLabels{"app.kubernetes.io/managed-by": "mendabot-watcher"},
-	); err != nil {
-		return ctrl.Result{}, err
-	}
-	activeCount := 0
-	for i := range allJobs.Items {
-		j := &allJobs.Items[i]
-		if j.Status.Active > 0 || (j.Status.Succeeded == 0 && j.Status.CompletionTime == nil) {
-			activeCount++
-		}
-	}
-	if r.Cfg.MaxConcurrentJobs > 0 && activeCount >= r.Cfg.MaxConcurrentJobs {
-		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	// Guard: PhaseDispatched / PhaseRunning jobs whose owned batch/v1 Job has been
+	// GC'd must NOT dispatch a second Job. There is nothing left to do until a new
+	// finding triggers a fresh Pending → Dispatched cycle.
+	if rjob.Status.Phase == v1alpha1.PhaseDispatched || rjob.Status.Phase == v1alpha1.PhaseRunning {
+		return ctrl.Result{}, nil
 	}
 
-	return ctrl.Result{}, r.dispatch(ctx, &rjob)
+	// Correlation window hold: if correlation is enabled, optionally hold jobs for
+	// CorrelationWindowSeconds to allow peer findings to appear, then run
+	// the correlator before dispatching. When window==0 the hold is skipped but
+	// the correlator still runs. This block runs AFTER the owned-jobs sync above
+	// so that jobs with an existing batch/v1 Job are not blocked by the window hold.
+	if r.Correlator != nil {
+		window := time.Duration(r.Cfg.CorrelationWindowSeconds) * time.Second
+		if window > 0 {
+			age := time.Since(rjob.CreationTimestamp.Time)
+			if age < window {
+				return ctrl.Result{RequeueAfter: window - age}, nil
+			}
+		}
+		peers, peersErr := r.pendingPeers(ctx, &rjob)
+		if peersErr != nil {
+			return ctrl.Result{}, fmt.Errorf("listing pending peers: %w", peersErr)
+		}
+		group, found, err := r.Correlator.Evaluate(ctx, &rjob, peers, r.Client)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("correlator evaluate: %w", err)
+		}
+		if found {
+			if group.PrimaryUID != rjob.UID {
+				var primaryJob v1alpha1.RemediationJob
+				primaryGone := true
+				var allInNS v1alpha1.RemediationJobList
+				if listErr := r.List(ctx, &allInNS,
+					client.InNamespace(r.Cfg.AgentNamespace),
+					client.MatchingLabels{"app.kubernetes.io/managed-by": "mendabot-watcher"},
+				); listErr != nil {
+					return ctrl.Result{}, fmt.Errorf("listing all jobs to check primary liveness: %w", listErr)
+				} else {
+					for i := range allInNS.Items {
+						if allInNS.Items[i].UID == group.PrimaryUID {
+							primaryJob = allInNS.Items[i]
+							primaryGone = false
+							break
+						}
+					}
+				}
+				_ = primaryJob
+				gracePeriod := 3 * time.Duration(r.Cfg.CorrelationWindowSeconds) * time.Second
+				waitedLongEnough := time.Since(rjob.CreationTimestamp.Time) > gracePeriod+window
+				if primaryGone && waitedLongEnough {
+					if r.Log != nil {
+						r.Log.Warn("correlation: primary disappeared after grace period; falling back to solo dispatch",
+							zap.String("remediationJob", rjob.Name),
+							zap.String("expectedPrimaryUID", string(group.PrimaryUID)),
+						)
+					}
+				} else {
+					return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+				}
+			}
+
+			if group.PrimaryUID == rjob.UID {
+				if existing := rjob.Status.CorrelationGroupID; existing != "" {
+					group.GroupID = existing
+				} else if existing := rjob.Labels[domain.CorrelationGroupIDLabel]; existing != "" {
+					group.GroupID = existing
+				}
+				if err := r.suppressCorrelatedPeers(ctx, peers, group); err != nil {
+					return ctrl.Result{}, err
+				}
+				rjobStatusCopy := rjob.DeepCopyObject().(*v1alpha1.RemediationJob)
+				rjob.Status.CorrelationGroupID = group.GroupID
+				if err := r.Status().Patch(ctx, &rjob, client.MergeFrom(rjobStatusCopy)); err != nil {
+					return ctrl.Result{}, err
+				}
+				rjobCopy := rjob.DeepCopyObject().(*v1alpha1.RemediationJob)
+				if rjob.Labels == nil {
+					rjob.Labels = make(map[string]string)
+				}
+				rjob.Labels[domain.CorrelationGroupIDLabel] = group.GroupID
+				rjob.Labels[domain.CorrelationGroupRoleLabel] = domain.CorrelationRolePrimary
+				if err := r.Patch(ctx, &rjob, client.MergeFrom(rjobCopy)); err != nil {
+					return ctrl.Result{}, err
+				}
+				if r.Log != nil {
+					r.Log.Info("dispatching correlated primary",
+						zap.String("remediationJob", rjob.Name),
+						zap.String("rule", group.Rule),
+						zap.String("groupID", group.GroupID),
+						zap.Int("correlatedPeers", len(group.CorrelatedUIDs)),
+					)
+				}
+				return ctrl.Result{}, r.dispatch(ctx, &rjob, group.AllFindings)
+			}
+		}
+
+		if rjob.Status.CorrelationGroupID != "" && rjob.Status.Phase == v1alpha1.PhasePending {
+			var allPeers v1alpha1.RemediationJobList
+			if listErr := r.List(ctx, &allPeers,
+				client.InNamespace(r.Cfg.AgentNamespace),
+				client.MatchingLabels{"app.kubernetes.io/managed-by": "mendabot-watcher"},
+			); listErr != nil {
+				return ctrl.Result{}, fmt.Errorf("listing peers for correlation recovery: %w", listErr)
+			}
+			var recoveredFindings []v1alpha1.FindingSpec
+			for i := range allPeers.Items {
+				p := &allPeers.Items[i]
+				if p.UID == rjob.UID {
+					continue
+				}
+				if p.Status.CorrelationGroupID == rjob.Status.CorrelationGroupID &&
+					p.Status.Phase == v1alpha1.PhaseSuppressed {
+					recoveredFindings = append(recoveredFindings, p.Spec.Finding)
+				}
+			}
+			if len(recoveredFindings) == 0 && r.Log != nil {
+				r.Log.Warn("correlation recovery: no suppressed peers found for group; dispatching primary as solo",
+					zap.String("remediationJob", rjob.Name),
+					zap.String("groupID", rjob.Status.CorrelationGroupID),
+				)
+			}
+			if rjob.Labels[domain.CorrelationGroupIDLabel] == "" {
+				rjobCopy := rjob.DeepCopyObject().(*v1alpha1.RemediationJob)
+				if rjob.Labels == nil {
+					rjob.Labels = make(map[string]string)
+				}
+				rjob.Labels[domain.CorrelationGroupIDLabel] = rjob.Status.CorrelationGroupID
+				rjob.Labels[domain.CorrelationGroupRoleLabel] = domain.CorrelationRolePrimary
+				if err := r.Patch(ctx, &rjob, client.MergeFrom(rjobCopy)); err != nil {
+					return ctrl.Result{}, err
+				}
+			}
+			if limited, result, err := r.concurrencyGate(ctx); err != nil {
+				return ctrl.Result{}, err
+			} else if limited {
+				return result, nil
+			}
+			return ctrl.Result{}, r.dispatch(ctx, &rjob, recoveredFindings)
+		}
+	}
+
+	// Step 4: check MAX_CONCURRENT_JOBS.
+	if limited, result, err := r.concurrencyGate(ctx); err != nil {
+		return ctrl.Result{}, err
+	} else if limited {
+		return result, nil
+	}
+
+	// Step 5+6+7: build, create, and dispatch the Job with no correlated findings.
+	return ctrl.Result{}, r.dispatch(ctx, &rjob, nil)
 }
 
 // DryRunCMName returns the name of the ConfigMap written by the agent at the
@@ -338,11 +495,68 @@ func syncPhaseFromJob(job *batchv1.Job) v1alpha1.RemediationJobPhase {
 	return v1alpha1.PhaseDispatched
 }
 
+// pendingPeers lists all Pending RemediationJob objects in AgentNamespace,
+// excluding the candidate itself. Returns an error if the API server is unavailable
+// so the caller can requeue rather than silently treating the cluster as having zero peers.
+// The managed-by label selector restricts the list to mendabot-owned objects, preventing
+// O(N) full-namespace scans from amplifying into O(N²) API-server load on every reconcile.
+//
+// Contract: this function only returns jobs that carry app.kubernetes.io/managed-by=mendabot-watcher.
+// RemediationJobs created without this label (e.g. manually) are invisible to correlation.
+// SourceProviderReconciler always sets this label at creation time — see provider.go.
+func (r *RemediationJobReconciler) pendingPeers(ctx context.Context, candidate *v1alpha1.RemediationJob) ([]*v1alpha1.RemediationJob, error) {
+	var list v1alpha1.RemediationJobList
+	if err := r.List(ctx, &list,
+		client.InNamespace(r.Cfg.AgentNamespace),
+		client.MatchingLabels{"app.kubernetes.io/managed-by": "mendabot-watcher"},
+	); err != nil {
+		return nil, err
+	}
+	peers := make([]*v1alpha1.RemediationJob, 0, len(list.Items))
+	for i := range list.Items {
+		p := &list.Items[i]
+		if p.UID == candidate.UID {
+			continue
+		}
+		if p.Status.Phase != v1alpha1.PhasePending {
+			continue
+		}
+		peers = append(peers, p)
+	}
+	return peers, nil
+}
+
+// suppressCorrelatedPeers calls transitionSuppressed on every peer whose UID
+// appears in group.CorrelatedUIDs. It is called by the primary job's reconcile
+// to suppress all non-primary members of the group before the primary dispatches,
+// ensuring they cannot dispatch independently.
+func (r *RemediationJobReconciler) suppressCorrelatedPeers(
+	ctx context.Context,
+	peers []*v1alpha1.RemediationJob,
+	group correlator.CorrelationGroup,
+) error {
+	correlated := make(map[types.UID]struct{}, len(group.CorrelatedUIDs))
+	for _, uid := range group.CorrelatedUIDs {
+		correlated[uid] = struct{}{}
+	}
+	for _, peer := range peers {
+		if _, ok := correlated[peer.UID]; !ok {
+			continue
+		}
+		if err := r.transitionSuppressed(ctx, peer, group.GroupID, group.PrimaryUID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // dispatch builds and creates the batch/v1 Job, then patches the RemediationJob
-// status to Dispatched.
+// status to Dispatched. correlatedFindings is non-nil when this is a correlated
+// primary job; nil means single-finding dispatch.
 func (r *RemediationJobReconciler) dispatch(
 	ctx context.Context,
 	rjob *v1alpha1.RemediationJob,
+	correlatedFindings []v1alpha1.FindingSpec,
 ) error {
 	if domain.DetectInjection(rjob.Spec.Finding.Errors) || domain.DetectInjection(rjob.Spec.Finding.Details) {
 		if r.Log != nil {
@@ -368,7 +582,7 @@ func (r *RemediationJobReconciler) dispatch(
 		}
 	}
 
-	job, err := r.JobBuilder.Build(rjob, nil)
+	job, err := r.JobBuilder.Build(rjob, correlatedFindings)
 	if err != nil {
 		return fmt.Errorf("building Job: %w", err)
 	}
@@ -425,6 +639,81 @@ func (r *RemediationJobReconciler) dispatch(
 			"Created agent Job %s", job.Name)
 	}
 	return nil
+}
+
+// transitionSuppressed patches the RemediationJob to PhaseSuppressed, sets
+// CorrelationGroupID, appends the ConditionCorrelationSuppressed condition,
+// and labels the object with its correlation group role.
+// It is idempotent: if the job is already Suppressed it returns nil without
+// re-patching (avoids spurious LastTransitionTime churn on re-reconcile).
+// It also guards against stale-read races: if the job transitioned out of Pending
+// between pendingPeers() and this call (e.g. it was dispatched by another goroutine),
+// it is skipped — only Pending jobs should be suppressed.
+func (r *RemediationJobReconciler) transitionSuppressed(
+	ctx context.Context,
+	rjob *v1alpha1.RemediationJob,
+	groupID string,
+	primaryUID types.UID,
+) error {
+	// Idempotency guard: skip if already suppressed — avoids spurious condition churn.
+	if rjob.Status.Phase == v1alpha1.PhaseSuppressed {
+		return nil
+	}
+	// Phase guard: only suppress Pending jobs. If the job transitioned out of Pending
+	// between pendingPeers() listing it and this suppression call (stale-read race),
+	// do not touch it — patching a non-Pending job would corrupt its terminal state.
+	if rjob.Status.Phase != v1alpha1.PhasePending {
+		return nil
+	}
+	rjobCopy := rjob.DeepCopyObject().(*v1alpha1.RemediationJob)
+	rjob.Status.Phase = v1alpha1.PhaseSuppressed
+	rjob.Status.CorrelationGroupID = groupID
+	apimeta.SetStatusCondition(&rjob.Status.Conditions, metav1.Condition{
+		Type:               v1alpha1.ConditionCorrelationSuppressed,
+		Status:             metav1.ConditionTrue,
+		Reason:             "CorrelatedGroupFound",
+		Message:            fmt.Sprintf("suppressed: primary job UID %s handles investigation", string(primaryUID)),
+		LastTransitionTime: metav1.Now(),
+	})
+	if err := r.Status().Patch(ctx, rjob, client.MergeFrom(rjobCopy)); err != nil {
+		return err
+	}
+
+	rjobCopy2 := rjob.DeepCopyObject().(*v1alpha1.RemediationJob)
+	if rjob.Labels == nil {
+		rjob.Labels = make(map[string]string)
+	}
+	rjob.Labels[domain.CorrelationGroupIDLabel] = groupID
+	rjob.Labels[domain.CorrelationGroupRoleLabel] = domain.CorrelationRoleCorrelated
+	return r.Patch(ctx, rjob, client.MergeFrom(rjobCopy2))
+}
+
+// concurrencyGate checks whether the current number of active batch/v1 Jobs
+// has reached MaxConcurrentJobs. When MaxConcurrentJobs==0 the gate is always open.
+// Returns (true, result, nil) when limited; (false, {}, nil) when the gate is open;
+// (false, {}, err) on a list error.
+func (r *RemediationJobReconciler) concurrencyGate(ctx context.Context) (bool, ctrl.Result, error) {
+	if r.Cfg.MaxConcurrentJobs == 0 {
+		return false, ctrl.Result{}, nil
+	}
+	var jobs batchv1.JobList
+	if err := r.List(ctx, &jobs,
+		client.InNamespace(r.Cfg.AgentNamespace),
+		client.MatchingLabels{"app.kubernetes.io/managed-by": "mendabot-watcher"},
+	); err != nil {
+		return false, ctrl.Result{}, err
+	}
+	activeCount := 0
+	for i := range jobs.Items {
+		j := &jobs.Items[i]
+		if j.Status.Active > 0 || (j.Status.Succeeded == 0 && j.Status.CompletionTime == nil) {
+			activeCount++
+		}
+	}
+	if activeCount >= r.Cfg.MaxConcurrentJobs {
+		return true, ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+	return false, ctrl.Result{}, nil
 }
 
 // SetupWithManager registers the reconciler with the controller manager.

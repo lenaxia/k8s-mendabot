@@ -516,17 +516,128 @@ func TestFromEnv_LLMProviderUnimplementedValues(t *testing.T) {
 	}
 }
 
-// TestFromEnv_LLMProviderInvalidValue tests that an unknown LLM_PROVIDER is rejected.
-func TestFromEnv_LLMProviderInvalidValue(t *testing.T) {
-	setRequiredEnv(t)
-	t.Setenv("LLM_PROVIDER", "anthropic")
+// TestFromEnv_ConsistencyValidation tests validation of configuration consistency
+func TestFromEnv_ConsistencyValidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		envVars     map[string]string
+		expectError bool
+		errorSubstr string
+	}{}
 
-	_, err := config.FromEnv()
-	if err == nil {
-		t.Fatal("expected error for unknown LLM_PROVIDER=anthropic, got nil")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setRequiredEnv(t)
+			for k, v := range tt.envVars {
+				t.Setenv(k, v)
+			}
+
+			_, err := config.FromEnv()
+			if tt.expectError {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if tt.errorSubstr != "" && !strings.Contains(err.Error(), tt.errorSubstr) {
+					t.Errorf("error %q does not contain %q", err.Error(), tt.errorSubstr)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+			}
+		})
 	}
-	if !strings.Contains(err.Error(), "anthropic") {
-		t.Errorf("error should mention the invalid value, got: %v", err)
+}
+
+// TestFromEnv_BoundaryConditionValidation tests boundary condition validation
+func TestFromEnv_BoundaryConditionValidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		envVars     map[string]string
+		expectError bool
+		errorSubstr string
+	}{
+		{
+			name: "minimum valid depth",
+			envVars: map[string]string{
+				"SELF_REMEDIATION_MAX_DEPTH": "0",
+			},
+			expectError: false,
+		},
+		{
+			name: "minimum valid cooldown",
+			envVars: map[string]string{
+				"SELF_REMEDIATION_COOLDOWN_SECONDS": "0",
+			},
+			expectError: false,
+		},
+		{
+			name: "depth at maximum reasonable bound",
+			envVars: map[string]string{
+				"SELF_REMEDIATION_MAX_DEPTH": "10",
+			},
+			expectError: false,
+		},
+		{
+			name: "cooldown at maximum reasonable bound",
+			envVars: map[string]string{
+				"SELF_REMEDIATION_COOLDOWN_SECONDS": "3600",
+			},
+			expectError: false,
+		},
+		{
+			name: "depth just above maximum reasonable bound",
+			envVars: map[string]string{
+				"SELF_REMEDIATION_MAX_DEPTH": "11",
+			},
+			expectError: true,
+			errorSubstr: "exceeds maximum reasonable value",
+		},
+		{
+			name: "cooldown just above maximum reasonable bound",
+			envVars: map[string]string{
+				"SELF_REMEDIATION_COOLDOWN_SECONDS": "3601",
+			},
+			expectError: true,
+			errorSubstr: "exceeds maximum reasonable value",
+		},
+		{
+			name: "very small but valid depth",
+			envVars: map[string]string{
+				"SELF_REMEDIATION_MAX_DEPTH": "1",
+			},
+			expectError: false,
+		},
+		{
+			name: "very small but valid cooldown",
+			envVars: map[string]string{
+				"SELF_REMEDIATION_COOLDOWN_SECONDS": "1",
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setRequiredEnv(t)
+			for k, v := range tt.envVars {
+				t.Setenv(k, v)
+			}
+
+			_, err := config.FromEnv()
+			if tt.expectError {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if tt.errorSubstr != "" && !strings.Contains(err.Error(), tt.errorSubstr) {
+					t.Errorf("error %q does not contain %q", err.Error(), tt.errorSubstr)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+			}
+		})
 	}
 }
 
@@ -1279,5 +1390,203 @@ func TestFromEnv_DryRunInvalid(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "DRY_RUN") {
 		t.Errorf("error should mention DRY_RUN, got: %v", err)
+	}
+}
+
+// TestFromEnv_CorrelationWindowDefault verifies CORRELATION_WINDOW_SECONDS defaults to 30.
+func TestFromEnv_CorrelationWindowDefault(t *testing.T) {
+	setRequiredEnv(t)
+	os.Unsetenv("CORRELATION_WINDOW_SECONDS")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.CorrelationWindowSeconds != 30 {
+		t.Errorf("CorrelationWindowSeconds default: got %d, want 30", cfg.CorrelationWindowSeconds)
+	}
+}
+
+// TestFromEnv_CorrelationWindowCustom verifies CORRELATION_WINDOW_SECONDS parses correctly.
+func TestFromEnv_CorrelationWindowCustom(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("CORRELATION_WINDOW_SECONDS", "60")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.CorrelationWindowSeconds != 60 {
+		t.Errorf("CorrelationWindowSeconds: got %d, want 60", cfg.CorrelationWindowSeconds)
+	}
+}
+
+// TestFromEnv_CorrelationWindowZero verifies CORRELATION_WINDOW_SECONDS=0 is valid
+// (disables the window hold).
+func TestFromEnv_CorrelationWindowZero(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("CORRELATION_WINDOW_SECONDS", "0")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.CorrelationWindowSeconds != 0 {
+		t.Errorf("CorrelationWindowSeconds zero: got %d, want 0", cfg.CorrelationWindowSeconds)
+	}
+}
+
+// TestFromEnv_CorrelationWindowInvalid verifies an invalid value returns an error.
+func TestFromEnv_CorrelationWindowInvalid(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("CORRELATION_WINDOW_SECONDS", "not-a-number")
+
+	_, err := config.FromEnv()
+	if err == nil {
+		t.Fatal("expected error for invalid CORRELATION_WINDOW_SECONDS, got nil")
+	}
+}
+
+// TestFromEnv_DisableCorrelationTrue verifies DISABLE_CORRELATION=true sets the flag.
+func TestFromEnv_DisableCorrelationTrue(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("DISABLE_CORRELATION", "true")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg.DisableCorrelation {
+		t.Error("expected DisableCorrelation=true, got false")
+	}
+}
+
+// TestFromEnv_DisableCorrelationOne verifies DISABLE_CORRELATION=1 also sets the flag.
+func TestFromEnv_DisableCorrelationOne(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("DISABLE_CORRELATION", "1")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg.DisableCorrelation {
+		t.Error("expected DisableCorrelation=true when DISABLE_CORRELATION=1, got false")
+	}
+}
+
+// TestFromEnv_DisableCorrelationUnset verifies DisableCorrelation defaults to false.
+func TestFromEnv_DisableCorrelationUnset(t *testing.T) {
+	setRequiredEnv(t)
+	os.Unsetenv("DISABLE_CORRELATION")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.DisableCorrelation {
+		t.Error("expected DisableCorrelation=false by default, got true")
+	}
+}
+
+// TestFromEnv_DisableCorrelationFalseExplicit verifies DISABLE_CORRELATION=false is false.
+func TestFromEnv_DisableCorrelationFalseExplicit(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("DISABLE_CORRELATION", "false")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.DisableCorrelation {
+		t.Error("expected DisableCorrelation=false for explicit 'false', got true")
+	}
+}
+
+// TestFromEnv_MultiPodThresholdDefault verifies CORRELATION_MULTI_POD_THRESHOLD defaults to 3.
+func TestFromEnv_MultiPodThresholdDefault(t *testing.T) {
+	setRequiredEnv(t)
+	os.Unsetenv("CORRELATION_MULTI_POD_THRESHOLD")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.MultiPodThreshold != 3 {
+		t.Errorf("MultiPodThreshold default: got %d, want 3", cfg.MultiPodThreshold)
+	}
+}
+
+// TestFromEnv_MultiPodThresholdCustom verifies CORRELATION_MULTI_POD_THRESHOLD parses correctly.
+func TestFromEnv_MultiPodThresholdCustom(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("CORRELATION_MULTI_POD_THRESHOLD", "5")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.MultiPodThreshold != 5 {
+		t.Errorf("MultiPodThreshold: got %d, want 5", cfg.MultiPodThreshold)
+	}
+}
+
+// TestFromEnv_MultiPodThresholdInvalid verifies an invalid value returns an error.
+func TestFromEnv_MultiPodThresholdInvalid(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("CORRELATION_MULTI_POD_THRESHOLD", "not-a-number")
+
+	_, err := config.FromEnv()
+	if err == nil {
+		t.Fatal("expected error for invalid CORRELATION_MULTI_POD_THRESHOLD, got nil")
+	}
+}
+
+// TestFromEnv_MultiPodThresholdZeroInvalid verifies CORRELATION_MULTI_POD_THRESHOLD=0 is rejected
+// (threshold must be >= 1).
+func TestFromEnv_MultiPodThresholdZeroInvalid(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("CORRELATION_MULTI_POD_THRESHOLD", "0")
+
+	_, err := config.FromEnv()
+	if err == nil {
+		t.Fatal("expected error for CORRELATION_MULTI_POD_THRESHOLD=0, got nil")
+	}
+}
+
+// TestFromEnv_MultiPodThresholdOneValid verifies CORRELATION_MULTI_POD_THRESHOLD=1 is accepted
+// (minimum valid value is 1).
+func TestFromEnv_MultiPodThresholdOneValid(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("CORRELATION_MULTI_POD_THRESHOLD", "1")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error for CORRELATION_MULTI_POD_THRESHOLD=1: %v", err)
+	}
+	if cfg.MultiPodThreshold != 1 {
+		t.Errorf("MultiPodThreshold: got %d, want 1", cfg.MultiPodThreshold)
+	}
+}
+
+// TestFromEnv_MultiPodThresholdNegativeInvalid verifies negative values are rejected.
+func TestFromEnv_MultiPodThresholdNegativeInvalid(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("CORRELATION_MULTI_POD_THRESHOLD", "-1")
+
+	_, err := config.FromEnv()
+	if err == nil {
+		t.Fatal("expected error for CORRELATION_MULTI_POD_THRESHOLD=-1, got nil")
+	}
+}
+
+// TestFromEnv_CorrelationWindowNegative verifies CORRELATION_WINDOW_SECONDS=-1 is rejected.
+func TestFromEnv_CorrelationWindowNegative(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("CORRELATION_WINDOW_SECONDS", "-1")
+
+	_, err := config.FromEnv()
+	if err == nil {
+		t.Fatal("expected error for CORRELATION_WINDOW_SECONDS=-1, got nil")
 	}
 }

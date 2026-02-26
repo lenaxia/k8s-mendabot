@@ -20,7 +20,11 @@ import (
 )
 
 var (
-	cfg        *rest.Config
+	cfg *rest.Config
+	// k8sClient is created with the v1alpha1-only scheme and is used exclusively
+	// by TestSuite_StartsAndStops to verify the envtest environment starts correctly.
+	// All correlation integration tests use newIntegrationClient() instead, which
+	// builds a client with the full scheme (v1alpha1 + batchv1 + corev1).
 	k8sClient  client.Client
 	testEnv    *envtest.Environment
 	suiteReady bool

@@ -254,6 +254,11 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              correlationGroupID:
+                description: |-
+                  CorrelationGroupID is set when this job is part of a correlated group.
+                  The primary sets it on itself and on all suppressed peers.
+                type: string
               dispatchedAt:
                 description: DispatchedAt is the time the batch/v1 Job was created.
                 format: date-time
@@ -278,6 +283,7 @@ spec:
                 - Failed
                 - Cancelled
                 - PermanentlyFailed
+                - Suppressed
                 type: string
               prRef:
                 description: |-

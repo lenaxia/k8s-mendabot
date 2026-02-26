@@ -73,6 +73,10 @@ const (
 	// The RemediationJob will never be re-dispatched. The SourceProviderReconciler
 	// treats this phase as a terminal tombstone and does not delete-and-recreate.
 	PhasePermanentlyFailed RemediationJobPhase = "PermanentlyFailed"
+
+	// PhaseSuppressed means the RemediationJob was grouped with a correlated finding
+	// and will not be dispatched independently. A separate primary job covers the group.
+	PhaseSuppressed RemediationJobPhase = "Suppressed"
 )
 
 // Standard condition type constants.
@@ -89,6 +93,10 @@ const (
 	// ConditionPermanentlyFailed is True when RetryCount >= MaxRetries and the
 	// RemediationJob has entered the PermanentlyFailed phase.
 	ConditionPermanentlyFailed = "PermanentlyFailed"
+
+	// ConditionCorrelationSuppressed is True when this job was suppressed because a
+	// correlated primary job handles the investigation for this finding group.
+	ConditionCorrelationSuppressed = "CorrelationSuppressed"
 )
 
 // RemediationJobSpec defines the desired state of a RemediationJob.
@@ -184,7 +192,7 @@ type FindingSpec struct {
 // RemediationJobStatus defines the observed state of a RemediationJob.
 type RemediationJobStatus struct {
 	// Phase is the current lifecycle phase of this RemediationJob.
-	// +kubebuilder:validation:Enum=Pending;Dispatched;Running;Succeeded;Failed;Cancelled;PermanentlyFailed
+	// +kubebuilder:validation:Enum=Pending;Dispatched;Running;Succeeded;Failed;Cancelled;PermanentlyFailed;Suppressed
 	Phase RemediationJobPhase `json:"phase,omitempty"`
 
 	// JobRef is the name of the batch/v1 Job created for this remediation.
@@ -215,6 +223,18 @@ type RemediationJobStatus struct {
 	// +listType=map
 	// +listMapKey=type
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	// CorrelationGroupID is set when this job is part of a correlated group.
+	// Empty when not correlated.
+	//
+	// Design note: STORY_00 also specified RelatedFindings, CorrelationRole, and
+	// CorrelationRule as spec/status fields. The implementation intentionally stores
+	// these as labels (mendabot.io/correlation-group-id, mendabot.io/correlation-role)
+	// and passes correlated findings as a runtime slice to dispatch() rather than
+	// persisting them. The labels are searchable via kubectl and the recovery path
+	// (controller.go) reconstructs AllFindings from suppressed peers on restart.
+	// CorrelationGroupID here is the only status field needed for recovery.
+	CorrelationGroupID string `json:"correlationGroupID,omitempty"`
 }
 
 // RemediationJob represents one investigation and remediation attempt for a
@@ -227,6 +247,7 @@ type RemediationJobStatus struct {
 // +kubebuilder:printcolumn:name="Parent",type=string,JSONPath=`.spec.finding.parentObject`
 // +kubebuilder:printcolumn:name="Job",type=string,JSONPath=`.status.jobRef`
 // +kubebuilder:printcolumn:name="PR",type=string,JSONPath=`.status.prRef`
+// +kubebuilder:printcolumn:name="GroupID",type=string,JSONPath=`.status.correlationGroupID`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 type RemediationJob struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -263,6 +284,7 @@ func (in *RemediationJob) DeepCopyInto(out *RemediationJob) {
 		copy(conditions, in.Status.Conditions)
 		out.Status.Conditions = conditions
 	}
+	out.Status.CorrelationGroupID = in.Status.CorrelationGroupID
 }
 
 // DeepCopyObject implements runtime.Object.

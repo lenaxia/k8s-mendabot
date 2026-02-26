@@ -54,6 +54,14 @@ watcher:
   # -- Enable dry-run shadow mode. When true, write operations are blocked and
   # investigation reports are stored in RemediationJob.status.message.
   dryRun: false
+  # -- Seconds to hold Pending jobs before dispatching (correlation window). Set to 0 to
+  #    dispatch immediately without correlation. Default is 30.
+  correlationWindowSeconds: 30
+  # -- Disable all correlation logic and dispatch immediately. Default is false.
+  disableCorrelation: false
+  # -- Minimum number of pods failing on the same node to trigger MultiPodSameNodeRule.
+  #    Default is 3.
+  multiPodThreshold: 3
 
 # -- Agent runner type. Controls which AI agent binary runs inside the Job. Supported values: `"opencode"` (functional), `"claude"` (stub — not yet functional). Each type requires a corresponding Secret named `llm-credentials-<agentType>`. See `NOTES.txt` for the exact `kubectl create secret` commands.
 agentType: opencode

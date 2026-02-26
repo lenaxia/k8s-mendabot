@@ -187,7 +187,6 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 		}
 		mainContainer.Env = append(mainContainer.Env, corev1.EnvVar{Name: "FINDING_CORRELATED_FINDINGS", Value: string(raw)})
 	}
-
 	if b.cfg.DryRun {
 		mainContainer.Env = append(mainContainer.Env, corev1.EnvVar{
 			Name:  "DRY_RUN",
@@ -201,6 +200,9 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 			MountPath: "/mendabot-cfg",
 			ReadOnly:  true,
 		})
+	}
+	if groupID, ok := rjob.Labels[domain.CorrelationGroupIDLabel]; ok && groupID != "" {
+		mainContainer.Env = append(mainContainer.Env, corev1.EnvVar{Name: "FINDING_CORRELATION_GROUP_ID", Value: groupID})
 	}
 
 	volumes := []corev1.Volume{

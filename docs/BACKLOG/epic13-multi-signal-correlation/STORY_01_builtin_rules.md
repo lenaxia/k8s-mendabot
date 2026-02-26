@@ -31,23 +31,26 @@ stateless — all state lives in the `RemediationJob` objects passed in.
 
 ## Acceptance Criteria
 
-- [ ] `internal/correlator/rules.go` exists with all three rules implementing `domain.CorrelationRule`
-- [ ] `SameNamespaceParentRule.Evaluate` returns `Matched=true` when two `RemediationJob`
+- [x] `internal/correlator/rules.go` exists with all three rules implementing `domain.CorrelationRule`
+- [x] `SameNamespaceParentRule.Evaluate` returns `Matched=true` when two `RemediationJob`
       objects share a namespace and one's `parentObject` is a prefix of the other's
-- [ ] `PVCPodRule.Evaluate` returns `Matched=true` when a PVC finding and a pod finding
+- [x] `PVCPodRule.Evaluate` returns `Matched=true` when a PVC finding and a pod finding
       share a namespace and the pod's volumes reference the PVC (requires one `client.Get`).
       The rule must handle both orientations: candidate=Pod (PVC in peers) and
       candidate=PVC (Pod in peers). The PVC is always the primary.
-- [ ] `MultiPodSameNodeRule.Evaluate` returns `Matched=true` when `>= threshold` pod
-      findings ran on the same node
-- [ ] `internal/correlator/rules_test.go` covers:
+- [x] `MultiPodSameNodeRule.Evaluate` returns `Matched=true` when `>= threshold` pod
+      findings ran on the same node, and sets `PrimaryUID` to the UID of the oldest pod
+      `RemediationJob` by `CreationTimestamp` (lexicographic `Name` as tiebreaker)
+- [x] `internal/correlator/rules_test.go` covers:
   - Happy path for each rule
   - No-match cases (different namespace, different parent prefix, pod count below threshold)
   - `PVCPodRule` with no matching volume reference
   - `PVCPodRule` with candidate=Pod and PVC in peers (forward orientation)
   - `PVCPodRule` with candidate=PVC and Pod in peers (reverse orientation) — both must match
   - `MultiPodSameNodeRule` at exactly threshold - 1 (no match) and threshold (match)
-- [ ] `go test -timeout 30s -race ./internal/correlator/...` passes
+  - `MultiPodSameNodeRule` primary is the oldest job by `CreationTimestamp`; confirm
+    `PrimaryUID` is set to that job's UID, not an empty/zero value
+- [x] `go test -timeout 30s -race ./internal/correlator/...` passes
 
 ---
 
@@ -117,8 +120,9 @@ the same application surfaces findings from two different providers (e.g. a `Sta
 finding from one provider and a `PVC` finding from another, both with the same
 `ParentObject`). Note: in single-provider deployments, same-provider findings for the same
 parent are fingerprint-deduplicated before correlation runs — this rule fires primarily in
-multi-provider deployments. Write tests that reflect this — do not write tests using Pod + Deployment
-from the same native provider, as those will be deduplicated before reaching the correlator.
+multi-provider deployments. Write tests that reflect this — do not write tests using Pod +
+Deployment from the same native provider, as those will be deduplicated before reaching
+the correlator.
 
 ### `PVCPodRule`
 
@@ -170,6 +174,14 @@ Logic:
 1. Collect all pod findings (Kind == "Pod") across candidate + peers
 2. Group by the `nodeName` annotation (`mendabot.io/node-name`) set on the `RemediationJob`
 3. If any node has >= threshold pod findings: `Matched=true`
+4. **Primary selection:** The `RemediationJob` with the oldest `CreationTimestamp` among
+   the grouped pod jobs becomes the primary. On a tie, use lexicographic order of `Name`
+   as a stable tiebreaker. Set `CorrelationResult.PrimaryUID` to that job's UID.
+
+There is no synthetic node finding. The primary is a real, existing pod `RemediationJob`.
+The investigation agent receives all pod findings as correlated context and the shared node
+name via the `mendabot.io/node-name` annotation, giving it sufficient information to
+diagnose a node-level root cause.
 
 **Known limitation — pending/unschedulable pods:** `spec.nodeName` is only populated for
 pods that have been *scheduled* to a node. Pods in `Pending/Unschedulable` state (e.g.
@@ -179,8 +191,9 @@ waiting for PVC, waiting for resources) have an empty `spec.nodeName`. The
 This limitation should be documented in the rule's `Name()` docstring and acknowledged
 in tests.
 
-**Note on nodeName:** `PodProvider.ExtractFinding` must be updated (in this story) to
-populate `Finding.NodeName` from `pod.Spec.NodeName`. The `SourceProviderReconciler`
+**Note on nodeName:** `PodProvider.ExtractFinding` must be updated (as part of this story)
+to populate `Finding.NodeName` from `pod.Spec.NodeName` (requires adding `NodeName string`
+to `domain.Finding` in `internal/domain/provider.go`). The `SourceProviderReconciler`
 writes this into `RemediationJob` annotations as `mendabot.io/node-name` only when the
 value is non-empty. Pods in `Pending` state will have no annotation and will be excluded
 from this rule's grouping.
@@ -189,25 +202,30 @@ from this rule's grouping.
 
 ## Tasks
 
-- [ ] Write `internal/correlator/rules_test.go` with table-driven tests for all three rules (TDD).
+- [x] Write `internal/correlator/rules_test.go` with table-driven tests for all three rules (TDD).
       **Note on `SameNamespaceParentRule` test cases:** use two `RemediationJob` objects from
       *different providers* (e.g. a `StatefulSet` finding and a `PVC` finding with the same
       `ParentObject`). Do not use Pod + Deployment from the same native provider — those would
       share a fingerprint and be deduplicated before reaching the correlator.
-- [ ] Add `NodeName string` to `domain.Finding` in `internal/domain/provider.go`
-- [ ] Update `PodProvider.ExtractFinding` in `internal/provider/native/pod.go` to populate
-      `NodeName` from `pod.Spec.NodeName` (empty for unscheduled/pending pods — that is correct)
-- [ ] Update `SourceProviderReconciler` to write the `mendabot.io/node-name` annotation on the
-      `RemediationJob` when `finding.NodeName != ""`. The exact location is
-      `internal/provider/provider.go` in the `RemediationJob` construction block (around line 266),
-      in the `Annotations` map. Add:
+- [x] Add `NodeName string` to `domain.Finding` in `internal/domain/provider.go`
+      (after the `ChainDepth` field at line 120)
+- [x] Update `PodProvider.ExtractFinding` in `internal/provider/native/pod.go` to populate
+      `NodeName` from `pod.Spec.NodeName` in the returned `domain.Finding` (empty for
+      unscheduled/pending pods — that is correct). Add `NodeName: pod.Spec.NodeName` to the
+      `domain.Finding{}` literal at line 122.
+- [x] Update `SourceProviderReconciler` to write the `mendabot.io/node-name` annotation on
+      the `RemediationJob` when `finding.NodeName != ""`. The exact location is the
+      `Annotations` map in the `RemediationJob` construction block at line 436 of
+      `internal/provider/provider.go`. Add:
       ```go
       if finding.NodeName != "" {
-          annotations["mendabot.io/node-name"] = finding.NodeName
+          rjob.ObjectMeta.Annotations["mendabot.io/node-name"] = finding.NodeName
       }
       ```
-- [ ] Implement `internal/correlator/rules.go` with all three rules
-- [ ] Run `go test -timeout 30s -race ./...` — must pass
+      This must be done after the `RemediationJob` struct literal is constructed (line 428)
+      and before the `r.Create(ctx, rjob)` call (line 466).
+- [x] Implement `internal/correlator/rules.go` with all three rules
+- [x] Run `go test -timeout 30s -race ./...` — must pass
 
 ---
 
@@ -220,6 +238,6 @@ from this rule's grouping.
 
 ## Definition of Done
 
-- [ ] All three rules compile and pass their unit tests
-- [ ] `PodProvider` populates `NodeName` and the reconciler writes the annotation
-- [ ] No existing tests broken
+- [x] All three rules compile and pass their unit tests
+- [x] `NodeName` added to `domain.Finding`; `PodProvider` populates it; reconciler writes annotation
+- [x] No existing tests broken

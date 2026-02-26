@@ -106,3 +106,9 @@ else.
 | [0072](0072_2026-02-24_epic23-story01-audit-log-gaps.md) | 2026-02-24 | Epic 23 story01 audit log gaps | Complete |
 | [0073](0073_2026-02-24_epic23-validation-gap-fixes.md) | 2026-02-24 | Epic 23 validation gap fixes | Complete |
 | [0074](0074_2026-02-24_epic16-story04-namespace-annotation-gate.md) | 2026-02-24 | Epic 16 story04 namespace annotation gate | Complete |
+| [0075](0051_2026-02-25_epic13-story00-validation.md) | 2026-02-25 | Epic 13 STORY_00 delegation validation — all criteria confirmed complete | Complete |
+| [0076](0052_2026-02-25_epic13-story01-builtin-rules.md) | 2026-02-25 | Epic 13 STORY_01: built-in rules validation + tiebreaker fix | Complete |
+| [0077](0053_2026-02-25_epic13-story02-gap-fixes.md) | 2026-02-25 | Epic 13 STORY_02: gap fixes — CorrelatedUIDs, config tests, Helm chart wiring | Complete |
+| [0078](0054_2026-02-25_epic13-non-primary-requeue-fix.md) | 2026-02-25 | Epic 13 critical bug fix: non-primary requeue instead of self-suppress | Complete |
+| [0079](0055_2026-02-25_epic13-allfindings-ordering-gaps.md) | 2026-02-25 | Epic 13 gap fixes: AllFindings excludes primary, owned-jobs sync before correlation block, test inversion | Complete |
+| [0080](0056_2026-02-25_epic13-story03-validation.md) | 2026-02-25 | Epic 13 STORY_03 validation — confirmed complete, corrected stale story file checkboxes | Complete |

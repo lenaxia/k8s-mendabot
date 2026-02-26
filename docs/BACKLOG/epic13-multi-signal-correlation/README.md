@@ -12,13 +12,15 @@ newly-created `RemediationJob` objects are checked for correlation before dispat
 findings are grouped, labelled with a shared `CorrelationGroupID`, and handed to a single
 agent Job that investigates the full group context.
 
-## Status: Deferred — moved to `feature/epic11-13-deferred`
+## Status: Not Started
 
 ## Dependencies
 
 - epic01-controller complete (`SourceProviderReconciler` in `internal/provider/provider.go`,
   `RemediationJobReconciler` in `internal/controller/remediationjob_controller.go`)
-- epic02-jobbuilder complete (`internal/jobbuilder/job.go` — env var injection)
+- epic02-jobbuilder complete (`internal/jobbuilder/job.go` — STORY_03 partially applied:
+  `Build()` already accepts two args and injects `FINDING_CORRELATED_FINDINGS`; the
+  `FINDING_CORRELATION_GROUP_ID` injection and all other story work remains)
 - epic09-native-provider complete (all providers in `internal/provider/native/` — the
   sources whose findings need correlation)
 - epic11-self-remediation-cascade complete (cascade suppression logic must not conflict
@@ -31,33 +33,40 @@ agent Job that investigates the full group context.
 
 ## Success Criteria
 
-- [x] `domain.CorrelationRule` interface exists in `internal/domain/correlation.go`
-- [x] Three built-in rules implemented: `SameNamespaceParentRule`, `PVCPodRule`,
+- [ ] `domain.CorrelationRule` interface exists in `internal/domain/correlation.go`
+- [ ] Three built-in rules implemented: `SameNamespaceParentRule`, `PVCPodRule`,
       `MultiPodSameNodeRule`
-- [x] `RemediationJobReconciler` holds `RemediationJob` objects in `Pending` phase for
+- [ ] `RemediationJobReconciler` holds `RemediationJob` objects in `Pending` phase for
       `CORRELATION_WINDOW_SECONDS` (default: 30) before dispatching
-- [x] `Correlator` struct exists in `internal/correlator/correlator.go` with method
+- [ ] `Correlator` struct exists in `internal/correlator/correlator.go` with method
       `Evaluate(ctx, candidate, peers, client) (CorrelationGroup, bool, error)`
       (returns the group, a found bool, and an error — idiomatic Go "found" pattern)
-- [x] After the window, the correlator runs all rules; when a match is found, matching
-      objects receive a `mendabot.io/correlation-group-id` label and all but the primary
-      are transitioned to `Suppressed` phase
-- [x] `JobBuilder.Build()` accepts a `[]v1alpha1.FindingSpec` slice and injects
+- [ ] After the window, when the candidate is the **primary**: it suppresses all correlated
+      peers in the same reconcile call, then dispatches with the full group context
+- [ ] After the window, when the candidate is **not** the primary: it requeues after 5s
+      (never self-suppresses); the primary's reconcile will suppress it
+- [ ] All jobs in a correlation group receive `mendabot.io/correlation-group-id` and
+      `mendabot.io/correlation-role` labels
+- [ ] Non-primary jobs are transitioned to `Suppressed` phase by the primary's reconcile call
+- [ ] `JobBuilder.Build()` accepts a `[]v1alpha1.FindingSpec` slice and injects
       `FINDING_CORRELATED_FINDINGS` as a JSON-encoded env var when the slice has > 1 entry
-- [x] `go test -timeout 30s -race ./...` passes with correlation tests
-- [x] `DISABLE_CORRELATION=true` env var disables the window and all correlation rules,
+      (already implemented — see STORY_03 partial state)
+- [ ] `JobBuilder.Build()` injects `FINDING_CORRELATION_GROUP_ID` when the primary
+      `RemediationJob` carries a `mendabot.io/correlation-group-id` label at dispatch time
+- [ ] `go test -timeout 30s -race ./...` passes with correlation tests
+- [ ] `DISABLE_CORRELATION=true` env var disables the window and all correlation rules,
       reverting to current dispatch-immediately behaviour
 
 ## Stories
 
 | Story | File | Status | Priority | Effort |
 |-------|------|--------|----------|--------|
-| Correlation domain types and rule interface | [STORY_00_domain_types.md](STORY_00_domain_types.md) | Complete | High | 2h |
-| Built-in correlation rules | [STORY_01_builtin_rules.md](STORY_01_builtin_rules.md) | Complete | High | 3h |
-| CorrelationWindow in RemediationJobReconciler | [STORY_02_correlation_window.md](STORY_02_correlation_window.md) | Complete | Critical | 4h |
-| JobBuilder multi-finding support | [STORY_03_jobbuilder_multi_finding.md](STORY_03_jobbuilder_multi_finding.md) | Complete | High | 2h |
-| Prompt template update for correlated context | [STORY_04_prompt_update.md](STORY_04_prompt_update.md) | Complete | Medium | 1h |
-| Integration tests and DISABLE_CORRELATION escape hatch | [STORY_05_integration_escape_hatch.md](STORY_05_integration_escape_hatch.md) | Complete | High | 3h |
+| Correlation domain types and rule interface | [STORY_00_domain_types.md](STORY_00_domain_types.md) | Not Started | High | 2h |
+| Built-in correlation rules | [STORY_01_builtin_rules.md](STORY_01_builtin_rules.md) | Not Started | High | 3h |
+| CorrelationWindow in RemediationJobReconciler | [STORY_02_correlation_window.md](STORY_02_correlation_window.md) | Not Started | Critical | 4h |
+| JobBuilder multi-finding support | [STORY_03_jobbuilder_multi_finding.md](STORY_03_jobbuilder_multi_finding.md) | Partial | High | 1h |
+| Prompt template update for correlated context | [STORY_04_prompt_update.md](STORY_04_prompt_update.md) | Not Started | Medium | 1h |
+| Integration tests and DISABLE_CORRELATION escape hatch | [STORY_05_integration_escape_hatch.md](STORY_05_integration_escape_hatch.md) | Not Started | High | 3h |
 
 ## Correlation Rules
 
@@ -68,8 +77,15 @@ Three rules are implemented in priority order. The first matching rule wins.
 **Trigger:** Two findings share the same namespace and one's `ParentObject` is a prefix
 of or equal to the other's `ParentObject`.
 
-**Rationale:** A Deployment named `my-app` and a Pod named `my-app-7d9f-xyz` are the
-same application. Findings from both should be correlated.
+**Rationale:** A `StatefulSet` named `my-app` (from the native provider) and a `PVC`
+named `my-app-data` (from the PVC provider) both have `ParentObject=my-app`. Findings
+from both should be grouped into a single investigation.
+
+**Note on deduplication:** Within a single provider, a Deployment finding and its owned
+Pod finding share the same `ParentObject` value and therefore the same fingerprint — they
+are deduplicated by `SourceProviderReconciler` before two `RemediationJob` objects are
+ever created. This rule is most effective for cross-provider scenarios where the same
+application surfaces findings from two different resource types.
 
 **Primary selection:** The finding whose `Kind` is higher in the ownership hierarchy
 (Deployment > StatefulSet > Pod) is the primary. If equal, the older `RemediationJob`
@@ -102,9 +118,11 @@ root cause, not the individual pods. This ties into the FT-A4 cascade check, but
 as a correlation rule rather than a suppression rule — the investigation still happens,
 but as a single agent with full group context.
 
-**Primary selection:** A synthetic finding is created with `Kind=Node`,
-`ParentObject=<node-name>`, representing the node-level root cause. The pod findings
-become the correlated context.
+**Primary selection:** The oldest pod `RemediationJob` by `CreationTimestamp` in the
+group becomes the primary. All remaining pod findings are suppressed and included in the
+primary's correlated-findings context. There is no synthetic node finding — the
+investigation agent receives all pod findings and the shared node name via the group
+context, giving it full visibility to diagnose the node-level root cause.
 
 **Threshold:** Configurable via `CORRELATION_MULTI_POD_THRESHOLD` env var (default: 3).
 The rule fires when the count of pod findings on a single node is `>= threshold`.
@@ -115,19 +133,31 @@ The rule fires when the count of pod findings on a single node is `>= threshold`
 RemediationJob created (phase: Pending)
       │
       ▼
-Wait CORRELATION_WINDOW_SECONDS (default: 30s)
-      │
-      ├── Correlator runs all rules against all Pending RJobs in namespace
+Wait CORRELATION_WINDOW_SECONDS (default: 30s) using RequeueAfter
       │
       ├── No correlation found ──> dispatch immediately (phase: Dispatched)
       │
-      └── Correlation found ─────> label all with same CorrelationGroupID
-                                   primary: phase Dispatched (with full group context)
-                                   others:  phase Suppressed (reason: correlated)
+      └── Correlation found
+             │
+             ├── Candidate IS the primary
+             │      ├── Suppress all correlated peers (same reconcile call)
+             │      ├── Label all (including self) with CorrelationGroupID
+             │      └── Dispatch with full group findings (phase: Dispatched)
+             │
+             └── Candidate is NOT the primary
+                    └── Requeue after 5s — do NOT self-suppress
+                        (primary's reconcile will suppress this job when it runs)
 ```
 
-The hold is implemented using `ctrl.Result{RequeueAfter: window}` in the reconciler,
+The hold is implemented using `ctrl.Result{RequeueAfter: remaining}` in the reconciler,
 not a goroutine sleep. This preserves the reconciler's idempotency and restart safety.
+
+**Why non-primaries must not self-suppress:** If a non-primary self-suppresses before
+the primary's window has elapsed, the primary's later `pendingPeers` call will exclude
+the now-Suppressed non-primary (filter is `Phase == Pending`). The primary dispatches
+as a solo job and the non-primary's finding is permanently lost. Instead, non-primaries
+requeue and wait for the primary to suppress them, ensuring the primary always sees all
+correlated findings as Pending peers when its window elapses.
 
 A `RemediationJob`'s `CreationTimestamp` is used as the anchor for the window start.
 On reconcile, if `time.Since(rjob.CreationTimestamp) < window`, requeue. Otherwise,
@@ -136,14 +166,17 @@ run correlation and dispatch.
 ## Suppressed Phase
 
 A new `Suppressed` phase is added to `RemediationJobStatus` alongside the existing
-`Pending`, `Dispatched`, `Succeeded`, `Failed`, and `Cancelled` phases.
+`Pending`, `Dispatched`, `Running`, `Succeeded`, `Failed`, `Cancelled`, and
+`PermanentlyFailed` phases.
 
 `Suppressed` is a terminal phase. A `Suppressed` `RemediationJob` is never dispatched.
 It holds the `CorrelationGroupID` label so the relationship to the primary investigation
 is traceable.
 
-`SourceProviderReconciler` treats `Suppressed` the same as `Succeeded` for dedup
-purposes — a finding whose `RemediationJob` is `Suppressed` is not re-triggered.
+`SourceProviderReconciler` already treats `Suppressed` correctly for dedup purposes:
+the existing `default:` case in the dedup switch at `internal/provider/provider.go:383`
+returns early for any phase that is not `Failed` or `PermanentlyFailed`, which includes
+`Suppressed`. No code change is required in the provider.
 
 ## Technical Overview
 
@@ -162,14 +195,20 @@ purposes — a finding whose `RemediationJob` is `Suppressed` is not re-triggere
 
 | File | Change |
 |------|--------|
-| `api/v1alpha1/remediationjob_types.go` | Add `Suppressed` phase constant; add `CorrelationGroupID` to status |
-| `internal/controller/remediationjob_controller.go` | Add window hold logic; call `Correlator` before dispatch |
+| `api/v1alpha1/remediationjob_types.go` | Add `Suppressed` phase constant; add `CorrelationGroupID` to status; update `DeepCopyInto`; update enum marker |
+| `internal/controller/remediationjob_controller.go` | Add `Correlator` field; add window hold logic; add `pendingPeers` helper; primary suppresses peers then dispatches; add `case PhaseSuppressed` |
 | `internal/controller/remediationjob_controller_test.go` | Tests for window, correlation, suppression |
-| `internal/jobbuilder/job.go` | Accept correlated findings; inject `FINDING_CORRELATED_FINDINGS` env var |
-| `internal/jobbuilder/job_test.go` | Tests for multi-finding env injection |
+| `internal/jobbuilder/job.go` | Inject `FINDING_CORRELATION_GROUP_ID` env var (partially done: `FINDING_CORRELATED_FINDINGS` already injected) |
+| `internal/jobbuilder/job_test.go` | Tests for `FINDING_CORRELATION_GROUP_ID` injection |
 | `internal/config/config.go` | Add `CorrelationWindowSeconds`, `DisableCorrelation`, `MultiPodThreshold` |
 | `internal/config/config_test.go` | Config parsing tests for new fields |
-| `deploy/kustomize/configmap-prompt.yaml` | Add `FINDING_CORRELATED_FINDINGS` handling instructions |
+| `internal/domain/provider.go` | Add `NodeName string` to `Finding` struct |
+| `internal/provider/native/pod.go` | Populate `NodeName` from `pod.Spec.NodeName` |
+| `internal/provider/provider.go` | Write `mendabot.io/node-name` annotation on `RemediationJob` when `finding.NodeName != ""` |
+| `charts/mendabot/files/prompts/core.txt` | Add `=== CORRELATED GROUP ===` section and HARD RULE 11 |
+| `charts/mendabot/templates/deployment-watcher.yaml` | Add three correlation env vars as Helm-controlled values |
+| `charts/mendabot/values.yaml` | Add `correlationWindowSeconds`, `disableCorrelation`, `multiPodThreshold` under `watcher:` |
+| `testdata/crds/remediationjob_crd.yaml` | Add `Suppressed` to `status.phase` enum; add `correlationGroupID` field |
 
 ### Story execution order
 
@@ -187,17 +226,29 @@ STORY_00 (domain types) ─┬──> STORY_01 (rules)   ──┐
 
 ## Definition of Done
 
-- [x] All unit tests pass: `go test -timeout 30s -race ./...`
-- [x] `go build ./...` succeeds
-- [x] `go vet ./...` clean
-- [x] `kubectl apply -k deploy/kustomize/ --dry-run=client` passes
-- [x] `DISABLE_CORRELATION=true` reverts to pre-epic dispatch behaviour (verified by test)
-- [x] Worklog entry created in `docs/WORKLOGS/`
+- [ ] All unit tests pass: `go test -timeout 30s -race ./...`
+- [ ] `go build ./...` succeeds
+- [ ] `go vet ./...` clean
+- [ ] `helm template mendabot charts/mendabot | kubectl apply --dry-run=client -f -` passes
+- [ ] `DISABLE_CORRELATION=true` reverts to pre-epic dispatch behaviour (verified by test)
+- [ ] Worklog entry created in `docs/WORKLOGS/`
+
+**Out of scope for this epic:**
+- End-to-end tests (`test/e2e/`) — these require a real cluster or `kind` and are deferred
+  to a dedicated e2e testing epic. The correlation integration tests in
+  `internal/controller/correlation_integration_test.go` use `envtest` and cover the
+  controller logic end-to-end at the API level. The remaining gap (agent consuming
+  `FINDING_CORRELATED_FINDINGS` correctly, full PR workflow) is deferred.
 
 ## New Configuration Variables
 
 ```bash
-# Correlation window duration in seconds (default: 30)
+# Correlation window duration in seconds (default: 30).
+# Set to 0 to skip the hold period — the correlator evaluates on the first reconcile
+# after phase initialisation without waiting. This is useful for testing or for
+# environments where findings arrive nearly simultaneously and no hold is needed.
+# To bypass correlation entirely (no hold, no grouping, immediate dispatch), use
+# DISABLE_CORRELATION=true instead.
 CORRELATION_WINDOW_SECONDS=30
 
 # Disable all correlation logic and dispatch immediately (default: false)

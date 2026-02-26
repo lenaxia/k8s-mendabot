@@ -16,13 +16,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	gozapr "github.com/go-logr/zapr"
 	"go.uber.org/zap"
-	zapr "sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/lenaxia/k8s-mendabot/api/v1alpha1"
 	"github.com/lenaxia/k8s-mendabot/internal/circuitbreaker"
 	"github.com/lenaxia/k8s-mendabot/internal/config"
 	"github.com/lenaxia/k8s-mendabot/internal/controller"
+	"github.com/lenaxia/k8s-mendabot/internal/correlator"
 	"github.com/lenaxia/k8s-mendabot/internal/domain"
 	"github.com/lenaxia/k8s-mendabot/internal/jobbuilder"
 	"github.com/lenaxia/k8s-mendabot/internal/logging"
@@ -59,7 +60,7 @@ func main() {
 	}
 	defer logger.Sync() //nolint:errcheck
 
-	ctrl.SetLogger(zapr.New())
+	ctrl.SetLogger(gozapr.NewLogger(logger))
 
 	scheme := runtime.NewScheme()
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {
@@ -150,6 +151,14 @@ func main() {
 
 	combinedChecker := readiness.All(sinkChecker, llmChecker)
 
+	corr, err := buildCorrelator(cfg)
+	if err != nil {
+		logger.Fatal("buildCorrelator failed", zap.Error(err))
+	}
+	if corr == nil {
+		logger.Info("multi-signal correlation disabled (DISABLE_CORRELATION=true)")
+	}
+
 	if err := (&controller.RemediationJobReconciler{
 		Client:     mgr.GetClient(),
 		Scheme:     mgr.GetScheme(),
@@ -158,6 +167,7 @@ func main() {
 		Cfg:        cfg,
 		Recorder:   mgr.GetEventRecorderFor("mendabot-watcher"),
 		APIReader:  mgr.GetAPIReader(),
+		Correlator: corr,
 	}).SetupWithManager(mgr); err != nil {
 		logger.Fatal("RemediationJobReconciler setup failed", zap.Error(err))
 	}
@@ -204,4 +214,34 @@ func main() {
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		log.Fatalf("problem running manager: %v", err)
 	}
+}
+
+// buildCorrelator constructs a Correlator with all built-in rules, or returns nil
+// when DisableCorrelation is set. A nil Correlator causes the reconciler to skip
+// the window hold and dispatch immediately.
+// Returns an error if cfg.MultiPodThreshold is <= 0.
+//
+// Rule priority (first match wins):
+//  1. PVCPodRule — a PVC failure and the pod that depends on it share a root cause;
+//     the PVC is always primary. Checked before SameNamespaceParentRule because a PVC
+//     finding and its dependent pod often also share a ParentObject prefix, and the
+//     PVC-specific grouping is more precise than the generic parent-prefix match.
+//  2. SameNamespaceParentRule — cross-provider findings for the same application
+//     (same namespace, parent-name prefix relationship).
+//  3. MultiPodSameNodeRule — multiple pods failing on the same node (node is root cause).
+func buildCorrelator(cfg config.Config) (*correlator.Correlator, error) {
+	if cfg.DisableCorrelation {
+		// Emit nothing here — caller logs using the configured logger.
+		return nil, nil
+	}
+	if cfg.MultiPodThreshold <= 0 {
+		return nil, fmt.Errorf("buildCorrelator: MultiPodThreshold must be > 0, got %d (check CORRELATION_MULTI_POD_THRESHOLD)", cfg.MultiPodThreshold)
+	}
+	return &correlator.Correlator{
+		Rules: []domain.CorrelationRule{
+			correlator.PVCPodRule{},
+			correlator.SameNamespaceParentRule{},
+			correlator.MultiPodSameNodeRule{Threshold: cfg.MultiPodThreshold},
+		},
+	}, nil
 }

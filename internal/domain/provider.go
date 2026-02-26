@@ -118,4 +118,9 @@ type Finding struct {
 	// ChainDepth is the self-remediation cascade depth of this finding.
 	// Zero means a normal (non-self-remediation) finding. Not part of the fingerprint.
 	ChainDepth int
+
+	// NodeName is the Kubernetes node the affected pod is running on.
+	// Only populated by PodProvider for pods that have been scheduled.
+	// Empty for pending/unschedulable pods — those have no assigned node.
+	NodeName string
 }

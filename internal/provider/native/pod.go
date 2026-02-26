@@ -126,6 +126,7 @@ func (p *podProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 		ParentObject: parent,
 		Errors:       string(errorsJSON),
 		Severity:     computePodSeverity(pod),
+		NodeName:     pod.Spec.NodeName,
 	}, nil
 }
 
