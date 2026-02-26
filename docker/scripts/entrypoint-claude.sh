@@ -20,7 +20,24 @@ source /usr/local/bin/entrypoint-common.sh
 
 # TODO: Map AGENT_PROVIDER_CONFIG to claude's settings mechanism.
 # Until this is implemented, this entrypoint exits with a clear error.
-if [ "${DRY_RUN:-false}" = "true" ]; then
+# Determine dry-run mode using the same three-layer logic as the wrappers.
+# Layer 1: sentinel file
+_entrypoint_dry_run="false"
+if [ -f /mendabot-cfg/dry-run ] && [ "$(cat /mendabot-cfg/dry-run 2>/dev/null)" = "true" ]; then
+    _entrypoint_dry_run="true"
+fi
+# Layer 2: /proc/1/environ
+if [ "$_entrypoint_dry_run" = "false" ] && [ -r /proc/1/environ ]; then
+    if tr '\0' '\n' < /proc/1/environ 2>/dev/null | grep -q '^DRY_RUN=true$'; then
+        _entrypoint_dry_run="true"
+    fi
+fi
+# Layer 3: current shell env var
+if [ "$_entrypoint_dry_run" = "false" ] && [ "${DRY_RUN:-false}" = "true" ]; then
+    _entrypoint_dry_run="true"
+fi
+
+if [ "$_entrypoint_dry_run" = "true" ]; then
     # claude run "$(cat /tmp/rendered-prompt.txt)"   # TODO: verify invocation
     echo "ERROR: Claude Code entrypoint is not yet implemented." >&2
     exit 1

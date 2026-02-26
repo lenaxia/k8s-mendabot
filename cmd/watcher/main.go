@@ -157,6 +157,7 @@ func main() {
 		JobBuilder: jb,
 		Cfg:        cfg,
 		Recorder:   mgr.GetEventRecorderFor("mendabot-watcher"),
+		APIReader:  mgr.GetAPIReader(),
 	}).SetupWithManager(mgr); err != nil {
 		logger.Fatal("RemediationJobReconciler setup failed", zap.Error(err))
 	}

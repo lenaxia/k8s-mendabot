@@ -26,7 +26,7 @@ import (
 //+kubebuilder:rbac:groups=remediation.mendabot.io,resources=remediationjobs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=remediation.mendabot.io,resources=remediationjobs/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;delete
+//+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;delete,namespace=agent
 
 // RemediationJobReconciler watches RemediationJob objects and drives the Job lifecycle.
 // It is provider-agnostic — it acts on all RemediationJob objects regardless of source.
@@ -38,6 +38,11 @@ type RemediationJobReconciler struct {
 	// Cfg holds operator-wide configuration. MaxConcurrentJobs == 0 means unlimited.
 	Cfg      config.Config
 	Recorder record.EventRecorder
+	// APIReader bypasses the controller-runtime informer cache for direct API server reads.
+	// Used by fetchDryRunReport to avoid a race where the ConfigMap written by the agent
+	// has not yet propagated to the local cache by the time the reconciler runs.
+	// If nil, falls back to r.Client (cache-backed) — acceptable in test environments.
+	APIReader client.Reader
 }
 
 // Reconcile implements ctrl.Reconciler.
@@ -255,10 +260,11 @@ func (r *RemediationJobReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	return ctrl.Result{}, r.dispatch(ctx, &rjob)
 }
 
-// dryRunCMName returns the name of the ConfigMap written by the agent at the
+// DryRunCMName returns the name of the ConfigMap written by the agent at the
 // end of a dry-run job. The name mirrors the Job name (mendabot-agent-<fp12>)
 // so the controller can derive it directly from the RJob fingerprint.
-func dryRunCMName(fingerprint string) string {
+// Exported so tests can derive the expected name without duplicating the logic.
+func DryRunCMName(fingerprint string) string {
 	if len(fingerprint) > 12 {
 		fingerprint = fingerprint[:12]
 	}
@@ -268,10 +274,25 @@ func dryRunCMName(fingerprint string) string {
 // fetchDryRunReport reads the dry-run report ConfigMap written by the agent,
 // assembles the report+patch content, then deletes the ConfigMap.
 // The ConfigMap name is derived from rjob.Spec.Fingerprint.
+//
+// The Get uses APIReader (direct API server read) to bypass the controller-runtime
+// informer cache. The agent writes the ConfigMap just before the pod exits; the
+// reconciler fires almost immediately on Job status change. If we used the cached
+// client, there is a window where the informer has not yet synced the new CM and
+// returns NotFound. Combined with the idempotency guard on rjob.Status.Message,
+// that would permanently lose the report for that run.
 func (r *RemediationJobReconciler) fetchDryRunReport(ctx context.Context, rjob *v1alpha1.RemediationJob) string {
-	cmName := dryRunCMName(rjob.Spec.Fingerprint)
+	cmName := DryRunCMName(rjob.Spec.Fingerprint)
+
+	// Prefer the direct API reader; fall back to the cached client only in
+	// environments (e.g. unit tests) where APIReader is not wired up.
+	reader := r.APIReader
+	if reader == nil {
+		reader = r.Client
+	}
+
 	var cm corev1.ConfigMap
-	if err := r.Get(ctx, types.NamespacedName{
+	if err := reader.Get(ctx, types.NamespacedName{
 		Namespace: r.Cfg.AgentNamespace,
 		Name:      cmName,
 	}, &cm); err != nil {
