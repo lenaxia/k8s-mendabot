@@ -245,16 +245,16 @@ func TestReconcile_DryRunSucceeded_ReportStored(t *testing.T) {
 	}
 }
 
-// TestReconcile_DryRunSucceeded_ReportTruncated verifies that log content
-// exceeding maxReportBytes is truncated (message length ≤ 10,000 bytes).
-func TestReconcile_DryRunSucceeded_ReportTruncated(t *testing.T) {
+// TestReconcile_DryRunSucceeded_ReportAfterSentinel verifies that content after
+// the sentinel is extracted correctly even when there is preamble content before it.
+func TestReconcile_DryRunSucceeded_ReportAfterSentinel(t *testing.T) {
 	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
 	rjob, job := newDryRunRJobWithJob(
-		"test-dryrun-trunc", fp, v1alpha1.PhaseDispatched,
+		"test-dryrun-after", fp, v1alpha1.PhaseDispatched,
 		map[string]string{"mendabot.io/dry-run": "true"},
 	)
 
-	pod := newSucceededPod("test-pod-trunc", testNamespace, job.Name)
+	pod := newSucceededPod("test-pod-after", testNamespace, job.Name)
 
 	s := newTestScheme(t)
 	c := fake.NewClientBuilder().
@@ -263,11 +263,11 @@ func TestReconcile_DryRunSucceeded_ReportTruncated(t *testing.T) {
 		WithObjects(rjob, job, pod).
 		Build()
 
-	// Preamble (9 bytes) + sentinel (37 bytes) + newline (1 byte) = 47 bytes prefix,
-	// followed by 11,000 bytes of 'x'. The LimitReader caps the entire stream at
-	// 10,000 bytes, so only ~9,953 'x' bytes are read — confirming truncation.
-	bigLog := "preamble\n" + dryRunSentinel + "\n" + strings.Repeat("x", 11_000)
-	kubeClient := newFakeLogKubeClient(bigLog, nil)
+	// Preamble before sentinel followed by the actual report content.
+	// The controller tails the last 300 lines so the sentinel is always visible.
+	reportContent := "## Investigation Report\nRoot cause: broken image."
+	logContent := "preamble line 1\npreamble line 2\n" + dryRunSentinel + "\n" + reportContent
+	kubeClient := newFakeLogKubeClient(logContent, nil)
 
 	r := &controller.RemediationJobReconciler{
 		Client:     c,
@@ -278,22 +278,18 @@ func TestReconcile_DryRunSucceeded_ReportTruncated(t *testing.T) {
 	}
 
 	_, err := r.Reconcile(context.Background(), ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: "test-dryrun-trunc", Namespace: testNamespace},
+		NamespacedName: types.NamespacedName{Name: "test-dryrun-after", Namespace: testNamespace},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	var updated v1alpha1.RemediationJob
-	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-dryrun-trunc", Namespace: testNamespace}, &updated); err != nil {
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-dryrun-after", Namespace: testNamespace}, &updated); err != nil {
 		t.Fatalf("get rjob: %v", err)
 	}
-	if len(updated.Status.Message) > 10_000 {
-		t.Errorf("Message length = %d, want ≤ 10,000", len(updated.Status.Message))
-	}
-	// Confirm truncation actually occurred: not all 11,000 'x' bytes should be present.
-	if strings.Count(updated.Status.Message, "x") >= 11_000 {
-		t.Errorf("message was not truncated: contains all 11,000 bytes of post-sentinel content (%d x-bytes found)", strings.Count(updated.Status.Message, "x"))
+	if updated.Status.Message != reportContent {
+		t.Errorf("Message = %q, want %q", updated.Status.Message, reportContent)
 	}
 }
 

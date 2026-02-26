@@ -259,7 +259,10 @@ func (r *RemediationJobReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	return ctrl.Result{}, r.dispatch(ctx, &rjob)
 }
 
-const maxReportBytes = 10_000
+// tailLines is the number of trailing log lines fetched when extracting the
+// dry-run report. The sentinel and report are always emitted at the end of the
+// agent log, so tailing is more reliable than a byte-limit on the head.
+const tailLines int64 = 300
 
 func (r *RemediationJobReconciler) fetchDryRunReport(ctx context.Context, job *batchv1.Job) string {
 	if r.KubeClient == nil {
@@ -285,7 +288,8 @@ func (r *RemediationJobReconciler) fetchDryRunReport(ctx context.Context, job *b
 		return "dry-run report unavailable: no succeeded pod found"
 	}
 
-	logOpts := &corev1.PodLogOptions{Container: "mendabot-agent"}
+	tail := tailLines
+	logOpts := &corev1.PodLogOptions{Container: "mendabot-agent", TailLines: &tail}
 	req := r.KubeClient.CoreV1().Pods(r.Cfg.AgentNamespace).GetLogs(podName, logOpts)
 	stream, err := req.Stream(ctx)
 	if err != nil {
@@ -293,8 +297,7 @@ func (r *RemediationJobReconciler) fetchDryRunReport(ctx context.Context, job *b
 	}
 	defer stream.Close()
 
-	limited := io.LimitReader(stream, maxReportBytes)
-	raw, err := io.ReadAll(limited)
+	raw, err := io.ReadAll(stream)
 	if err != nil {
 		return fmt.Sprintf("dry-run report unavailable: read logs: %v", err)
 	}
