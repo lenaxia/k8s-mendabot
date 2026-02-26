@@ -28,10 +28,16 @@ SIGNATURE=$(printf '%s' "$UNSIGNED" \
 
 JWT="${UNSIGNED}.${SIGNATURE}"
 
-curl -sf \
+RESPONSE=$(curl -sf \
   -X POST \
   -H "Authorization: Bearer ${JWT}" \
   -H "Accept: application/vnd.github+json" \
   -H "X-GitHub-Api-Version: 2022-11-28" \
-  "https://api.github.com/app/installations/${GITHUB_APP_INSTALLATION_ID}/access_tokens" \
-  | jq -r '.token'
+  "https://api.github.com/app/installations/${GITHUB_APP_INSTALLATION_ID}/access_tokens")
+
+# Write expiry timestamp: NOW (captured at JWT mint time) + 3500 s.
+# GitHub installation tokens are valid for 3600 s; the 3500 s window gives the
+# main container a 100 s head-start before the pre-flight guard triggers.
+printf '%d' "$((NOW + 3500))" > /workspace/github-token-expiry
+
+printf '%s\n' "$(printf '%s' "$RESPONSE" | jq -r '.token')"

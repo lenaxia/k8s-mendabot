@@ -1,7 +1,7 @@
 # Story 01: get-github-app-token.sh — Write Expiry Timestamp Alongside Token
 
 **Epic:** epic22-token-expiry-guard (FT-R3)
-**Status:** Not Started
+**Status:** Complete
 
 ---
 
@@ -199,11 +199,11 @@ No Dockerfile changes are needed.
 
 ## Acceptance criteria
 
-- [ ] After the init container runs, `/workspace/github-token-expiry` exists and contains
+- [x] After the init container runs, `/workspace/github-token-expiry` exists and contains
       a decimal integer equal to `(epoch seconds at token mint time) + 3500`.
-- [ ] `/workspace/github-token` still contains the raw token string (caller behaviour in
+- [x] `/workspace/github-token` still contains the raw token string (caller behaviour in
       `job.go` is unchanged).
-- [ ] If the curl call fails (non-zero exit), the script exits non-zero and neither file is
+- [x] If the curl call fails (non-zero exit), the script exits non-zero and neither file is
       written (because `set -euo pipefail` aborts before the `printf` lines).
-- [ ] The script continues to print exactly the token string to stdout so the existing
+- [x] The script continues to print exactly the token string to stdout so the existing
       caller `TOKEN=$(get-github-app-token.sh)` in `job.go:50` is unaffected.
