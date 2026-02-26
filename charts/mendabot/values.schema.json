@@ -86,6 +86,20 @@
         "dryRun": {
           "type": "boolean",
           "description": "Enable dry-run shadow mode. Blocks write operations; stores investigation reports in RemediationJob.status.message."
+        },
+        "correlationWindowSeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Seconds to hold Pending jobs before the correlator fires. Defaults to stabilisationWindowSeconds when unset. Set to 0 to skip the hold but still run the correlator."
+        },
+        "disableCorrelation": {
+          "type": "boolean",
+          "description": "Disable all correlation logic and dispatch immediately. Default is false."
+        },
+        "multiPodThreshold": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Minimum number of pods failing on the same node to trigger MultiPodSameNodeRule. Default is 3."
         }
       }
     },
@@ -116,6 +130,22 @@
     "secrets": {
       "type": "object",
       "description": "Placeholder — no configurable fields; secret names are derived from agentType in job.go"
+    },
+    "selfRemediation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxDepth": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Maximum self-remediation chain depth. 0 disables self-remediation entirely. Default is 2."
+        },
+        "cooldownSeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Minimum seconds between successive self-remediation attempts. 0 disables the circuit breaker. Default is 300."
+        }
+      }
     },
     "createNamespace": { "type": "boolean" },
     "metrics": {

@@ -55,13 +55,22 @@ watcher:
   # investigation reports are stored in RemediationJob.status.message.
   dryRun: false
   # -- Seconds to hold Pending jobs before dispatching (correlation window). Set to 0 to
-  #    dispatch immediately without correlation. Default is 30.
-  correlationWindowSeconds: 30
+  #    dispatch immediately without correlation. Defaults to stabilisationWindowSeconds
+  #    when unset so the window is always wide enough for peer rjobs to exist.
+  correlationWindowSeconds: 120
   # -- Disable all correlation logic and dispatch immediately. Default is false.
   disableCorrelation: false
   # -- Minimum number of pods failing on the same node to trigger MultiPodSameNodeRule.
   #    Default is 3.
   multiPodThreshold: 3
+
+# @section Self-remediation controls
+selfRemediation:
+  # -- Maximum allowed self-remediation chain depth. 0 disables self-remediation entirely.
+  maxDepth: 2
+  # -- Minimum seconds between successive self-remediation attempts (circuit breaker).
+  #    0 disables the circuit breaker.
+  cooldownSeconds: 300
 
 # -- Agent runner type. Controls which AI agent binary runs inside the Job. Supported values: `"opencode"` (functional), `"claude"` (stub — not yet functional). Each type requires a corresponding Secret named `llm-credentials-<agentType>`. See `NOTES.txt` for the exact `kubectl create secret` commands.
 agentType: opencode

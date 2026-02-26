@@ -86,16 +86,6 @@ spec:
           value: {{ .Values.selfRemediation.maxDepth | quote }}
         - name: SELF_REMEDIATION_COOLDOWN_SECONDS
           value: {{ .Values.selfRemediation.cooldownSeconds | quote }}
-        - name: MENDABOT_UPSTREAM_REPO
-          value: {{ .Values.selfRemediation.upstreamRepo | quote }}
-        - name: MENDABOT_DISABLE_UPSTREAM_CONTRIBUTIONS
-          value: {{ .Values.selfRemediation.disableUpstreamContributions | quote }}
-        - name: DISABLE_CASCADE_CHECK
-          value: {{ .Values.selfRemediation.disableCascadeCheck | quote }}
-        - name: CASCADE_NAMESPACE_THRESHOLD
-          value: {{ .Values.selfRemediation.cascadeNamespaceThreshold | quote }}
-        - name: CASCADE_NODE_CACHE_TTL_SECONDS
-          value: {{ .Values.selfRemediation.cascadeNodeCacheTTLSeconds | quote }}
         ports:
         - name: metrics
           containerPort: 8080
