@@ -63,6 +63,25 @@ watcher:
   #    Default is 3.
   multiPodThreshold: 3
 
+# -- Self-remediation configuration.
+selfRemediation:
+  # -- Maximum self-remediation chain depth. Findings with ChainDepth > maxDepth are suppressed.
+  #    0 disables self-remediation entirely. Default is 2.
+  maxDepth: 2
+  # -- Minimum time between allowed self-remediations. 0 disables circuit breaker.
+  #    Default is 300 (5 minutes).
+  cooldownSeconds: 300
+  # -- Upstream repository for contributions (legacy, unused in current codebase).
+  upstreamRepo: ""
+  # -- Disable upstream contributions (legacy, unused in current codebase).
+  disableUpstreamContributions: false
+  # -- Disable cascade check. Default is false.
+  disableCascadeCheck: false
+  # -- Cascade namespace threshold. Default is 50.
+  cascadeNamespaceThreshold: 50
+  # -- Cascade node cache TTL in seconds. Default is 30.
+  cascadeNodeCacheTTLSeconds: 30
+ 
 # -- Agent runner type. Controls which AI agent binary runs inside the Job. Supported values: `"opencode"` (functional), `"claude"` (stub — not yet functional). Each type requires a corresponding Secret named `llm-credentials-<agentType>`. See `NOTES.txt` for the exact `kubectl create secret` commands.
 agentType: opencode
 

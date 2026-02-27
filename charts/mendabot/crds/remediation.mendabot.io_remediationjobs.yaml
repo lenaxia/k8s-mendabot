@@ -35,6 +35,9 @@ spec:
     - jsonPath: .status.prRef
       name: PR
       type: string
+    - jsonPath: .status.correlationGroupID
+      name: GroupID
+      type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
@@ -254,6 +257,19 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              correlationGroupID:
+                description: |-
+                  CorrelationGroupID is set when this job is part of a correlated group.
+                  Empty when not correlated.
+
+                  Design note: STORY_00 also specified RelatedFindings, CorrelationRole, and
+                  CorrelationRule as spec/status fields. The implementation intentionally stores
+                  these as labels (mendabot.io/correlation-group-id, mendabot.io/correlation-role)
+                  and passes correlated findings as a runtime slice to dispatch() rather than
+                  persisting them. The labels are searchable via kubectl and the recovery path
+                  (controller.go) reconstructs AllFindings from suppressed peers on restart.
+                  CorrelationGroupID here is the only status field needed for recovery.
+                type: string
               dispatchedAt:
                 description: DispatchedAt is the time the batch/v1 Job was created.
                 format: date-time
@@ -278,6 +294,7 @@ spec:
                 - Failed
                 - Cancelled
                 - PermanentlyFailed
+                - Suppressed
                 type: string
               prRef:
                 description: |-

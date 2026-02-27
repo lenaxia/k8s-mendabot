@@ -330,9 +330,11 @@ func FromEnv() (Config, error) {
 	}
 
 	// Correlation window — how long to hold Pending jobs before dispatching.
+	// Must be at least as long as stabilization window to allow related findings to be grouped.
+	// Design invariant: CORRELATION_WINDOW >= STABILISATION_WINDOW
 	corrWindowStr := os.Getenv("CORRELATION_WINDOW_SECONDS")
 	if corrWindowStr == "" {
-		cfg.CorrelationWindowSeconds = 30
+		cfg.CorrelationWindowSeconds = int(cfg.StabilisationWindow.Seconds())
 	} else {
 		n, err := strconv.Atoi(corrWindowStr)
 		if err != nil {

@@ -86,6 +86,20 @@
         "dryRun": {
           "type": "boolean",
           "description": "Enable dry-run shadow mode. Blocks write operations; stores investigation reports in RemediationJob.status.message."
+        },
+        "disableCorrelation": {
+          "type": "boolean",
+          "description": "Disable Epic 13 multi-signal correlation. Default is false (correlation enabled)."
+        },
+        "correlationWindowSeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Time window for correlation detection. Findings within this window are considered related."
+        },
+        "multiPodThreshold": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Minimum number of pods failing on the same node to trigger MultiPodSameNodeRule."
         }
       }
     },
@@ -118,6 +132,46 @@
       "description": "Placeholder — no configurable fields; secret names are derived from agentType in job.go"
     },
     "createNamespace": { "type": "boolean" },
+    "selfRemediation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxDepth": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Maximum self-remediation chain depth. 0 disables self-remediation."
+        },
+        "cooldownSeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "description": "Minimum time between allowed self-remediations in seconds. 0 disables circuit breaker."
+        },
+        "upstreamRepo": {
+          "type": "string",
+          "description": "Upstream repository for contributions (legacy, unused)."
+        },
+        "disableUpstreamContributions": {
+          "type": "boolean",
+          "description": "Disable upstream contributions (legacy, unused)."
+        },
+        "disableCascadeCheck": {
+          "type": "boolean",
+          "description": "Disable cascade check."
+        },
+        "cascadeNamespaceThreshold": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Cascade namespace threshold."
+        },
+        "cascadeNodeCacheTTLSeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Cascade node cache TTL in seconds."
+        }
+      }
+    },
     "metrics": {
       "type": "object",
       "additionalProperties": false,
