@@ -3142,3 +3142,406 @@ func TestAuditLog_SelfRemediation_CircuitBreaker(t *testing.T) {
 		t.Errorf("expected audit log entry with event=self_remediation.circuit_breaker, got entries: %v", logs.All())
 	}
 }
+
+// ===========================================================================
+// Epic 26: Auto-close sink tests
+// ===========================================================================
+
+// fakeSinkCloser records calls and can be configured to return an error.
+type fakeSinkCloser struct {
+	calls []closeCall
+	err   error
+}
+
+type closeCall struct {
+	rjobName string
+	sinkURL  string
+	reason   string
+}
+
+func (f *fakeSinkCloser) Close(_ context.Context, rjob *v1alpha1.RemediationJob, reason string) error {
+	f.calls = append(f.calls, closeCall{
+		rjobName: rjob.Name,
+		sinkURL:  rjob.Status.SinkRef.URL,
+		reason:   reason,
+	})
+	return f.err
+}
+
+var _ domain.SinkCloser = (*fakeSinkCloser)(nil)
+
+func newAutoCloseReconciler(p *fakeSourceProvider, c client.Client, closer domain.SinkCloser, prAutoClose bool) *provider.SourceProviderReconciler {
+	return &provider.SourceProviderReconciler{
+		Client: c,
+		Scheme: newTestScheme(),
+		Cfg: config.Config{
+			AgentNamespace: agentNamespace,
+			MinSeverity:    domain.SeverityLow,
+			PRAutoClose:    prAutoClose,
+		},
+		Provider:   p,
+		SinkCloser: closer,
+	}
+}
+
+func makeSinkRef(url string) v1alpha1.SinkRef {
+	return v1alpha1.SinkRef{
+		Type:   "pr",
+		URL:    url,
+		Number: 42,
+		Repo:   "org/repo",
+	}
+}
+
+// TestAutoClose_PathA_InFlightJobWithSinkRef verifies that when a source object
+// is deleted (IsNotFound) and there is a Pending rjob with a SinkRef, the
+// SinkCloser is called before cancellation.
+func TestAutoClose_PathA_InFlightJobWithSinkRef(t *testing.T) {
+	t.Parallel()
+	rjob := &v1alpha1.RemediationJob{
+		ObjectMeta: metav1.ObjectMeta{Name: "mendabot-aaa111", Namespace: agentNamespace},
+		Spec: v1alpha1.RemediationJobSpec{
+			SourceResultRef: v1alpha1.ResultRef{Name: "svc-a", Namespace: "default"},
+			Fingerprint:     "aaa111bbb222ccc333",
+			SourceType:      "native",
+			SinkType:        "github",
+			Finding:         v1alpha1.FindingSpec{Kind: "Deployment", Name: "svc-a", Namespace: "default"},
+			GitOpsRepo:      "org/repo",
+			AgentImage:      "img",
+			AgentSA:         "sa",
+		},
+		Status: v1alpha1.RemediationJobStatus{
+			Phase:   v1alpha1.PhasePending,
+			SinkRef: makeSinkRef("https://github.com/org/repo/pull/42"),
+		},
+	}
+	// Object is NOT in the client — triggers IsNotFound path.
+	c := newTestClient(rjob)
+
+	closer := &fakeSinkCloser{}
+	p := &fakeSourceProvider{name: "fake", objectType: &corev1.ConfigMap{}}
+	r := newAutoCloseReconciler(p, c, closer, true)
+
+	_, err := r.Reconcile(context.Background(), reqFor("svc-a", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(closer.calls) != 1 {
+		t.Fatalf("expected 1 SinkCloser.Close call, got %d", len(closer.calls))
+	}
+	if closer.calls[0].sinkURL != "https://github.com/org/repo/pull/42" {
+		t.Errorf("unexpected sinkURL: %q", closer.calls[0].sinkURL)
+	}
+}
+
+// TestAutoClose_PathA_InFlightJobWithoutSinkRef verifies that a Pending rjob
+// with empty SinkRef does NOT trigger SinkCloser.
+func TestAutoClose_PathA_InFlightJobWithoutSinkRef(t *testing.T) {
+	t.Parallel()
+	rjob := &v1alpha1.RemediationJob{
+		ObjectMeta: metav1.ObjectMeta{Name: "mendabot-aaa222", Namespace: agentNamespace},
+		Spec: v1alpha1.RemediationJobSpec{
+			SourceResultRef: v1alpha1.ResultRef{Name: "svc-b", Namespace: "default"},
+			Fingerprint:     "aaa222bbb333ccc444",
+			SourceType:      "native",
+			SinkType:        "github",
+			Finding:         v1alpha1.FindingSpec{Kind: "Deployment", Name: "svc-b", Namespace: "default"},
+			GitOpsRepo:      "org/repo",
+			AgentImage:      "img",
+			AgentSA:         "sa",
+		},
+		Status: v1alpha1.RemediationJobStatus{
+			Phase: v1alpha1.PhasePending,
+			// SinkRef is empty (no PR opened yet)
+		},
+	}
+	c := newTestClient(rjob)
+
+	closer := &fakeSinkCloser{}
+	p := &fakeSourceProvider{name: "fake", objectType: &corev1.ConfigMap{}}
+	r := newAutoCloseReconciler(p, c, closer, true)
+
+	_, err := r.Reconcile(context.Background(), reqFor("svc-b", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(closer.calls) != 0 {
+		t.Errorf("expected 0 SinkCloser.Close calls, got %d", len(closer.calls))
+	}
+}
+
+// TestAutoClose_PathA_SinkCloserError_CancellationProceeds verifies that a
+// SinkCloser error does not block rjob cancellation.
+func TestAutoClose_PathA_SinkCloserError_CancellationProceeds(t *testing.T) {
+	t.Parallel()
+	rjob := &v1alpha1.RemediationJob{
+		ObjectMeta: metav1.ObjectMeta{Name: "mendabot-aaa333", Namespace: agentNamespace},
+		Spec: v1alpha1.RemediationJobSpec{
+			SourceResultRef: v1alpha1.ResultRef{Name: "svc-c", Namespace: "default"},
+			Fingerprint:     "aaa333bbb444ccc555",
+			SourceType:      "native",
+			SinkType:        "github",
+			Finding:         v1alpha1.FindingSpec{Kind: "Deployment", Name: "svc-c", Namespace: "default"},
+			GitOpsRepo:      "org/repo",
+			AgentImage:      "img",
+			AgentSA:         "sa",
+		},
+		Status: v1alpha1.RemediationJobStatus{
+			Phase:   v1alpha1.PhasePending,
+			SinkRef: makeSinkRef("https://github.com/org/repo/pull/43"),
+		},
+	}
+	c := newTestClient(rjob)
+
+	closer := &fakeSinkCloser{err: errors.New("github unavailable")}
+	p := &fakeSourceProvider{name: "fake", objectType: &corev1.ConfigMap{}}
+	r := newAutoCloseReconciler(p, c, closer, true)
+
+	result, err := r.Reconcile(context.Background(), reqFor("svc-c", "default"))
+	// Reconcile must return nil — closer failure is non-fatal.
+	if err != nil {
+		t.Fatalf("expected nil error despite SinkCloser failure, got: %v", err)
+	}
+	_ = result
+
+	// Close was still called.
+	if len(closer.calls) != 1 {
+		t.Errorf("expected 1 Close call, got %d", len(closer.calls))
+	}
+}
+
+// TestAutoClose_PathA_PRAutoCloseFalse_NoClose verifies that PRAutoClose=false
+// prevents Path A from calling SinkCloser.
+func TestAutoClose_PathA_PRAutoCloseFalse_NoClose(t *testing.T) {
+	t.Parallel()
+	rjob := &v1alpha1.RemediationJob{
+		ObjectMeta: metav1.ObjectMeta{Name: "mendabot-aaa444", Namespace: agentNamespace},
+		Spec: v1alpha1.RemediationJobSpec{
+			SourceResultRef: v1alpha1.ResultRef{Name: "svc-d", Namespace: "default"},
+			Fingerprint:     "aaa444bbb555ccc666",
+			SourceType:      "native",
+			SinkType:        "github",
+			Finding:         v1alpha1.FindingSpec{Kind: "Deployment", Name: "svc-d", Namespace: "default"},
+			GitOpsRepo:      "org/repo",
+			AgentImage:      "img",
+			AgentSA:         "sa",
+		},
+		Status: v1alpha1.RemediationJobStatus{
+			Phase:   v1alpha1.PhasePending,
+			SinkRef: makeSinkRef("https://github.com/org/repo/pull/44"),
+		},
+	}
+	c := newTestClient(rjob)
+
+	closer := &fakeSinkCloser{}
+	p := &fakeSourceProvider{name: "fake", objectType: &corev1.ConfigMap{}}
+	r := newAutoCloseReconciler(p, c, closer, false) // PRAutoClose=false
+
+	_, err := r.Reconcile(context.Background(), reqFor("svc-d", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(closer.calls) != 0 {
+		t.Errorf("expected 0 Close calls with PRAutoClose=false, got %d", len(closer.calls))
+	}
+}
+
+// TestAutoClose_PathB_SucceededJobWithSinkRef verifies that when a source object
+// exists but has no finding (finding=nil), a PhaseSucceeded rjob with SinkRef
+// gets its sink closed. The rjob must NOT be deleted.
+func TestAutoClose_PathB_SucceededJobWithSinkRef(t *testing.T) {
+	t.Parallel()
+	obj := makeWatchedObject("svc-e", "default")
+	rjob := &v1alpha1.RemediationJob{
+		ObjectMeta: metav1.ObjectMeta{Name: "mendabot-aaa555", Namespace: agentNamespace},
+		Spec: v1alpha1.RemediationJobSpec{
+			SourceResultRef: v1alpha1.ResultRef{Name: "svc-e", Namespace: "default"},
+			Fingerprint:     "aaa555bbb666ccc777",
+			SourceType:      "native",
+			SinkType:        "github",
+			Finding:         v1alpha1.FindingSpec{Kind: "Deployment", Name: "svc-e", Namespace: "default"},
+			GitOpsRepo:      "org/repo",
+			AgentImage:      "img",
+			AgentSA:         "sa",
+		},
+		Status: v1alpha1.RemediationJobStatus{
+			Phase:   v1alpha1.PhaseSucceeded,
+			SinkRef: makeSinkRef("https://github.com/org/repo/pull/45"),
+		},
+	}
+	c := newTestClient(obj, rjob)
+
+	closer := &fakeSinkCloser{}
+	p := &fakeSourceProvider{
+		name:       "fake",
+		objectType: &corev1.ConfigMap{},
+		finding:    nil, // no finding → cleared path
+	}
+	r := newAutoCloseReconciler(p, c, closer, true)
+
+	_, err := r.Reconcile(context.Background(), reqFor("svc-e", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(closer.calls) != 1 {
+		t.Fatalf("expected 1 Close call, got %d", len(closer.calls))
+	}
+	if closer.calls[0].sinkURL != "https://github.com/org/repo/pull/45" {
+		t.Errorf("unexpected sinkURL: %q", closer.calls[0].sinkURL)
+	}
+
+	// rjob must NOT be deleted — it is the dedup tombstone.
+	var remaining v1alpha1.RemediationJob
+	if err := c.Get(context.Background(), types.NamespacedName{Name: rjob.Name, Namespace: agentNamespace}, &remaining); err != nil {
+		t.Errorf("rjob should still exist after auto-close, got error: %v", err)
+	}
+}
+
+// TestAutoClose_PathB_SucceededJobWithoutSinkRef verifies that a PhaseSucceeded
+// rjob with empty SinkRef does NOT trigger SinkCloser.
+func TestAutoClose_PathB_SucceededJobWithoutSinkRef(t *testing.T) {
+	t.Parallel()
+	obj := makeWatchedObject("svc-f", "default")
+	rjob := &v1alpha1.RemediationJob{
+		ObjectMeta: metav1.ObjectMeta{Name: "mendabot-aaa666", Namespace: agentNamespace},
+		Spec: v1alpha1.RemediationJobSpec{
+			SourceResultRef: v1alpha1.ResultRef{Name: "svc-f", Namespace: "default"},
+			Fingerprint:     "aaa666bbb777ccc888",
+			SourceType:      "native",
+			SinkType:        "github",
+			Finding:         v1alpha1.FindingSpec{Kind: "Deployment"},
+			GitOpsRepo:      "org/repo",
+			AgentImage:      "img",
+			AgentSA:         "sa",
+		},
+		Status: v1alpha1.RemediationJobStatus{
+			Phase: v1alpha1.PhaseSucceeded,
+			// SinkRef empty — old pre-epic26 rjob
+		},
+	}
+	c := newTestClient(obj, rjob)
+	closer := &fakeSinkCloser{}
+	p := &fakeSourceProvider{name: "fake", objectType: &corev1.ConfigMap{}, finding: nil}
+	r := newAutoCloseReconciler(p, c, closer, true)
+
+	_, err := r.Reconcile(context.Background(), reqFor("svc-f", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(closer.calls) != 0 {
+		t.Errorf("expected 0 Close calls for rjob without SinkRef, got %d", len(closer.calls))
+	}
+}
+
+// TestAutoClose_PathB_SinkCloserError_RJobNotDeleted verifies that when
+// SinkCloser returns an error, the rjob is still not deleted and Reconcile
+// returns nil.
+func TestAutoClose_PathB_SinkCloserError_RJobNotDeleted(t *testing.T) {
+	t.Parallel()
+	obj := makeWatchedObject("svc-g", "default")
+	rjob := &v1alpha1.RemediationJob{
+		ObjectMeta: metav1.ObjectMeta{Name: "mendabot-aaa777", Namespace: agentNamespace},
+		Spec: v1alpha1.RemediationJobSpec{
+			SourceResultRef: v1alpha1.ResultRef{Name: "svc-g", Namespace: "default"},
+			Fingerprint:     "aaa777bbb888ccc999",
+			SourceType:      "native",
+			SinkType:        "github",
+			Finding:         v1alpha1.FindingSpec{Kind: "Deployment", Name: "svc-g", Namespace: "default"},
+			GitOpsRepo:      "org/repo",
+			AgentImage:      "img",
+			AgentSA:         "sa",
+		},
+		Status: v1alpha1.RemediationJobStatus{
+			Phase:   v1alpha1.PhaseSucceeded,
+			SinkRef: makeSinkRef("https://github.com/org/repo/pull/47"),
+		},
+	}
+	c := newTestClient(obj, rjob)
+	closer := &fakeSinkCloser{err: errors.New("network error")}
+	p := &fakeSourceProvider{name: "fake", objectType: &corev1.ConfigMap{}, finding: nil}
+	r := newAutoCloseReconciler(p, c, closer, true)
+
+	_, err := r.Reconcile(context.Background(), reqFor("svc-g", "default"))
+	if err != nil {
+		t.Fatalf("expected nil, got: %v", err)
+	}
+
+	var remaining v1alpha1.RemediationJob
+	if getErr := c.Get(context.Background(), types.NamespacedName{Name: rjob.Name, Namespace: agentNamespace}, &remaining); getErr != nil {
+		t.Errorf("rjob should still exist after Close error, got: %v", getErr)
+	}
+}
+
+// TestAutoClose_PathB_NilSinkCloser_NoPanic verifies that a nil SinkCloser
+// does not cause a panic (PRAutoClose=false guards the nil).
+func TestAutoClose_PathB_NilSinkCloser_NoPanic(t *testing.T) {
+	t.Parallel()
+	obj := makeWatchedObject("svc-h", "default")
+	rjob := &v1alpha1.RemediationJob{
+		ObjectMeta: metav1.ObjectMeta{Name: "mendabot-aaa888", Namespace: agentNamespace},
+		Spec: v1alpha1.RemediationJobSpec{
+			SourceResultRef: v1alpha1.ResultRef{Name: "svc-h", Namespace: "default"},
+			Fingerprint:     "aaa888bbb999ccc000",
+			SourceType:      "native",
+			SinkType:        "github",
+			Finding:         v1alpha1.FindingSpec{Kind: "Deployment"},
+			GitOpsRepo:      "org/repo",
+			AgentImage:      "img",
+			AgentSA:         "sa",
+		},
+		Status: v1alpha1.RemediationJobStatus{
+			Phase:   v1alpha1.PhaseSucceeded,
+			SinkRef: makeSinkRef("https://github.com/org/repo/pull/48"),
+		},
+	}
+	c := newTestClient(obj, rjob)
+	p := &fakeSourceProvider{name: "fake", objectType: &corev1.ConfigMap{}, finding: nil}
+	r := newAutoCloseReconciler(p, c, nil, false) // nil SinkCloser, PRAutoClose=false
+
+	_, err := r.Reconcile(context.Background(), reqFor("svc-h", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// TestAutoClose_PathB_IsNotFound_SucceededJob verifies Path B runs in the
+// IsNotFound (source deleted) path, not just the finding==nil path.
+func TestAutoClose_PathB_IsNotFound_SucceededJob(t *testing.T) {
+	t.Parallel()
+	rjob := &v1alpha1.RemediationJob{
+		ObjectMeta: metav1.ObjectMeta{Name: "mendabot-bbb111", Namespace: agentNamespace},
+		Spec: v1alpha1.RemediationJobSpec{
+			SourceResultRef: v1alpha1.ResultRef{Name: "svc-i", Namespace: "default"},
+			Fingerprint:     "bbb111ccc222ddd333",
+			SourceType:      "native",
+			SinkType:        "github",
+			Finding:         v1alpha1.FindingSpec{Kind: "Deployment", Name: "svc-i", Namespace: "default"},
+			GitOpsRepo:      "org/repo",
+			AgentImage:      "img",
+			AgentSA:         "sa",
+		},
+		Status: v1alpha1.RemediationJobStatus{
+			Phase:   v1alpha1.PhaseSucceeded,
+			SinkRef: makeSinkRef("https://github.com/org/repo/pull/49"),
+		},
+	}
+	// Source object NOT in client → IsNotFound
+	c := newTestClient(rjob)
+	closer := &fakeSinkCloser{}
+	p := &fakeSourceProvider{name: "fake", objectType: &corev1.ConfigMap{}}
+	r := newAutoCloseReconciler(p, c, closer, true)
+
+	_, err := r.Reconcile(context.Background(), reqFor("svc-i", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(closer.calls) != 1 {
+		t.Fatalf("expected 1 Close call for Succeeded rjob in IsNotFound path, got %d", len(closer.calls))
+	}
+
+	// rjob must NOT be deleted.
+	var remaining v1alpha1.RemediationJob
+	if err := c.Get(context.Background(), types.NamespacedName{Name: rjob.Name, Namespace: agentNamespace}, &remaining); err != nil {
+		t.Errorf("rjob should still exist after Path B auto-close, got: %v", err)
+	}
+}

@@ -41,8 +41,11 @@ type SourceProviderReconciler struct {
 	// between successive self-remediation attempts. Only consulted when
 	// finding.ChainDepth > 0. A nil value disables the circuit breaker.
 	CircuitBreaker circuitbreaker.Gater
-	firstSeen      *BoundedMap
-	initOnce       sync.Once
+	// SinkCloser closes open GitHub sinks when a finding resolves.
+	// nil disables auto-close (equivalent to PR_AUTO_CLOSE=false).
+	SinkCloser domain.SinkCloser
+	firstSeen  *BoundedMap
+	initOnce   sync.Once
 }
 
 // ReadinessCacheTTL is the recommended TTL for CachedChecker wrappers around
@@ -99,6 +102,25 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 				phase != v1alpha1.PhaseRunning && phase != v1alpha1.PhaseSuppressed && phase != "" {
 				continue
 			}
+			// Path A: auto-close the sink before cancellation so we still have the
+			// full rjob status available (SinkRef is cleared after deletion).
+			// Failure is non-fatal — log and proceed with cancellation.
+			if r.Cfg.PRAutoClose && r.SinkCloser != nil && rjob.Status.SinkRef.URL != "" {
+				closeReason := fmt.Sprintf(
+					"Closing automatically: the underlying issue (%s/%s %s) has resolved. No manual fix is required.",
+					rjob.Spec.Finding.Kind, rjob.Spec.Finding.Name, rjob.Spec.Finding.Namespace)
+				if closeErr := r.SinkCloser.Close(ctx, rjob, closeReason); closeErr != nil {
+					if r.Log != nil {
+						r.Log.Error("auto-close sink failed; continuing with cancellation",
+							zap.Bool("audit", true),
+							zap.String("event", "sink.close_failed"),
+							zap.String("remediationJob", rjob.Name),
+							zap.String("sinkURL", rjob.Status.SinkRef.URL),
+							zap.Error(closeErr),
+						)
+					}
+				}
+			}
 			// Patch phase to Cancelled before deleting so observers see the terminal state.
 			rjobCopy := rjob.DeepCopyObject().(*v1alpha1.RemediationJob)
 			rjob.Status.Phase = v1alpha1.PhaseCancelled
@@ -127,6 +149,12 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		if len(cancelErrs) > 0 {
 			return ctrl.Result{}, fmt.Errorf("cancelling RemediationJobs: %w", errors.Join(cancelErrs...))
 		}
+		// Path B: auto-close any PhaseSucceeded sinks for this source ref.
+		// Reuses the rjobList already fetched above (full AgentNamespace scope).
+		// Do NOT delete Succeeded rjobs — they are the dedup tombstone.
+		if r.Cfg.PRAutoClose && r.SinkCloser != nil {
+			r.autoCloseSucceededSinks(ctx, req.Name, req.Namespace, &rjobList)
+		}
 		return ctrl.Result{}, nil
 	}
 
@@ -138,6 +166,18 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		r.firstSeen.Clear()
 		if r.EventRecorder != nil {
 			r.EventRecorder.Event(obj, corev1.EventTypeNormal, "FindingCleared", "Finding cleared; no active finding on this object")
+		}
+		// Path B: auto-close Succeeded sinks for this source ref.
+		// Only pay the List cost when auto-close is enabled.
+		if r.Cfg.PRAutoClose && r.SinkCloser != nil {
+			var rjobList v1alpha1.RemediationJobList
+			if listErr := r.List(ctx, &rjobList, client.InNamespace(r.Cfg.AgentNamespace)); listErr == nil {
+				r.autoCloseSucceededSinks(ctx, req.Name, req.Namespace, &rjobList)
+			} else if r.Log != nil {
+				r.Log.Error("auto-close: failed to list rjobs for finding-cleared path",
+					zap.Error(listErr),
+				)
+			}
 		}
 		return ctrl.Result{}, nil
 	}
@@ -510,4 +550,50 @@ func (r *SourceProviderReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(r.Provider.ObjectType()).
 		Complete(r)
+}
+
+// autoCloseSucceededSinks iterates rjobList (which must cover the full
+// AgentNamespace — do not scope it to a single source ref before passing it in,
+// the helper filters internally) and calls SinkCloser.Close on every
+// PhaseSucceeded job whose SourceResultRef matches sourceRefName/Namespace and
+// whose SinkRef.URL is non-empty.
+//
+// The caller is responsible for guarding with PRAutoClose and SinkCloser nil
+// checks before invoking this method.
+//
+// Succeeded rjobs are intentionally NOT deleted — they are the dedup tombstone.
+// Removing them would allow re-dispatch before TTL expires.
+//
+// Successive calls for the same source ref are idempotent: GitHubSinkCloser
+// treats GitHub's 422 (already-closed) as success, so no API spam occurs on
+// repeated reconciles.
+func (r *SourceProviderReconciler) autoCloseSucceededSinks(
+	ctx context.Context,
+	sourceRefName, sourceRefNamespace string,
+	rjobList *v1alpha1.RemediationJobList,
+) {
+	for i := range rjobList.Items {
+		rjob := &rjobList.Items[i]
+		if rjob.Spec.SourceResultRef.Name != sourceRefName ||
+			rjob.Spec.SourceResultRef.Namespace != sourceRefNamespace {
+			continue
+		}
+		if rjob.Status.Phase != v1alpha1.PhaseSucceeded || rjob.Status.SinkRef.URL == "" {
+			continue
+		}
+		reason := fmt.Sprintf(
+			"Closing automatically: the underlying issue (%s/%s %s) has resolved. No manual fix is required.",
+			rjob.Spec.Finding.Kind, rjob.Spec.Finding.Name, rjob.Spec.Finding.Namespace)
+		if err := r.SinkCloser.Close(ctx, rjob, reason); err != nil {
+			if r.Log != nil {
+				r.Log.Error("auto-close succeeded sink failed",
+					zap.Bool("audit", true),
+					zap.String("event", "sink.close_succeeded_failed"),
+					zap.String("remediationJob", rjob.Name),
+					zap.String("sinkURL", rjob.Status.SinkRef.URL),
+					zap.Error(err),
+				)
+			}
+		}
+	}
 }

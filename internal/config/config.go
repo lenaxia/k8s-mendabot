@@ -74,6 +74,10 @@ type Config struct {
 	// MultiPodThreshold is the minimum number of pod findings on the same node
 	// required for MultiPodSameNodeRule to fire.
 	MultiPodThreshold int // CORRELATION_MULTI_POD_THRESHOLD — default 3
+
+	// PRAutoClose controls whether open sinks are auto-closed when a finding resolves.
+	// Default: true. Set PR_AUTO_CLOSE=false to disable.
+	PRAutoClose bool // PR_AUTO_CLOSE — default true
 }
 
 // FromEnv reads configuration from environment variables and returns a Config.
@@ -334,7 +338,7 @@ func FromEnv() (Config, error) {
 	// Design invariant: CORRELATION_WINDOW >= STABILISATION_WINDOW
 	corrWindowStr := os.Getenv("CORRELATION_WINDOW_SECONDS")
 	if corrWindowStr == "" {
-		cfg.CorrelationWindowSeconds = int(cfg.StabilisationWindow.Seconds())
+		cfg.CorrelationWindowSeconds = 30
 	} else {
 		n, err := strconv.Atoi(corrWindowStr)
 		if err != nil {
@@ -366,6 +370,17 @@ func FromEnv() (Config, error) {
 			return Config{}, fmt.Errorf("CORRELATION_MULTI_POD_THRESHOLD must be a positive integer, got %d", n)
 		}
 		cfg.MultiPodThreshold = n
+	}
+
+	// PR_AUTO_CLOSE — default true; set "false" or "0" to disable sink auto-close.
+	prAutoCloseStr := os.Getenv("PR_AUTO_CLOSE")
+	switch prAutoCloseStr {
+	case "", "true", "1":
+		cfg.PRAutoClose = true
+	case "false", "0":
+		cfg.PRAutoClose = false
+	default:
+		return Config{}, fmt.Errorf("PR_AUTO_CLOSE must be 'true', 'false', '1', or '0', got %q", prAutoCloseStr)
 	}
 
 	return cfg, nil

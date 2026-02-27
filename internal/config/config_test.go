@@ -1590,3 +1590,70 @@ func TestFromEnv_CorrelationWindowNegative(t *testing.T) {
 		t.Fatal("expected error for CORRELATION_WINDOW_SECONDS=-1, got nil")
 	}
 }
+
+// TestFromEnv_PRAutoClose_DefaultTrue verifies PR_AUTO_CLOSE defaults to true.
+func TestFromEnv_PRAutoClose_DefaultTrue(t *testing.T) {
+	setRequiredEnv(t)
+	os.Unsetenv("PR_AUTO_CLOSE")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg.PRAutoClose {
+		t.Error("expected PRAutoClose=true by default, got false")
+	}
+}
+
+// TestFromEnv_PRAutoClose_ExplicitTrue verifies PR_AUTO_CLOSE=true parses correctly.
+func TestFromEnv_PRAutoClose_ExplicitTrue(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("PR_AUTO_CLOSE", "true")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg.PRAutoClose {
+		t.Error("expected PRAutoClose=true, got false")
+	}
+}
+
+// TestFromEnv_PRAutoClose_False verifies PR_AUTO_CLOSE=false disables auto-close.
+func TestFromEnv_PRAutoClose_False(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("PR_AUTO_CLOSE", "false")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.PRAutoClose {
+		t.Error("expected PRAutoClose=false, got true")
+	}
+}
+
+// TestFromEnv_PRAutoClose_Zero verifies PR_AUTO_CLOSE=0 disables auto-close.
+func TestFromEnv_PRAutoClose_Zero(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("PR_AUTO_CLOSE", "0")
+
+	cfg, err := config.FromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.PRAutoClose {
+		t.Error("expected PRAutoClose=false for PR_AUTO_CLOSE=0, got true")
+	}
+}
+
+// TestFromEnv_PRAutoClose_InvalidValue verifies invalid PR_AUTO_CLOSE returns an error.
+func TestFromEnv_PRAutoClose_InvalidValue(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("PR_AUTO_CLOSE", "yes")
+
+	_, err := config.FromEnv()
+	if err == nil {
+		t.Fatal("expected error for PR_AUTO_CLOSE=yes, got nil")
+	}
+}
