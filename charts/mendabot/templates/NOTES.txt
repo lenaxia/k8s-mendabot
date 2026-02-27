@@ -21,6 +21,11 @@ via Helm values.
      https://github.com/organizations/<org>/settings/installations/<id>
      (personal: https://github.com/settings/installations/<id>)
 
+   NOTE: The watcher pod also consumes this Secret when watcher.prAutoClose=true
+   (the default). If the Secret is absent the watcher pod will fail with
+   CreateContainerConfigError. To disable this requirement set
+   watcher.prAutoClose=false in your values.yaml.
+
 2. LLM + cluster credentials (Secret name: "llm-credentials-{{ .Values.agentType }}"):
    The Secret uses an opaque config blob pattern — mendabot never interprets
    the provider-config content; it is passed directly to the agent runner.

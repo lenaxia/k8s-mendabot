@@ -314,25 +314,6 @@ func FromEnv() (Config, error) {
 		return Config{}, fmt.Errorf("DRY_RUN must be 'true', 'false', '1', or '0', got %q", dryRunStr)
 	}
 
-	// LLM provider selection — empty string disables the LLM readiness check.
-	// bedrock and vertex are reserved for future implementation; configuring them
-	// is a startup error rather than a silent runtime block.
-	cfg.LLMProvider = os.Getenv("LLM_PROVIDER")
-	switch cfg.LLMProvider {
-	case "", "openai":
-		// valid
-	case "bedrock", "vertex":
-		return Config{}, fmt.Errorf(
-			"LLM_PROVIDER=%q is not yet implemented; set LLM_PROVIDER=openai or leave it unset to disable the LLM readiness check",
-			cfg.LLMProvider,
-		)
-	default:
-		return Config{}, fmt.Errorf(
-			"LLM_PROVIDER %q is not supported; accepted values: openai (or unset to disable)",
-			cfg.LLMProvider,
-		)
-	}
-
 	// Correlation window — how long to hold Pending jobs before dispatching.
 	// Must be at least as long as stabilization window to allow related findings to be grouped.
 	// Design invariant: CORRELATION_WINDOW >= STABILISATION_WINDOW

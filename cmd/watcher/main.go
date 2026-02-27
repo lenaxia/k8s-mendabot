@@ -195,7 +195,7 @@ func main() {
 	}
 
 	// Wire GitHub App token provider and sink closer.
-	// envFrom on the Deployment guarantees these vars are present when the pod starts.
+	// secretKeyRef entries on the Deployment (conditional on prAutoClose) guarantee these vars are present when the pod starts.
 	// If PRAutoClose is false, use NoopSinkCloser — no credentials needed.
 	var sinkCloser domain.SinkCloser
 	if cfg.PRAutoClose {

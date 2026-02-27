@@ -3234,6 +3234,123 @@ func TestAutoClose_PathA_InFlightJobWithSinkRef(t *testing.T) {
 	}
 }
 
+// TestAutoClose_PathA_DispatchedJobWithSinkRef verifies that a Dispatched rjob
+// (non-terminal) with a SinkRef triggers SinkCloser before cancellation.
+func TestAutoClose_PathA_DispatchedJobWithSinkRef(t *testing.T) {
+	t.Parallel()
+	rjob := &v1alpha1.RemediationJob{
+		ObjectMeta: metav1.ObjectMeta{Name: "mendabot-dsp001", Namespace: agentNamespace},
+		Spec: v1alpha1.RemediationJobSpec{
+			SourceResultRef: v1alpha1.ResultRef{Name: "svc-dsp", Namespace: "default"},
+			Fingerprint:     "dsp001bbb222ccc333",
+			SourceType:      "native",
+			SinkType:        "github",
+			Finding:         v1alpha1.FindingSpec{Kind: "Deployment", Name: "svc-dsp", Namespace: "default"},
+			GitOpsRepo:      "org/repo",
+			AgentImage:      "img",
+			AgentSA:         "sa",
+		},
+		Status: v1alpha1.RemediationJobStatus{
+			Phase:   v1alpha1.PhaseDispatched,
+			SinkRef: makeSinkRef("https://github.com/org/repo/pull/101"),
+		},
+	}
+	c := newTestClient(rjob)
+
+	closer := &fakeSinkCloser{}
+	p := &fakeSourceProvider{name: "fake", objectType: &corev1.ConfigMap{}}
+	r := newAutoCloseReconciler(p, c, closer, true)
+
+	_, err := r.Reconcile(context.Background(), reqFor("svc-dsp", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(closer.calls) != 1 {
+		t.Fatalf("expected 1 SinkCloser.Close call for Dispatched phase, got %d", len(closer.calls))
+	}
+	if closer.calls[0].sinkURL != "https://github.com/org/repo/pull/101" {
+		t.Errorf("unexpected sinkURL: %q", closer.calls[0].sinkURL)
+	}
+}
+
+// TestAutoClose_PathA_RunningJobWithSinkRef verifies that a Running rjob
+// (non-terminal) with a SinkRef triggers SinkCloser before cancellation.
+func TestAutoClose_PathA_RunningJobWithSinkRef(t *testing.T) {
+	t.Parallel()
+	rjob := &v1alpha1.RemediationJob{
+		ObjectMeta: metav1.ObjectMeta{Name: "mendabot-run001", Namespace: agentNamespace},
+		Spec: v1alpha1.RemediationJobSpec{
+			SourceResultRef: v1alpha1.ResultRef{Name: "svc-run", Namespace: "default"},
+			Fingerprint:     "run001bbb222ccc333",
+			SourceType:      "native",
+			SinkType:        "github",
+			Finding:         v1alpha1.FindingSpec{Kind: "Deployment", Name: "svc-run", Namespace: "default"},
+			GitOpsRepo:      "org/repo",
+			AgentImage:      "img",
+			AgentSA:         "sa",
+		},
+		Status: v1alpha1.RemediationJobStatus{
+			Phase:   v1alpha1.PhaseRunning,
+			SinkRef: makeSinkRef("https://github.com/org/repo/pull/102"),
+		},
+	}
+	c := newTestClient(rjob)
+
+	closer := &fakeSinkCloser{}
+	p := &fakeSourceProvider{name: "fake", objectType: &corev1.ConfigMap{}}
+	r := newAutoCloseReconciler(p, c, closer, true)
+
+	_, err := r.Reconcile(context.Background(), reqFor("svc-run", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(closer.calls) != 1 {
+		t.Fatalf("expected 1 SinkCloser.Close call for Running phase, got %d", len(closer.calls))
+	}
+	if closer.calls[0].sinkURL != "https://github.com/org/repo/pull/102" {
+		t.Errorf("unexpected sinkURL: %q", closer.calls[0].sinkURL)
+	}
+}
+
+// TestAutoClose_PathA_SuppressedJobWithSinkRef verifies that a Suppressed rjob
+// (non-terminal) with a SinkRef triggers SinkCloser before cancellation.
+func TestAutoClose_PathA_SuppressedJobWithSinkRef(t *testing.T) {
+	t.Parallel()
+	rjob := &v1alpha1.RemediationJob{
+		ObjectMeta: metav1.ObjectMeta{Name: "mendabot-sup001", Namespace: agentNamespace},
+		Spec: v1alpha1.RemediationJobSpec{
+			SourceResultRef: v1alpha1.ResultRef{Name: "svc-sup", Namespace: "default"},
+			Fingerprint:     "sup001bbb222ccc333",
+			SourceType:      "native",
+			SinkType:        "github",
+			Finding:         v1alpha1.FindingSpec{Kind: "Deployment", Name: "svc-sup", Namespace: "default"},
+			GitOpsRepo:      "org/repo",
+			AgentImage:      "img",
+			AgentSA:         "sa",
+		},
+		Status: v1alpha1.RemediationJobStatus{
+			Phase:   v1alpha1.PhaseSuppressed,
+			SinkRef: makeSinkRef("https://github.com/org/repo/pull/103"),
+		},
+	}
+	c := newTestClient(rjob)
+
+	closer := &fakeSinkCloser{}
+	p := &fakeSourceProvider{name: "fake", objectType: &corev1.ConfigMap{}}
+	r := newAutoCloseReconciler(p, c, closer, true)
+
+	_, err := r.Reconcile(context.Background(), reqFor("svc-sup", "default"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(closer.calls) != 1 {
+		t.Fatalf("expected 1 SinkCloser.Close call for Suppressed phase, got %d", len(closer.calls))
+	}
+	if closer.calls[0].sinkURL != "https://github.com/org/repo/pull/103" {
+		t.Errorf("unexpected sinkURL: %q", closer.calls[0].sinkURL)
+	}
+}
+
 // TestAutoClose_PathA_InFlightJobWithoutSinkRef verifies that a Pending rjob
 // with empty SinkRef does NOT trigger SinkCloser.
 func TestAutoClose_PathA_InFlightJobWithoutSinkRef(t *testing.T) {
