@@ -167,12 +167,16 @@ STEP 8 — Open a pull request
   git -C /workspace/repo commit -m "fix(${FINDING_KIND}/${FINDING_PARENT}): <concise description>"
   git -C /workspace/repo push origin fix/mendabot-${FINDING_FINGERPRINT}
 
-  gh pr create \
+  PR_OUTPUT=$(gh pr create \
     --repo ${GITOPS_REPO} \
     --base main \
     --head fix/mendabot-${FINDING_FINGERPRINT} \
     --title "fix(${FINDING_KIND}/${FINDING_PARENT}): <concise description>" \
-    --body "<see PR body format below>"
+    --body "<see PR body format below>" \
+    --json url,number)
+
+  # PR_OUTPUT now contains JSON: {"url":"https://...","number":42}
+  # This is consumed by STEP 9 to write SinkRef back to the RemediationJob.
 
 === PR BODY FORMAT ===
 
@@ -259,15 +263,6 @@ kubectl patch remediationjob "${RJOB_NAME}" \
 If the kubectl patch fails, print the warning and continue. The PR is already open and
 must not be retracted. The auto-close feature will not work for this run, but the
 investigation result is preserved.
-
-NOTE: gh pr create must be called with --json url,number to capture output:
-  PR_OUTPUT=$(gh pr create \
-    --repo ${GITOPS_REPO} \
-    --base main \
-    --head fix/mendabot-${FINDING_FINGERPRINT} \
-    --title "..." \
-    --body "..." \
-    --json url,number)
 
 === HARD RULES ===
 

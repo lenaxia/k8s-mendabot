@@ -98,9 +98,23 @@ spec:
           value: {{ .Values.selfRemediation.cascadeNodeCacheTTLSeconds | quote }}
         - name: PR_AUTO_CLOSE
           value: {{ .Values.watcher.prAutoClose | quote }}
-        envFrom:
-        - secretRef:
-            name: mendabot-github-app
+        {{- if .Values.watcher.prAutoClose }}
+        - name: GITHUB_APP_ID
+          valueFrom:
+            secretKeyRef:
+              name: github-app
+              key: app-id
+        - name: GITHUB_APP_INSTALLATION_ID
+          valueFrom:
+            secretKeyRef:
+              name: github-app
+              key: installation-id
+        - name: GITHUB_APP_PRIVATE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: github-app
+              key: private-key
+        {{- end }}
         ports:
         - name: metrics
           containerPort: 8080
