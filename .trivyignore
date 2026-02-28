@@ -31,3 +31,7 @@ CVE-2025-61729 exp:2026-06-01
 CVE-2025-61726 exp:2026-06-01
 CVE-2025-61728 exp:2026-06-01
 CVE-2025-61730 exp:2026-06-01
+
+# HIGH — go.opentelemetry.io/otel/sdk PATH hijacking in sops binary; fixed in
+# otel/sdk v1.40.0 but no sops release yet includes it. Not in code we own.
+CVE-2026-24051 exp:2026-06-01
