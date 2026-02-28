@@ -62,6 +62,22 @@ func FindingFingerprint(f *Finding) (string, error) {
 	return fmt.Sprintf("%x", sha256.Sum256(buf.Bytes())), nil
 }
 
+// KindHierarchyRank returns the hierarchy rank for a Kubernetes kind.
+// Higher rank = higher in the ownership hierarchy = preferred as the primary finding.
+// Unknown kinds return 0.
+func KindHierarchyRank(kind string) int {
+	ranks := map[string]int{
+		"Deployment":            10,
+		"StatefulSet":           9,
+		"DaemonSet":             8,
+		"Job":                   7,
+		"ReplicaSet":            6,
+		"Pod":                   1,
+		"PersistentVolumeClaim": 1,
+	}
+	return ranks[kind]
+}
+
 // SourceProvider is implemented by any component that watches an external resource
 // and can produce a normalised Finding from it.
 //

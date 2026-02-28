@@ -441,6 +441,53 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 	}
 
+	// Parent-hierarchy suppression: if an active RemediationJob already exists for
+	// the same namespace+parentObject with a higher-hierarchy kind (e.g. Deployment
+	// while this finding is a Pod), suppress this finding. This prevents duplicate
+	// investigations when the native provider emits both a Deployment finding and a
+	// Pod finding for the same parent — the Deployment-level investigation covers both.
+	//
+	// "Active" means any phase except Succeeded (which is terminal and no longer
+	// represents an ongoing investigation).
+	if finding.ParentObject != "" {
+		var allRjobs v1alpha1.RemediationJobList
+		if err := r.List(ctx, &allRjobs,
+			client.InNamespace(r.Cfg.AgentNamespace),
+			client.MatchingLabels{"app.kubernetes.io/managed-by": "mechanic-watcher"},
+		); err != nil {
+			return ctrl.Result{}, fmt.Errorf("parent-hierarchy suppression: listing RemediationJobs: %w", err)
+		}
+		thisRank := domain.KindHierarchyRank(finding.Kind)
+		for i := range allRjobs.Items {
+			peer := &allRjobs.Items[i]
+			if peer.Spec.Finding.Namespace != finding.Namespace {
+				continue
+			}
+			if peer.Spec.Finding.ParentObject != finding.ParentObject {
+				continue
+			}
+			if peer.Status.Phase == v1alpha1.PhaseSucceeded {
+				continue
+			}
+			peerRank := domain.KindHierarchyRank(peer.Spec.Finding.Kind)
+			if peerRank > thisRank {
+				if r.Log != nil {
+					r.Log.Info("finding suppressed",
+						zap.Bool("audit", true),
+						zap.String("event", "finding.suppressed.parent_hierarchy"),
+						zap.String("provider", r.Provider.ProviderName()),
+						zap.String("fingerprint", fp[:12]),
+						zap.String("kind", finding.Kind),
+						zap.String("parentObject", finding.ParentObject),
+						zap.String("supersededBy", peer.Name),
+						zap.String("supersededByKind", peer.Spec.Finding.Kind),
+					)
+				}
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+		}
+	}
+
 	// Readiness gate: do not create RemediationJobs until the sink and LLM
 	// dependencies are confirmed available. Log at error level and requeue so
 	// the finding is re-evaluated once the dependency comes back up.

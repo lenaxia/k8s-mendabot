@@ -17,18 +17,10 @@ import (
 
 // kindHierarchy ranks Kubernetes kinds by ownership level.
 // Higher value = higher in the hierarchy = preferred as primary.
-var kindHierarchy = map[string]int{
-	"Deployment":  10,
-	"StatefulSet": 9,
-	"DaemonSet":   8,
-	"Job":         7,
-	"ReplicaSet":  6,
-	"Pod":         1,
-}
-
-// kindRank returns the hierarchy rank for a kind (0 for unknown kinds).
+// Kept here as a local alias over domain.KindHierarchyRank for readability
+// within the correlator package.
 func kindRank(kind string) int {
-	return kindHierarchy[kind]
+	return domain.KindHierarchyRank(kind)
 }
 
 // selectPrimary picks the primary RemediationJob from the candidate and a set of matched peers.
