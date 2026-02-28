@@ -2,8 +2,8 @@ apiVersion: v2
 name: mechanic
 description: Kubernetes-native SRE remediation bot — watches cluster failures, spawns an LLM agent, and opens GitOps pull requests with proposed fixes.
 type: application
-version: 0.3.30
-appVersion: v0.3.30
+version: 0.3.31
+appVersion: v0.3.31
 kubeVersion: ">=1.28.0-0"
 keywords:
   - kubernetes
