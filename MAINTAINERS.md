@@ -1,6 +1,6 @@
 # Maintainers
 
-This file lists the current maintainers and committers for k8s-mendabot.
+This file lists the current maintainers and committers for k8s-mechanic.
 
 For the governance model, contributor ladder, and how maintainers are added or
 removed, see [GOVERNANCE.md](GOVERNANCE.md).
@@ -22,5 +22,5 @@ _None yet._
 ---
 
 The project is actively seeking co-maintainers from other organizations. If you
-use k8s-mendabot in production and are interested in co-maintaining, open a
+use k8s-mechanic in production and are interested in co-maintaining, open a
 GitHub issue labelled `governance` to start the conversation.

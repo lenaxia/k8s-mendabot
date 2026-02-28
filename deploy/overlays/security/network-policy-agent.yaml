@@ -1,12 +1,12 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: mendabot-agent-egress
-  namespace: mendabot
+  name: mechanic-agent-egress
+  namespace: mechanic
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/managed-by: mendabot-watcher
+      app.kubernetes.io/managed-by: mechanic-watcher
   policyTypes:
   - Egress
   egress:

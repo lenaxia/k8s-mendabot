@@ -21,7 +21,7 @@ linters-settings:
     severity: high
     confidence: medium
   goimports:
-    local-prefixes: github.com/lenaxia/k8s-mendabot
+    local-prefixes: github.com/lenaxia/k8s-mechanic
 
 issues:
   exclude-rules:

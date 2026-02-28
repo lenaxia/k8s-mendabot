@@ -18,14 +18,14 @@ missed or introduced by those fixes.
 ### Validation Findings (4 gaps total)
 
 #### GAP-1 (Critical) — Helm values.yaml: injectionDetectionAction default crashes watcher
-- **File:** `charts/mendabot/values.yaml:44`
+- **File:** `charts/mechanic/values.yaml:44`
 - **Fix:** Changed `injectionDetectionAction: "warn"` → `"log"`. The value `"warn"` is rejected
   by `config.go` which only accepts `"log"` or `"suppress"` — any fresh Helm deployment would
   have crashed at startup immediately. Also corrected the stale comment on line 43 (`warn or block`
   → `log or suppress`).
 
 #### GAP-2 (Major) — Helm chart: AGENT_WATCH_NAMESPACES never injected
-- **Files:** `charts/mendabot/values.yaml`, `charts/mendabot/templates/deployment-watcher.yaml`
+- **Files:** `charts/mechanic/values.yaml`, `charts/mechanic/templates/deployment-watcher.yaml`
 - **Fix:** Added `agentWatchNamespaces: ""` to the watcher section in values.yaml (empty = cluster
   scope, the safe default). Added `AGENT_WATCH_NAMESPACES` env var injection to deployment template
   immediately after `AGENT_RBAC_SCOPE`. Without this, any operator using `agentRBACScope: "namespace"`
@@ -67,7 +67,7 @@ None.
 go build ./...                              — clean
 go test -count=1 -timeout 60s -race ./...  — 12/12 packages PASS
 go vet ./...                                — clean
-helm lint charts/mendabot                  — 0 chart(s) failed
+helm lint charts/mechanic                  — 0 chart(s) failed
 ```
 
 ---
@@ -88,7 +88,7 @@ Proceed with next epic per the implementation order:
 
 ## Files Modified
 
-- `charts/mendabot/values.yaml`
-- `charts/mendabot/templates/deployment-watcher.yaml`
+- `charts/mechanic/values.yaml`
+- `charts/mechanic/templates/deployment-watcher.yaml`
 - `internal/provider/provider.go`
 - `internal/domain/provider.go`

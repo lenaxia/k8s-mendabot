@@ -6,11 +6,11 @@
 ## Purpose
 
 Add `WATCH_NAMESPACES` and `EXCLUDE_NAMESPACES` environment variable support so that
-mendabot ignores transient events from system namespaces (`kube-system`, `cert-manager`,
+mechanic ignores transient events from system namespaces (`kube-system`, `cert-manager`,
 `monitoring`, `flux-system`) and only generates investigations for workload namespaces
 selected by the operator.
 
-Without this, mendabot triggers investigations for every cert-manager certificate rotation,
+Without this, mechanic triggers investigations for every cert-manager certificate rotation,
 Flux reconciliation backoff, or monitoring stack restart — high-volume transient activity
 that has zero actionable fix. This is the single largest source of noise on a real cluster.
 
@@ -74,5 +74,5 @@ STORY_01 (config) ──> STORY_02 (reconciler filter)
 - [x] `SourceProviderReconciler.Reconcile` rejects findings in `ExcludeNamespaces`
 - [x] `NodeProvider` is explicitly exempt from namespace filtering (cluster-scoped, `finding.Namespace == ""`)
 - [x] All unit and integration tests pass with `-race`
-- [x] `WATCH_NAMESPACES` and `EXCLUDE_NAMESPACES` documented in `charts/mendabot/templates/deployment-watcher.yaml` as commented-out env vars
+- [x] `WATCH_NAMESPACES` and `EXCLUDE_NAMESPACES` documented in `charts/mechanic/templates/deployment-watcher.yaml` as commented-out env vars
 - [x] Worklog written

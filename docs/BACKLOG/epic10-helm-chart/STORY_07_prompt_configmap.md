@@ -17,10 +17,10 @@ entirely via a single values field.
 
 ## Acceptance Criteria
 
-- [ ] `charts/mendabot/files/prompts/default.txt` contains the full prompt text from
+- [ ] `charts/mechanic/files/prompts/default.txt` contains the full prompt text from
   `deploy/kustomize/configmap-prompt.yaml` (the `data.prompt.txt` value, extracted
   verbatim — not the YAML wrapper)
-- [ ] `charts/mendabot/templates/configmap-prompt.yaml` renders a ConfigMap named
+- [ ] `charts/mechanic/templates/configmap-prompt.yaml` renders a ConfigMap named
   `opencode-prompt` in `{{ .Release.Namespace }}`
 - [ ] When `prompt.override` is empty (default): ConfigMap data is loaded via
   `.Files.Get (printf "files/prompts/%s.txt" .Values.prompt.name)`
@@ -35,7 +35,7 @@ entirely via a single values field.
 ## Tasks
 
 - [ ] Extract prompt content from `deploy/kustomize/configmap-prompt.yaml` into
-  `charts/mendabot/files/prompts/default.txt`
+  `charts/mechanic/files/prompts/default.txt`
 - [ ] Write `templates/configmap-prompt.yaml`
 - [ ] Verify `.Files.Get` path resolution — the path is relative to the chart root
 - [ ] Verify `prompt.override` takes precedence when set
@@ -71,7 +71,7 @@ entirely via a single values field.
 
 ## Definition of Done
 
-- [ ] `helm lint charts/mendabot/` exits 0
+- [ ] `helm lint charts/mechanic/` exits 0
 - [ ] `helm template` output contains `data.prompt.txt` with non-empty content
 - [ ] `prompt.override: "custom content"` renders `data.prompt.txt: custom content`
 - [ ] `prompt.name: nonexistent` renders a helm fail error

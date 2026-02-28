@@ -24,7 +24,7 @@ import (
 //
 //   - provider-config: opaque JSON blob passed directly to the agent runner.
 //     The model, endpoint URL, and all provider-specific config are embedded
-//     inside this blob. mendabot never interprets its contents.
+//     inside this blob. mechanic never interprets its contents.
 var requiredLLMKeys = []string{"provider-config"}
 
 // OpenAIChecker validates the per-agent-type LLM credentials Secret.

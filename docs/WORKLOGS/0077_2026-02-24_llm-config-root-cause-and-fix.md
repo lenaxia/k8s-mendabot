@@ -120,7 +120,7 @@ kubectl delete remediationjobs --all -n default
 
 ```bash
 # Patched deployment to enable LLM readiness check
-kubectl patch deployment mendabot -n default -p '{"spec":{"template":{"spec":{"containers":[{"name":"watcher","env":[{"name":"LLM_PROVIDER","value":"openai"}]}]}}}}'
+kubectl patch deployment mechanic -n default -p '{"spec":{"template":{"spec":{"containers":[{"name":"watcher","env":[{"name":"LLM_PROVIDER","value":"openai"}]}]}}}}'
 
 # Recreated secret multiple times (incorrect formats)
 kubectl delete secret llm-credentials-opencode -n default
@@ -133,7 +133,7 @@ kubectl delete remediationjobs --all -n default
 
 ## Deployment Info
 
-**Image**: `ghcr.io/lenaxia/mendabot-watcher:v0.3.7`
+**Image**: `ghcr.io/lenaxia/mechanic-watcher:v0.3.7`
 **LLM_PROVIDER**: `openai`
 **Secret**: `llm-credentials-opencode` in namespace `default`
-**Agent Image**: `ghcr.io/lenaxia/mendabot-agent:v0.3.7`
+**Agent Image**: `ghcr.io/lenaxia/mechanic-agent:v0.3.7`

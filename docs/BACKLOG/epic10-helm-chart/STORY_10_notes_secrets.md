@@ -16,15 +16,15 @@ so I know exactly what to do next without reading documentation separately.
 
 ## Acceptance Criteria
 
-- [ ] `charts/mendabot/templates/NOTES.txt` is rendered after every `helm install`
+- [ ] `charts/mechanic/templates/NOTES.txt` is rendered after every `helm install`
   and `helm upgrade`
 - [ ] NOTES.txt output covers:
   1. Confirmation the chart was installed with the release name and namespace
   2. Verification command: `kubectl get rjob -n {{ .Release.Namespace }}`
   3. Required Secrets — exact key names for each:
-     - `secrets.githubApp.name` (default: `mendabot-github-app`): `app-id`,
+     - `secrets.githubApp.name` (default: `mechanic-github-app`): `app-id`,
        `installation-id`, `private-key`
-     - `secrets.llm.name` (default: `mendabot-llm`): `api-key`, `base-url`, `model`
+     - `secrets.llm.name` (default: `mechanic-llm`): `api-key`, `base-url`, `model`
   4. Example `kubectl create secret` commands for both Secrets
   5. Warning if `gitops.repo` is empty (should not happen with `required`, but
      belt-and-suspenders)
@@ -44,14 +44,14 @@ so I know exactly what to do next without reading documentation separately.
 ## NOTES.txt content (reference)
 
 ```
-mendabot has been installed in namespace {{ .Release.Namespace }}.
+mechanic has been installed in namespace {{ .Release.Namespace }}.
 
 Verify the watcher is running:
-  kubectl get deployment -n {{ .Release.Namespace }} {{ include "mendabot.fullname" . }}
+  kubectl get deployment -n {{ .Release.Namespace }} {{ include "mechanic.fullname" . }}
   kubectl get rjob -n {{ .Release.Namespace }}
 
 REQUIRED: Create the following Secrets before the watcher can function.
-The key names below are hardcoded in the mendabot jobbuilder — do not change them.
+The key names below are hardcoded in the mechanic jobbuilder — do not change them.
 
 1. GitHub App credentials ({{ .Values.secrets.githubApp.name }}):
    kubectl create secret generic {{ .Values.secrets.githubApp.name }} \
@@ -74,12 +74,12 @@ NOTE: ServiceMonitor is enabled. Ensure Prometheus Operator is installed in your
 cluster, otherwise the ServiceMonitor resource will be ignored.
 {{- end }}
 
-For documentation see https://github.com/lenaxia/k8s-mendabot
+For documentation see https://github.com/lenaxia/k8s-mechanic
 ```
-mendabot has been installed in namespace {{ .Release.Namespace }}.
+mechanic has been installed in namespace {{ .Release.Namespace }}.
 
 Verify the watcher is running:
-  kubectl get deployment -n {{ .Release.Namespace }} {{ include "mendabot.fullname" . }}
+  kubectl get deployment -n {{ .Release.Namespace }} {{ include "mechanic.fullname" . }}
   kubectl get rjob -n {{ .Release.Namespace }}
 
 REQUIRED: Create the following Secrets before the watcher can function.
@@ -104,7 +104,7 @@ NOTE: ServiceMonitor is enabled. Ensure Prometheus Operator is installed in your
 cluster, otherwise the ServiceMonitor resource will be ignored.
 {{- end }}
 
-For documentation see https://github.com/lenaxia/k8s-mendabot
+For documentation see https://github.com/lenaxia/k8s-mechanic
 ```
 
 ---

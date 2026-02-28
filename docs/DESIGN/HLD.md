@@ -85,7 +85,7 @@ containing a proposed fix, with the investigation and reasoning documented inlin
 │  └──────────────────┘           └──────────┬───────────────────┘   │
 │                                             │ watch                 │
 │                                  ┌──────────▼───────────────────┐  │
-│                                  │  mendabot-watcher             │  │
+│                                  │  mechanic-watcher             │  │
 │                                  │  (Deployment, 1 replica)      │  │
 │                                  │                               │  │
 │                                  │  K8sGPTProvider               │  │
@@ -106,7 +106,7 @@ containing a proposed fix, with the investigation and reasoning documented inlin
 │                              │ CRDs            │  │ (agent Job)   ││
 │                              │ (remediation.   │  │               ││
 │                              │  k8sgpt.ai)     │  │ initContainer ││
-│                              │                 │  │ + mendabot-   ││
+│                              │                 │  │ + mechanic-   ││
 │                              │ spec.sourceType │  │   agent image ││
 │                              │ status.phase    │  └───────────────┘│
 │                              │ status.jobRef   │                    │
@@ -125,10 +125,10 @@ containing a proposed fix, with the investigation and reasoning documented inlin
 
 ## 4. Component Design
 
-### 4.1 mendabot-watcher
+### 4.1 mechanic-watcher
 
 A single-binary Go controller built on `controller-runtime`. It runs as a single-replica
-Deployment in the `mendabot` namespace. It contains:
+Deployment in the `mechanic` namespace. It contains:
 
 **K8sGPTProvider** (`internal/provider/k8sgpt/`) — the v1 source provider:
 - A plain struct implementing `domain.SourceProvider`
@@ -139,7 +139,7 @@ Deployment in the `mendabot` namespace. It contains:
 
 **RemediationJobReconciler** (`internal/controller/`) — provider-agnostic sink for all
 `RemediationJob` objects regardless of which source created them:
-- Watches `RemediationJob` objects in the `mendabot` namespace, and also watches owned
+- Watches `RemediationJob` objects in the `mechanic` namespace, and also watches owned
   `batch/v1 Jobs` via `Owns()`
 - Creates `batch/v1 Jobs` for `RemediationJob` objects in `Pending` phase
 - Enforces `MAX_CONCURRENT_JOBS` before creating each Job
@@ -151,7 +151,7 @@ state is reconstructed by re-listing existing `RemediationJob` objects.
 
 ### 4.2 RemediationJob CRD
 
-The project's own custom resource. Lives in group `remediation.mendabot.io/v1alpha1`.
+The project's own custom resource. Lives in group `remediation.mechanic.io/v1alpha1`.
 One object per unique finding fingerprint. Tracks the full lifecycle:
 
 | Field | Purpose |
@@ -166,18 +166,18 @@ One object per unique finding fingerprint. Tracks the full lifecycle:
 
 See [`REMEDIATIONJOB_LLD.md`](lld/REMEDIATIONJOB_LLD.md) for the full spec.
 
-### 4.3 mendabot-agent Job
+### 4.3 mechanic-agent Job
 
 A `batch/v1 Job` created dynamically by the `RemediationJobReconciler` per
 `RemediationJob`. Owned by the `RemediationJob` via `ownerReferences`.
 
-**Init container** (`ghcr.io/lenaxia/mendabot-agent`):
+**Init container** (`ghcr.io/lenaxia/mechanic-agent`):
 - Calls `get-github-app-token.sh` to exchange the GitHub App private key for a
   short-lived installation token
 - Writes the token to a shared `emptyDir` volume at `/workspace/github-token`
 - Clones the GitOps repo using the token into `/workspace/repo`
 
-**Main container** (`ghcr.io/lenaxia/mendabot-agent`):
+**Main container** (`ghcr.io/lenaxia/mechanic-agent`):
 - Receives the finding as environment variables (kind, name, errors, details, fingerprint)
 - Reads the rendered prompt from a mounted ConfigMap
 - Runs `opencode run --file <path>` with in-cluster kubeconfig (automatic, via ServiceAccount)
@@ -191,9 +191,9 @@ A `batch/v1 Job` created dynamically by the `RemediationJobReconciler` per
 | `backoffLimit` | `1` | Allow one retry on container crash only |
 | `activeDeadlineSeconds` | `900` | 15 min hard cap; prevents runaway LLM sessions |
 | `ttlSecondsAfterFinished` | `86400` | Clean up after 1 day |
-| Name | `mendabot-agent-<12-char-fingerprint>` | Deterministic, collision-resistant |
+| Name | `mechanic-agent-<12-char-fingerprint>` | Deterministic, collision-resistant |
 
-### 4.4 mendabot-agent Docker image
+### 4.4 mechanic-agent Docker image
 
 Built on `debian:bookworm-slim`. Unchanged from the original design — see
 [`AGENT_IMAGE_LLD.md`](lld/AGENT_IMAGE_LLD.md).
@@ -345,8 +345,8 @@ the extensibility point for sinks in v1. See [PROMPT_LLD.md](lld/PROMPT_LLD.md) 
 
 2. SourceProviderReconciler (K8sGPTProvider) triggered
       fingerprint = sha256("Pod" + "my-deployment" + sorted(["Back-off..."]))
-      list RemediationJobs with label remediation.mendabot.io/fingerprint=<fp>
-      → none found → create RemediationJob "mendabot-a3f9c2b14d8e"
+      list RemediationJobs with label remediation.mechanic.io/fingerprint=<fp>
+      → none found → create RemediationJob "mechanic-a3f9c2b14d8e"
         spec.fingerprint = "<full 64-char fp>"
         spec.finding.kind = "Pod"
         spec.finding.parentObject = "my-deployment"
@@ -355,8 +355,8 @@ the extensibility point for sinks in v1. See [PROMPT_LLD.md](lld/PROMPT_LLD.md) 
 
 3. RemediationJobReconciler triggered (by RemediationJob creation)
       check MAX_CONCURRENT_JOBS → under limit
-      jobBuilder.Build(rjob) → Job "mendabot-agent-a3f9c2b14d8e"
-        ownerReference → RemediationJob "mendabot-a3f9c2b14d8e"
+      jobBuilder.Build(rjob) → Job "mechanic-agent-a3f9c2b14d8e"
+        ownerReference → RemediationJob "mechanic-a3f9c2b14d8e"
         env: FINDING_KIND=Pod
              FINDING_NAME=my-deployment-abc12-xyz34
              FINDING_NAMESPACE=default
@@ -367,7 +367,7 @@ the extensibility point for sinks in v1. See [PROMPT_LLD.md](lld/PROMPT_LLD.md) 
              GITOPS_REPO=lenaxia/talos-ops-prod
              GITOPS_MANIFEST_ROOT=kubernetes
       patch RemediationJob.status.phase = "Dispatched"
-      patch RemediationJob.status.jobRef = "mendabot-agent-a3f9c2b14d8e"
+      patch RemediationJob.status.jobRef = "mechanic-agent-a3f9c2b14d8e"
 
 4. Job init container
       → get-github-app-token.sh → writes /workspace/github-token
@@ -377,7 +377,7 @@ the extensibility point for sinks in v1. See [PROMPT_LLD.md](lld/PROMPT_LLD.md) 
       → opencode run --file /tmp/rendered-prompt.txt
       → OpenCode calls: kubectl describe pod, kubectl get events,
                         k8sgpt analyze, gh pr list, git diff, gh pr create
-      → on completion: kubectl patch remediationjob mendabot-a3f9c2b14d8e
+      → on completion: kubectl patch remediationjob mechanic-a3f9c2b14d8e
                          --subresource=status --patch '{"status":{"prRef":"<url>"}}'
 
 6. RemediationJobReconciler re-triggered (by Job status change via Owns())
@@ -418,8 +418,8 @@ to avoid divergence — the LLD is the single source of truth for the exact impl
 
 Deduplication is now performed via the Kubernetes API — no in-memory state:
 
-1. `SourceProviderReconciler` lists `RemediationJob` objects in the `mendabot` namespace with the
-   label `remediation.mendabot.io/fingerprint=<first-12-of-fp>`
+1. `SourceProviderReconciler` lists `RemediationJob` objects in the `mechanic` namespace with the
+   label `remediation.mechanic.io/fingerprint=<first-12-of-fp>`
 2. If a `RemediationJob` exists with `spec.fingerprint == fp` (full match) and its phase is
    not `Failed`, skip
 3. If no matching object exists (or the existing one is `Failed`), create a new one
@@ -442,23 +442,23 @@ because the list is against the API server, not in-memory state.
 
 ## 8. RBAC Design
 
-### mendabot-watcher ServiceAccount
+### mechanic-watcher ServiceAccount
 
 | Resource | Verbs | Scope |
 |---|---|---|
 | `results.core.k8sgpt.ai` | `get`, `list`, `watch` | ClusterRole (all namespaces) |
 | `namespaces` | `get`, `list` | ClusterRole |
-| `remediationjobs.remediation.mendabot.io` | `get`, `list`, `watch`, `create`, `update`, `patch`, `delete` | ClusterRole |
+| `remediationjobs.remediation.mechanic.io` | `get`, `list`, `watch`, `create`, `update`, `patch`, `delete` | ClusterRole |
 | `remediationjobs/status` | `get`, `patch`, `update` | ClusterRole |
 | `jobs.batch` | `get`, `list`, `create`, `watch`, `delete` | Role (own namespace only) |
 | `pods` | `get`, `list` | Role (own namespace only) |
 
-### mendabot-agent ServiceAccount
+### mechanic-agent ServiceAccount
 
 | Resource | Verbs | Scope |
 |---|---|---|
 | `*` (all resources) | `get`, `list`, `watch` | ClusterRole (all namespaces) |
-| `remediationjobs/status` | `get`, `patch` | Role (mendabot namespace only) |
+| `remediationjobs/status` | `get`, `patch` | Role (mechanic namespace only) |
 
 The read-only ClusterRole mirrors permissions already granted to the k8sgpt deployment.
 The status patch Role allows the agent to write the PR URL back to its `RemediationJob`.
@@ -585,12 +585,12 @@ prompt. The prompt instructs OpenCode to follow this investigation sequence:
 |---|---|---|
 | `GITOPS_REPO` | Yes | GitHub repo in `owner/repo` format, e.g. `lenaxia/talos-ops-prod` |
 | `GITOPS_MANIFEST_ROOT` | Yes | Path within the cloned repo to the manifests root, e.g. `kubernetes` |
-| `AGENT_IMAGE` | Yes | Full image ref for the agent, e.g. `ghcr.io/lenaxia/mendabot-agent:latest` |
+| `AGENT_IMAGE` | Yes | Full image ref for the agent, e.g. `ghcr.io/lenaxia/mechanic-agent:latest` |
 | `AGENT_NAMESPACE` | Yes | Namespace where agent Jobs are created — **must equal the watcher's own namespace** |
 | `AGENT_SA` | Yes | ServiceAccount name for agent Jobs |
 | `SINK_TYPE` | No | Sink implementation for the agent to use, default `"github"` |
 | `LOG_LEVEL` | No | `debug`, `info` (default), `warn`, `error` |
-| `MAX_CONCURRENT_JOBS` | No | Max agent Jobs running at once, default `3` — enforced by counting Jobs with `app.kubernetes.io/managed-by: mendabot-watcher` label |
+| `MAX_CONCURRENT_JOBS` | No | Max agent Jobs running at once, default `3` — enforced by counting Jobs with `app.kubernetes.io/managed-by: mechanic-watcher` label |
 | `REMEDIATION_JOB_TTL_SECONDS` | No | Seconds after which a Succeeded `RemediationJob` is deleted, default `604800` (7 days) |
 
 ### Agent Job environment variables (injected by watcher)
@@ -623,22 +623,22 @@ All Kubernetes resources are managed via Kustomize in `deploy/kustomize/`. The d
 designed to be referenced directly from a Flux `Kustomization` resource in the GitOps repo.
 
 Resources created:
-- `Namespace: mendabot`
-- `CustomResourceDefinition: remediationjobs.remediation.mendabot.io`
-- `ServiceAccount: mendabot-watcher` (in `mendabot` namespace)
-- `ServiceAccount: mendabot-agent` (in `mendabot` namespace)
-- `ClusterRole: mendabot-watcher` (Result + RemediationJob read/write + Namespace read)
-- `ClusterRole: mendabot-agent` (cluster-wide read-only)
-- `ClusterRoleBinding: mendabot-watcher`
-- `ClusterRoleBinding: mendabot-agent`
-- `Role: mendabot-watcher` (Job + Pod read/create in own namespace)
-- `RoleBinding: mendabot-watcher`
-- `Role: mendabot-agent` (RemediationJob status patch in mendabot namespace)
-- `RoleBinding: mendabot-agent`
+- `Namespace: mechanic`
+- `CustomResourceDefinition: remediationjobs.remediation.mechanic.io`
+- `ServiceAccount: mechanic-watcher` (in `mechanic` namespace)
+- `ServiceAccount: mechanic-agent` (in `mechanic` namespace)
+- `ClusterRole: mechanic-watcher` (Result + RemediationJob read/write + Namespace read)
+- `ClusterRole: mechanic-agent` (cluster-wide read-only)
+- `ClusterRoleBinding: mechanic-watcher`
+- `ClusterRoleBinding: mechanic-agent`
+- `Role: mechanic-watcher` (Job + Pod read/create in own namespace)
+- `RoleBinding: mechanic-watcher`
+- `Role: mechanic-agent` (RemediationJob status patch in mechanic namespace)
+- `RoleBinding: mechanic-agent`
 - `ConfigMap: opencode-prompt` (prompt template)
 - `Secret: github-app` (placeholder — fill manually)
 - `Secret: llm-credentials` (placeholder — fill manually)
-- `Deployment: mendabot-watcher`
+- `Deployment: mechanic-watcher`
 
 ---
 

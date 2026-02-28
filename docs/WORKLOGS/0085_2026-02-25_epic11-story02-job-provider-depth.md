@@ -1,14 +1,14 @@
 # Worklog: Epic 11 Story 02 — jobProvider Depth-Aware Detection
 
 **Date:** 2026-02-25
-**Session:** Replace unconditional mendabot-job guard with depth-aware detection in jobProvider
+**Session:** Replace unconditional mechanic-job guard with depth-aware detection in jobProvider
 **Status:** Complete
 
 ---
 
 ## Objective
 
-Replace the unconditional `(nil, nil)` guard for `app.kubernetes.io/managed-by: mendabot-watcher`
+Replace the unconditional `(nil, nil)` guard for `app.kubernetes.io/managed-by: mechanic-watcher`
 jobs in `internal/provider/native/job.go` with depth-aware logic that produces a `Finding` with
 `ChainDepth` computed from the owning `RemediationJob`. This enables self-remediation cascade
 investigations up to the configured depth limit (enforcement in STORY_03).
@@ -19,29 +19,29 @@ investigations up to the configured depth limit (enforcement in STORY_03).
 
 ### 1. Test-first implementation (TDD)
 
-- Deleted `TestJobProvider_ExtractFinding_ExcludesMendabotManagedJobs` (lines 398–431 in
+- Deleted `TestJobProvider_ExtractFinding_ExcludesMechanicManagedJobs` (lines 398–431 in
   the pre-change file) — that test asserted the old `(nil, nil)` behaviour.
-- Added import `v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"` to `job_test.go`.
+- Added import `v1alpha1 "github.com/lenaxia/k8s-mechanic/api/v1alpha1"` to `job_test.go`.
 - Added 9 new test cases covering all branches of the new logic:
-  1. `TestJobChainDepth_NonMendabotJob` — non-mendabot job → ChainDepth = 0
-  2. `TestJobChainDepth_MendabotOwnerDepth0` — owner RJob.ChainDepth=0 → ChainDepth = 1
-  3. `TestJobChainDepth_MendabotOwnerDepth1` — owner RJob.ChainDepth=1 → ChainDepth = 2
-  4. `TestJobChainDepth_MendabotOwnerNotFound` — no RJob in fake client → ChainDepth = 1
-  5. `TestJobChainDepth_MendabotNoOwnerRef` — no OwnerReferences → ChainDepth = 1
-  6. `TestJobChainDepth_MendabotStillActive` — Active=1, Failed=0 → (nil, nil)
-  7. `TestJobChainDepth_MendabotSucceeded` — CompletionTime != nil → (nil, nil)
-  8. `TestJobChainDepth_MendabotCronJobOwned` — CronJob owner ref → (nil, nil)
-  9. `TestJobChainDepth_MendabotSuspended` — JobSuspended=True condition → (nil, nil)
+  1. `TestJobChainDepth_NonMechanicJob` — non-mechanic job → ChainDepth = 0
+  2. `TestJobChainDepth_MechanicOwnerDepth0` — owner RJob.ChainDepth=0 → ChainDepth = 1
+  3. `TestJobChainDepth_MechanicOwnerDepth1` — owner RJob.ChainDepth=1 → ChainDepth = 2
+  4. `TestJobChainDepth_MechanicOwnerNotFound` — no RJob in fake client → ChainDepth = 1
+  5. `TestJobChainDepth_MechanicNoOwnerRef` — no OwnerReferences → ChainDepth = 1
+  6. `TestJobChainDepth_MechanicStillActive` — Active=1, Failed=0 → (nil, nil)
+  7. `TestJobChainDepth_MechanicSucceeded` — CompletionTime != nil → (nil, nil)
+  8. `TestJobChainDepth_MechanicCronJobOwned` — CronJob owner ref → (nil, nil)
+  9. `TestJobChainDepth_MechanicSuspended` — JobSuspended=True condition → (nil, nil)
 - Confirmed all 9 new tests failed before implementation.
 
 ### 2. Production code changes (`internal/provider/native/job.go`)
 
 - Added imports: `apierrors "k8s.io/apimachinery/pkg/api/errors"` and
-  `v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"`.
+  `v1alpha1 "github.com/lenaxia/k8s-mechanic/api/v1alpha1"`.
 - Replaced the unconditional guard block (3 lines) with:
-  `isMendabotJob := job.Labels["app.kubernetes.io/managed-by"] == "mendabot-watcher"`
+  `isMechanicJob := job.Labels["app.kubernetes.io/managed-by"] == "mechanic-watcher"`
 - Added `chainDepth` computation after all existing guards and before building the finding:
-  calls `p.getChainDepthFromOwner()` when `isMendabotJob` is true, defaults to 0 otherwise.
+  calls `p.getChainDepthFromOwner()` when `isMechanicJob` is true, defaults to 0 otherwise.
 - Set `ChainDepth: chainDepth` in the `domain.Finding` struct literal.
 - Added `getChainDepthFromOwner` private helper (lines 136–154) matching the exact spec
   from STORY_02: iterates `OwnerReferences`, looks up RemediationJob via `p.client.Get`,

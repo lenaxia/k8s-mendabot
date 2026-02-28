@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
+	v1alpha1 "github.com/lenaxia/k8s-mechanic/api/v1alpha1"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"

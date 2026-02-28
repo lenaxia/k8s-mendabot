@@ -31,7 +31,7 @@ go test ./internal/domain/... -run TestRedactSecrets -v -count=1
 === RUN   TestRedactSecrets/multiple_patterns_in_one_string
 --- PASS: TestRedactSecrets (0.00s)
 PASS
-ok  	github.com/lenaxia/k8s-mendabot/internal/domain	0.041s
+ok  	github.com/lenaxia/k8s-mechanic/internal/domain	0.041s
 ```
 
 **Coverage:**
@@ -40,7 +40,7 @@ go test ./internal/domain/... -cover -coverprofile=/tmp/domain.cov
 go tool cover -func=/tmp/domain.cov | grep redact
 ```
 ```
-github.com/lenaxia/k8s-mendabot/internal/domain/redact.go:25:  RedactSecrets  100.0%
+github.com/lenaxia/k8s-mechanic/internal/domain/redact.go:25:  RedactSecrets  100.0%
 ```
 
 `RedactSecrets` is 100% covered by the existing test suite.
@@ -111,7 +111,7 @@ go test ./internal/domain/... -run TestDetectInjection -v -count=1
 === RUN   TestDetectInjection/system:_act_as_root
 --- PASS: TestDetectInjection (0.00s)
 PASS
-ok  	github.com/lenaxia/k8s-mendabot/internal/domain	0.031s
+ok  	github.com/lenaxia/k8s-mechanic/internal/domain	0.031s
 ```
 
 ### Gap Analysis — inputs not in the existing test suite

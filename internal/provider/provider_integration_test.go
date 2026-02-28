@@ -13,12 +13,12 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
-	"github.com/lenaxia/k8s-mendabot/internal/circuitbreaker"
-	"github.com/lenaxia/k8s-mendabot/internal/config"
-	"github.com/lenaxia/k8s-mendabot/internal/domain"
-	"github.com/lenaxia/k8s-mendabot/internal/provider"
-	"github.com/lenaxia/k8s-mendabot/internal/testutil"
+	v1alpha1 "github.com/lenaxia/k8s-mechanic/api/v1alpha1"
+	"github.com/lenaxia/k8s-mechanic/internal/circuitbreaker"
+	"github.com/lenaxia/k8s-mechanic/internal/config"
+	"github.com/lenaxia/k8s-mechanic/internal/domain"
+	"github.com/lenaxia/k8s-mechanic/internal/provider"
+	"github.com/lenaxia/k8s-mechanic/internal/testutil"
 )
 
 const integrationNamespace = "default"
@@ -30,8 +30,8 @@ func integrationProviderCfg() config.Config {
 		RemediationJobTTLSeconds: 604800,
 		GitOpsRepo:               "org/repo",
 		GitOpsManifestRoot:       "deploy",
-		AgentImage:               "mendabot-agent:test",
-		AgentSA:                  "mendabot-agent",
+		AgentImage:               "mechanic-agent:test",
+		AgentSA:                  "mechanic-agent",
 	}
 }
 
@@ -389,13 +389,13 @@ func TestIntegration_ResultDeleted_CancelsPending(t *testing.T) {
 	fp := "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899"
 	rjob := &v1alpha1.RemediationJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-" + fp[:12],
+			Name:      "mechanic-" + fp[:12],
 			Namespace: integrationNamespace,
 			Labels: map[string]string{
-				"remediation.mendabot.io/fingerprint": fp[:12],
+				"remediation.mechanic.io/fingerprint": fp[:12],
 			},
 			Annotations: map[string]string{
-				"remediation.mendabot.io/fingerprint-full": fp,
+				"remediation.mechanic.io/fingerprint-full": fp,
 			},
 		},
 		Spec: v1alpha1.RemediationJobSpec{
@@ -414,8 +414,8 @@ func TestIntegration_ResultDeleted_CancelsPending(t *testing.T) {
 			},
 			GitOpsRepo:         "org/repo",
 			GitOpsManifestRoot: "deploy",
-			AgentImage:         "mendabot-agent:test",
-			AgentSA:            "mendabot-agent",
+			AgentImage:         "mechanic-agent:test",
+			AgentSA:            "mechanic-agent",
 		},
 	}
 	if err := k8sClient.Create(ctx, rjob); err != nil {
@@ -459,13 +459,13 @@ func TestIntegration_ResultDeleted_CancelsDispatched(t *testing.T) {
 	fp := "11223344556677889900aabbccddeeff11223344556677889900aabbccddeeff"
 	rjob := &v1alpha1.RemediationJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-" + fp[:12],
+			Name:      "mechanic-" + fp[:12],
 			Namespace: integrationNamespace,
 			Labels: map[string]string{
-				"remediation.mendabot.io/fingerprint": fp[:12],
+				"remediation.mechanic.io/fingerprint": fp[:12],
 			},
 			Annotations: map[string]string{
-				"remediation.mendabot.io/fingerprint-full": fp,
+				"remediation.mechanic.io/fingerprint-full": fp,
 			},
 		},
 		Spec: v1alpha1.RemediationJobSpec{
@@ -484,8 +484,8 @@ func TestIntegration_ResultDeleted_CancelsDispatched(t *testing.T) {
 			},
 			GitOpsRepo:         "org/repo",
 			GitOpsManifestRoot: "deploy",
-			AgentImage:         "mendabot-agent:test",
-			AgentSA:            "mendabot-agent",
+			AgentImage:         "mechanic-agent:test",
+			AgentSA:            "mechanic-agent",
 		},
 	}
 	if err := k8sClient.Create(ctx, rjob); err != nil {
@@ -530,13 +530,13 @@ func TestIntegration_ResultDeleted_CancelsBlankPhase(t *testing.T) {
 	fp := "deadbeefcafe0011223344556677889900aabbccddeeff0011223344556677"
 	rjob := &v1alpha1.RemediationJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-" + fp[:12],
+			Name:      "mechanic-" + fp[:12],
 			Namespace: integrationNamespace,
 			Labels: map[string]string{
-				"remediation.mendabot.io/fingerprint": fp[:12],
+				"remediation.mechanic.io/fingerprint": fp[:12],
 			},
 			Annotations: map[string]string{
-				"remediation.mendabot.io/fingerprint-full": fp,
+				"remediation.mechanic.io/fingerprint-full": fp,
 			},
 		},
 		Spec: v1alpha1.RemediationJobSpec{
@@ -555,8 +555,8 @@ func TestIntegration_ResultDeleted_CancelsBlankPhase(t *testing.T) {
 			},
 			GitOpsRepo:         "org/repo",
 			GitOpsManifestRoot: "deploy",
-			AgentImage:         "mendabot-agent:test",
-			AgentSA:            "mendabot-agent",
+			AgentImage:         "mechanic-agent:test",
+			AgentSA:            "mechanic-agent",
 		},
 		// Status is NOT patched — Phase remains "" (Go zero value), simulating
 		// a job that exists in etcd but has not yet been touched by the controller.
@@ -616,7 +616,7 @@ func TestIntegration_SelfRemediation_DepthWithinLimit_CreatesRJob(t *testing.T) 
 		Kind:         "Job",
 		Name:         pod.Name,
 		Namespace:    integrationNamespace,
-		ParentObject: "mendabot-agent-abc",
+		ParentObject: "mechanic-agent-abc",
 		Errors:       `[{"text":"agent job failed"}]`,
 		Severity:     domain.SeverityMedium,
 		ChainDepth:   1, // within limit
@@ -676,7 +676,7 @@ func TestIntegration_SelfRemediation_DepthExceedsLimit_NoRJob(t *testing.T) {
 		Kind:         "Job",
 		Name:         pod.Name,
 		Namespace:    integrationNamespace,
-		ParentObject: "mendabot-agent-abc",
+		ParentObject: "mechanic-agent-abc",
 		Errors:       `[{"text":"agent job failed"}]`,
 		Severity:     domain.SeverityMedium,
 		ChainDepth:   3, // exceeds maxDepth=2

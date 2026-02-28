@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **mendabot operator**, I want the `SourceProviderReconciler` to skip
+As a **mechanic operator**, I want the `SourceProviderReconciler` to skip
 `RemediationJob` objects in the `PermanentlyFailed` phase so that once a finding has
 exhausted all retries it is never re-dispatched, and I can inspect the tombstoned object
 as a permanent audit record without it being deleted and recreated.
@@ -29,7 +29,7 @@ the fingerprint label (lines 183–203):
 var rjobList v1alpha1.RemediationJobList
 if err := r.List(ctx, &rjobList,
     client.InNamespace(r.Cfg.AgentNamespace),
-    client.MatchingLabels{"remediation.mendabot.io/fingerprint": fp[:12]},
+    client.MatchingLabels{"remediation.mechanic.io/fingerprint": fp[:12]},
 ); err != nil {
     return ctrl.Result{}, err
 }
@@ -217,13 +217,13 @@ func TestSourceProviderReconciler_PermanentlyFailed_Suppressed(t *testing.T) {
 
     permFailedRJob := &v1alpha1.RemediationJob{
         ObjectMeta: metav1.ObjectMeta{
-            Name:      "mendabot-" + fp[:12],
+            Name:      "mechanic-" + fp[:12],
             Namespace: agentNamespace,
             Labels: map[string]string{
-                "remediation.mendabot.io/fingerprint": fp[:12],
+                "remediation.mechanic.io/fingerprint": fp[:12],
             },
             Annotations: map[string]string{
-                "remediation.mendabot.io/fingerprint-full": fp,
+                "remediation.mechanic.io/fingerprint-full": fp,
             },
         },
         Spec: v1alpha1.RemediationJobSpec{
@@ -287,13 +287,13 @@ func TestSourceProviderReconciler_PhaseFailed_DeletesAndCreatesNew(t *testing.T)
 
     failedRJob := &v1alpha1.RemediationJob{
         ObjectMeta: metav1.ObjectMeta{
-            Name:      "mendabot-" + fp[:12],
+            Name:      "mechanic-" + fp[:12],
             Namespace: agentNamespace,
             Labels: map[string]string{
-                "remediation.mendabot.io/fingerprint": fp[:12],
+                "remediation.mechanic.io/fingerprint": fp[:12],
             },
             Annotations: map[string]string{
-                "remediation.mendabot.io/fingerprint-full": fp,
+                "remediation.mechanic.io/fingerprint-full": fp,
             },
         },
         Spec: v1alpha1.RemediationJobSpec{

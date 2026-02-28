@@ -8,9 +8,9 @@ import (
 	"io"
 	"net/http"
 
-	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
-	"github.com/lenaxia/k8s-mendabot/internal/domain"
-	igithub "github.com/lenaxia/k8s-mendabot/internal/github"
+	v1alpha1 "github.com/lenaxia/k8s-mechanic/api/v1alpha1"
+	"github.com/lenaxia/k8s-mechanic/internal/domain"
+	igithub "github.com/lenaxia/k8s-mechanic/internal/github"
 )
 
 // Compile-time interface check.

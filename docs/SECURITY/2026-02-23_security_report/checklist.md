@@ -92,18 +92,18 @@ complete it. Mark items you cannot complete as `[SKIP: reason]`.
 
 ### 2.2 RBAC Audit
 
-**ClusterRole: mendabot-agent**
+**ClusterRole: mechanic-agent**
 - [x] No write verbs on any resource  PASS
 - [x] No `pods/exec` access  PASS
 - [x] No `nodes/proxy` access  PASS
 - [SKIP: no cluster] Namespace scope (`AGENT_RBAC_SCOPE=namespace`) replaces, not supplements, the ClusterRole
 
-**ClusterRole: mendabot-watcher**
+**ClusterRole: mechanic-watcher**
 - [x] ConfigMap write is namespace-scoped (not cluster-wide)  FAIL → finding 2026-02-23-005
-- [x] No write access outside `mendabot` namespace other than `remediationjobs`  FAIL → finding 2026-02-23-005
+- [x] No write access outside `mechanic` namespace other than `remediationjobs`  FAIL → finding 2026-02-23-005
 - [x] `delete` on `remediationjobs` reviewed — blast radius acceptable?  PASS — accepted
 
-**Role: mendabot-agent**
+**Role: mechanic-agent**
 - [x] Status patch scoped to `remediationjobs/status` subresource only  PASS
 - [x] Agent cannot update full `remediationjobs` spec  PASS
 
@@ -200,7 +200,7 @@ complete it. Mark items you cannot complete as `[SKIP: reason]`.
 - [x] 4.3 Agent cannot exec into pods (`pods/exec`)  PASS (code review)
 - [x] 4.3 Agent cannot access `nodes/proxy`  PASS (code review)
 - [x] 4.4 Watcher cannot read Secrets  PASS (code review — Secrets not in watcher ClusterRole resource list)
-- [SKIP: no cluster] 4.4 Watcher write access limited to `mendabot` namespace (except RemediationJobs ClusterRole)
+- [SKIP: no cluster] 4.4 Watcher write access limited to `mechanic` namespace (except RemediationJobs ClusterRole)
 
 ---
 

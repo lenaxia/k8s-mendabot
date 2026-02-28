@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **cluster operator**, I want the chart to create the `mendabot-agent-token`
+As a **cluster operator**, I want the chart to create the `mechanic-agent-token`
 ServiceAccount token Secret so agent Jobs can authenticate to the Kubernetes API
 server without relying on the projected short-lived token.
 
@@ -18,24 +18,24 @@ server without relying on the projected short-lived token.
 ## Background
 
 `internal/jobbuilder/job.go` mounts a volume named `agent-token` onto every agent
-Job Pod, sourced from a Secret named `mendabot-agent-token`:
+Job Pod, sourced from a Secret named `mechanic-agent-token`:
 
 ```go
 {
     Name: "agent-token",
     VolumeSource: corev1.VolumeSource{
         Secret: &corev1.SecretVolumeSource{
-            SecretName: "mendabot-agent-token",
+            SecretName: "mechanic-agent-token",
         },
     },
 },
 ```
 
-This Secret is mounted at `/var/run/secrets/mendabot/serviceaccount/` inside the
+This Secret is mounted at `/var/run/secrets/mechanic/serviceaccount/` inside the
 agent container. `docker/scripts/agent-entrypoint.sh` reads it as `LEGACY_TOKEN`:
 
 ```bash
-LEGACY_TOKEN=/var/run/secrets/mendabot/serviceaccount/token
+LEGACY_TOKEN=/var/run/secrets/mechanic/serviceaccount/token
 ```
 
 The entrypoint uses this long-lived legacy SA token (no audience claim) to build a
@@ -50,15 +50,15 @@ Kustomize manifests that was never addressed. The Helm chart must create it.
 
 ## Acceptance Criteria
 
-- [ ] `charts/mendabot/templates/secret-agent-token.yaml` creates a Secret of type
-  `kubernetes.io/service-account-token` named `mendabot-agent-token` in
+- [ ] `charts/mechanic/templates/secret-agent-token.yaml` creates a Secret of type
+  `kubernetes.io/service-account-token` named `mechanic-agent-token` in
   `{{ .Release.Namespace }}`
 - [ ] The Secret has the annotation
-  `kubernetes.io/service-account.name: {{ include "mendabot.agentSAName" . }}`
+  `kubernetes.io/service-account.name: {{ include "mechanic.agentSAName" . }}`
   which causes Kubernetes to automatically populate the `token`, `ca.crt`, and
   `namespace` keys
 - [ ] Standard chart labels applied
-- [ ] The Secret name `mendabot-agent-token` is hardcoded — it must match
+- [ ] The Secret name `mechanic-agent-token` is hardcoded — it must match
   exactly what `job.go` references (no templating of the name, since it is a
   compile-time constant in the Go code)
 
@@ -82,8 +82,8 @@ No `data:` block is needed in the template. Kubernetes fills it.
 - [ ] Write `templates/secret-agent-token.yaml`
 - [ ] Verify annotation is `kubernetes.io/service-account.name`, not `kubectl.kubernetes.io/...`
 - [ ] Verify Secret is in `{{ .Release.Namespace }}`
-- [ ] Verify Secret name is exactly `mendabot-agent-token`
-- [ ] Run `helm lint charts/mendabot/` — passes
+- [ ] Verify Secret name is exactly `mechanic-agent-token`
+- [ ] Run `helm lint charts/mechanic/` — passes
 
 ---
 
@@ -113,6 +113,6 @@ No `data:` block is needed in the template. Kubernetes fills it.
 
 ## Definition of Done
 
-- [ ] `helm lint charts/mendabot/` exits 0
+- [ ] `helm lint charts/mechanic/` exits 0
 - [ ] `helm template` output includes a Secret of type `kubernetes.io/service-account-token`
-  with the correct annotation and name `mendabot-agent-token`
+  with the correct annotation and name `mechanic-agent-token`

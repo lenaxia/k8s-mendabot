@@ -14,7 +14,7 @@ This epic introduces two changes:
    deployment time. Defaults to `opencode`, so existing deployments are unaffected.
 
 2. **Opaque provider-config blob** — the Secret that reaches the agent Job contains a
-   single pre-rendered, runner-specific config blob (`provider-config` key). Mendabot
+   single pre-rendered, runner-specific config blob (`provider-config` key). Mechanic
    never interprets the blob contents — it passes them through unchanged. Adding a new
    LLM provider (Bedrock, Azure, Moonshot, DeepSeek, etc.) requires zero changes to
    the watcher; the operator updates their Secret.
@@ -29,7 +29,7 @@ CLI flags have not been verified.
 
 - epic02-jobbuilder complete (`internal/jobbuilder/job.go`)
 - epic03-agent-image complete (`docker/scripts/`, `docker/Dockerfile.agent`)
-- epic05-prompt complete (`charts/mendabot/files/prompts/`, `configmap-prompt.yaml`)
+- epic05-prompt complete (`charts/mechanic/files/prompts/`, `configmap-prompt.yaml`)
 - epic10-helm-chart complete (Helm is the only delivery surface)
 
 ## Blocks
@@ -70,7 +70,7 @@ Both breaking changes are documented in `NOTES.txt` with exact migration command
       entrypoint
 - [x] `values.agentType` propagates to `AGENT_TYPE` on the watcher Deployment
 - [x] `go test -timeout 30s -race ./...` passes
-- [x] `helm lint charts/mendabot` passes
+- [x] `helm lint charts/mechanic` passes
 - [x] NOTES.txt documents the migration from `llm-credentials` to
       `llm-credentials-opencode`
 
@@ -131,6 +131,6 @@ provider-config  — full claude settings JSON blob (structure TBD when claude e
 - [x] All unit tests pass: `go test -timeout 30s -race ./...`
 - [x] `go build ./...` succeeds
 - [x] `go vet ./...` clean
-- [x] `helm lint charts/mendabot` passes
+- [x] `helm lint charts/mechanic` passes
 - [x] Worklog entry created in `docs/WORKLOGS/`
 - [x] `docs/BACKLOG/README.md` epic table updated

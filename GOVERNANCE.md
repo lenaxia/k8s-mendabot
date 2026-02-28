@@ -2,9 +2,9 @@
 
 ## Project Status
 
-k8s-mendabot is an open-source project currently maintained by
+k8s-mechanic is an open-source project currently maintained by
 [lenaxia](https://github.com/lenaxia). The project is actively seeking
-co-maintainers from other organizations. If you use k8s-mendabot in production
+co-maintainers from other organizations. If you use k8s-mechanic in production
 and are interested in co-maintaining, open a GitHub issue labelled `governance`
 to start the conversation.
 
@@ -167,7 +167,7 @@ Breaking changes will always be called out explicitly in the release notes.
    release tag.
 4. A GitHub release is created with a changelog entry (see
    [CHANGELOG.md](CHANGELOG.md)).
-5. Both `mendabot-watcher` and `mendabot-agent` images are scanned with Trivy
+5. Both `mechanic-watcher` and `mechanic-agent` images are scanned with Trivy
    before the release is published. Fixable `CRITICAL`/`HIGH` CVEs block
    the release.
 

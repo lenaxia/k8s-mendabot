@@ -9,7 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	"github.com/lenaxia/k8s-mendabot/internal/domain"
+	"github.com/lenaxia/k8s-mechanic/internal/domain"
 )
 
 // int32Ptr is a test helper that returns a pointer to an int32.
@@ -525,7 +525,7 @@ func TestBothConditions_TwoEntries(t *testing.T) {
 }
 
 // TestDeploymentAnnotationEnabled_False: degraded deployment (ReadyReplicas=0, Replicas=3)
-// with mendabot.io/enabled=false → (nil, nil).
+// with mechanic.io/enabled=false → (nil, nil).
 // Uses an unhealthy object to prove the gate fires on an object that would otherwise produce
 // a non-nil finding.
 
@@ -631,7 +631,7 @@ func TestDeploymentAnnotationEnabled_False(t *testing.T) {
 	}
 }
 
-// TestDeploymentAnnotationSkipUntilFuture: degraded deployment with mendabot.io/skip-until=2099-12-31 → (nil, nil).
+// TestDeploymentAnnotationSkipUntilFuture: degraded deployment with mechanic.io/skip-until=2099-12-31 → (nil, nil).
 func TestDeploymentAnnotationSkipUntilFuture(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()

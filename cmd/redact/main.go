@@ -4,7 +4,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/lenaxia/k8s-mendabot/internal/domain"
+	"github.com/lenaxia/k8s-mechanic/internal/domain"
 )
 
 func run(r io.Reader, w io.Writer) error {

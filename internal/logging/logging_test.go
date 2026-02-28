@@ -3,7 +3,7 @@ package logging_test
 import (
 	"testing"
 
-	"github.com/lenaxia/k8s-mendabot/internal/logging"
+	"github.com/lenaxia/k8s-mechanic/internal/logging"
 )
 
 func TestNew_ValidLevels(t *testing.T) {

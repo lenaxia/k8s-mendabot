@@ -34,7 +34,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
-          images: ghcr.io/lenaxia/mendabot-watcher
+          images: ghcr.io/lenaxia/mechanic-watcher
           tags: |
             type=sha,prefix=sha-,format=short
             type=raw,value=latest,enable={{is_default_branch}}
@@ -61,7 +61,7 @@ jobs:
       - name: Scan watcher image for CVEs
         uses: aquasecurity/trivy-action@b2933f565dbc598b29947660e66259e3c7bc8561 # 0.20.0
         with:
-          image-ref: ghcr.io/lenaxia/mendabot-watcher:sha-${{ steps.sha.outputs.short }}
+          image-ref: ghcr.io/lenaxia/mechanic-watcher:sha-${{ steps.sha.outputs.short }}
           format: table
           exit-code: '1'
           severity: CRITICAL,HIGH
@@ -71,5 +71,5 @@ jobs:
       - name: Smoke test
         run: |
           docker run --rm \
-            ghcr.io/lenaxia/mendabot-watcher:sha-${{ steps.sha.outputs.short }} \
+            ghcr.io/lenaxia/mechanic-watcher:sha-${{ steps.sha.outputs.short }} \
             --version

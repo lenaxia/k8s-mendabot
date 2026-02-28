@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **cluster operator**, I want mendabot to detect degraded StatefulSets directly from
+As a **cluster operator**, I want mechanic to detect degraded StatefulSets directly from
 cluster state so that a StatefulSet with unavailable replicas triggers a remediation Job
 without requiring k8sgpt-operator.
 

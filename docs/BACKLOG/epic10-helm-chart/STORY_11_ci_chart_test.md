@@ -23,8 +23,8 @@ PR that touches the chart so regressions are caught before merge.
 - [ ] Steps:
   1. `actions/checkout@v4`
   2. `azure/setup-helm@v4` (or equivalent) to install Helm
-  3. `helm lint charts/mendabot/` with `--strict` flag
-  4. `helm template charts/mendabot/ --set gitops.repo=org/repo --set gitops.manifestRoot=kubernetes`
+  3. `helm lint charts/mechanic/` with `--strict` flag
+  4. `helm template charts/mechanic/ --set gitops.repo=org/repo --set gitops.manifestRoot=kubernetes`
      to verify rendering succeeds
 - [ ] Workflow name: `Chart Lint`
 - [ ] Job name: `lint`
@@ -65,4 +65,4 @@ PR that touches the chart so regressions are caught before merge.
 
 - [ ] CI workflow file exists at `.github/workflows/chart-test.yaml`
 - [ ] Workflow runs on a PR touching `charts/` and passes
-- [ ] `helm lint --strict charts/mendabot/` passes locally
+- [ ] `helm lint --strict charts/mechanic/` passes locally

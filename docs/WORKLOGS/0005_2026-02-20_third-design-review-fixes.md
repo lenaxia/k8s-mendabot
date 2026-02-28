@@ -106,7 +106,7 @@ Reviewed every issue against the actual document content. Categorised each as:
 - **epic00.1-interfaces README:** Removed `processedEntry` and `JobBuilderConfig` from Blocks and
   Success Criteria; replaced with current types (`SourceProvider`, `Finding`, `SourceRef`, `JobBuilder`)
 - **epic00.1 STORY_01:** AddToScheme criterion now correctly specifies two separate functions
-  for two separate API groups (`core.k8sgpt.ai` and `remediation.mendabot.io`)
+  for two separate API groups (`core.k8sgpt.ai` and `remediation.mechanic.io`)
 - **epic00-foundation STORY_01:** Go version criterion relaxed from "1.24 or later" to "1.23 or later"
   (matches go.mod, Dockerfile, README-LLM.md technology stack)
 - **epic02 STORY_01:** Removed the incorrect `domain.JobBuilderConfig` references; Config struct

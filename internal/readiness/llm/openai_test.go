@@ -12,10 +12,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	"github.com/lenaxia/k8s-mendabot/internal/readiness/llm"
+	"github.com/lenaxia/k8s-mechanic/internal/readiness/llm"
 )
 
-const testNamespace = "mendabot"
+const testNamespace = "mechanic"
 
 func newFakeClient(objs ...client.Object) client.Client {
 	s := runtime.NewScheme()

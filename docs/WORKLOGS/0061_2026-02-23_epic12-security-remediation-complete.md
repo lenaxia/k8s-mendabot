@@ -8,7 +8,7 @@
 
 ## Objective
 
-Address every open finding from the first mendabot security review (`docs/SECURITY/2026-02-23_security_report/`). Two findings (002, 004) were accepted during the review; the remaining 11 were Open and required remediation.
+Address every open finding from the first mechanic security review (`docs/SECURITY/2026-02-23_security_report/`). Two findings (002, 004) were accepted during the review; the remaining 11 were Open and required remediation.
 
 Branch: `feature/epic12-security-remediation`
 
@@ -111,19 +111,19 @@ None.
 ```
 go test -timeout 30s -race -count=1 ./...
 
-ok  github.com/lenaxia/k8s-mendabot/api/v1alpha1          1.150s
-ok  github.com/lenaxia/k8s-mendabot/cmd/watcher           1.282s
-ok  github.com/lenaxia/k8s-mendabot/internal              1.285s
-ok  github.com/lenaxia/k8s-mendabot/internal/cascade      1.219s
-ok  github.com/lenaxia/k8s-mendabot/internal/circuitbreaker  1.657s
-ok  github.com/lenaxia/k8s-mendabot/internal/config       1.219s
-ok  github.com/lenaxia/k8s-mendabot/internal/controller   11.908s
-ok  github.com/lenaxia/k8s-mendabot/internal/domain       1.287s
-ok  github.com/lenaxia/k8s-mendabot/internal/jobbuilder   1.144s
-ok  github.com/lenaxia/k8s-mendabot/internal/logging      1.110s
-ok  github.com/lenaxia/k8s-mendabot/internal/metrics      1.230s
-ok  github.com/lenaxia/k8s-mendabot/internal/provider     10.056s
-ok  github.com/lenaxia/k8s-mendabot/internal/provider/native  2.251s
+ok  github.com/lenaxia/k8s-mechanic/api/v1alpha1          1.150s
+ok  github.com/lenaxia/k8s-mechanic/cmd/watcher           1.282s
+ok  github.com/lenaxia/k8s-mechanic/internal              1.285s
+ok  github.com/lenaxia/k8s-mechanic/internal/cascade      1.219s
+ok  github.com/lenaxia/k8s-mechanic/internal/circuitbreaker  1.657s
+ok  github.com/lenaxia/k8s-mechanic/internal/config       1.219s
+ok  github.com/lenaxia/k8s-mechanic/internal/controller   11.908s
+ok  github.com/lenaxia/k8s-mechanic/internal/domain       1.287s
+ok  github.com/lenaxia/k8s-mechanic/internal/jobbuilder   1.144s
+ok  github.com/lenaxia/k8s-mechanic/internal/logging      1.110s
+ok  github.com/lenaxia/k8s-mechanic/internal/metrics      1.230s
+ok  github.com/lenaxia/k8s-mechanic/internal/provider     10.056s
+ok  github.com/lenaxia/k8s-mechanic/internal/provider/native  2.251s
 ```
 
 13/13 packages pass. Race detector enabled throughout.

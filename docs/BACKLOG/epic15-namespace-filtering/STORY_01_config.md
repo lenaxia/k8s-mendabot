@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **cluster operator**, I want to configure mendabot with an allowlist
+As a **cluster operator**, I want to configure mechanic with an allowlist
 (`WATCH_NAMESPACES`) and a denylist (`EXCLUDE_NAMESPACES`) of namespaces, so that
 investigation jobs are only generated for workload namespaces I care about and not
 for system namespaces like `kube-system`, `cert-manager`, or `flux-system`.
@@ -142,7 +142,7 @@ at line 250.
   `config.FromEnv`, following the comma-split/trim/skip-empty pattern.
 - [ ] Run `go test -race ./internal/config/...` — all tests must pass.
 - [ ] Add commented-out env var documentation to
-  `charts/mendabot/templates/deployment-watcher.yaml` (see Definition of Done).
+  `charts/mechanic/templates/deployment-watcher.yaml` (see Definition of Done).
 
 ---
 
@@ -164,7 +164,7 @@ at line 250.
 - [x] Full test suite passes: `go test -timeout 120s -race ./...`
 - [x] `go vet ./...` clean
 - [x] `go build ./...` clean
-- [x] `charts/mendabot/templates/deployment-watcher.yaml` has two commented-out env var entries:
+- [x] `charts/mechanic/templates/deployment-watcher.yaml` has two commented-out env var entries:
   ```yaml
   # - name: WATCH_NAMESPACES
   #   value: ""  # comma-separated; empty = watch all namespaces

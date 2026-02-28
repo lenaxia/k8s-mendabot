@@ -17,9 +17,9 @@ Implement `Build(*v1alpha1.RemediationJob) (*batchv1.Job, error)` in `internal/j
 ### 1. Implemented `Build()` in `internal/jobbuilder/job.go`
 
 Pure function, no side effects. Constructs:
-- Job name: `mendabot-agent-<first-12-of-fingerprint>`
+- Job name: `mechanic-agent-<first-12-of-fingerprint>`
 - Init container `git-token-clone`: same AgentImage, inline bash script from LLD §5, 3 secret env vars from `github-app` Secret, `GITOPS_REPO` literal, mounts `shared-workspace` + `github-app-secret` (read-only)
-- Main container `mendabot-agent`: no Command override, 10 literal env vars + 3 secret refs from `llm-credentials`, mounts `shared-workspace` + `prompt-configmap` (read-only) — `github-app-secret` intentionally NOT mounted (security)
+- Main container `mechanic-agent`: no Command override, 10 literal env vars + 3 secret refs from `llm-credentials`, mounts `shared-workspace` + `prompt-configmap` (read-only) — `github-app-secret` intentionally NOT mounted (security)
 - Both containers: independent `SecurityContext` with `AllowPrivilegeEscalation=false`, drop ALL capabilities
 - Pod security context: `RunAsNonRoot=true`, `RunAsUser=1000`
 - 3 pod volumes: `shared-workspace` (emptyDir), `prompt-configmap` (ConfigMap `opencode-prompt`), `github-app-secret` (Secret `github-app`)

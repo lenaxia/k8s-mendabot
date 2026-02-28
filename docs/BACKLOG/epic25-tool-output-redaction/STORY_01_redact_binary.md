@@ -8,7 +8,7 @@
 
 ## User Story
 
-As a **mendabot operator**, I want all tool call output from the LLM agent to be passed
+As a **mechanic operator**, I want all tool call output from the LLM agent to be passed
 through the same `RedactSecrets` function used at source, so that credentials appearing
 in `kubectl`, `helm`, or other tool output are stripped before the LLM context is updated
 and before any data leaves the cluster to an external LLM API.
@@ -54,7 +54,7 @@ import (
     "io"
     "os"
 
-    "github.com/lenaxia/k8s-mendabot/internal/domain"
+    "github.com/lenaxia/k8s-mechanic/internal/domain"
 )
 
 func run(r io.Reader, w io.Writer) error {

@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **mendabot operator**, I want to configure which agent runner the watcher dispatches
+As a **mechanic operator**, I want to configure which agent runner the watcher dispatches
 via an `AGENT_TYPE` environment variable, so that the correct agent binary, secret, and
 prompt ConfigMap are selected at runtime without code changes.
 

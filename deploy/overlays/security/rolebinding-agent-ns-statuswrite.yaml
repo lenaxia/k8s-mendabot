@@ -1,13 +1,13 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: mendabot-agent-ns-statuswrite
-  namespace: mendabot
+  name: mechanic-agent-ns-statuswrite
+  namespace: mechanic
 subjects:
 - kind: ServiceAccount
-  name: mendabot-agent-ns
-  namespace: mendabot
+  name: mechanic-agent-ns
+  namespace: mechanic
 roleRef:
   kind: ClusterRole
-  name: mendabot-agent
+  name: mechanic-agent
   apiGroup: rbac.authorization.k8s.io

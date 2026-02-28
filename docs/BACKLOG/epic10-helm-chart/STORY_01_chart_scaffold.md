@@ -16,31 +16,31 @@ iterate on templates and run `helm lint` from the very first commit.
 
 ## Acceptance Criteria
 
-- [ ] `charts/mendabot/Chart.yaml` exists with all required fields:
+- [ ] `charts/mechanic/Chart.yaml` exists with all required fields:
   - `apiVersion: v2`
-  - `name: mendabot`
+  - `name: mechanic`
   - `description: Kubernetes-native SRE remediation bot`
   - `type: application`
   - `version: 0.1.0`
   - `appVersion: v0.3.0`
   - `kubeVersion: ">=1.28.0-0"`
   - `keywords`, `home`, `sources`, `maintainers` populated
-- [ ] `charts/mendabot/values.yaml` exists with at minimum `{}` (populated fully in STORY_02)
-- [ ] `charts/mendabot/templates/` directory exists with `.gitkeep` or first template
-- [ ] `charts/mendabot/crds/remediationjob.yaml` is a copy of
+- [ ] `charts/mechanic/values.yaml` exists with at minimum `{}` (populated fully in STORY_02)
+- [ ] `charts/mechanic/templates/` directory exists with `.gitkeep` or first template
+- [ ] `charts/mechanic/crds/remediationjob.yaml` is a copy of
   `deploy/kustomize/crd-remediationjob.yaml` — identical content
-- [ ] `helm lint charts/mendabot/` passes (may warn about empty templates; that is acceptable)
+- [ ] `helm lint charts/mechanic/` passes (may warn about empty templates; that is acceptable)
 
 ---
 
 ## Tasks
 
-- [ ] Create `charts/mendabot/` directory structure
+- [ ] Create `charts/mechanic/` directory structure
 - [ ] Write `Chart.yaml`
 - [ ] Create stub `values.yaml`
 - [ ] Create `templates/` directory
-- [ ] Copy CRD to `charts/mendabot/crds/remediationjob.yaml`
-- [ ] Run `helm lint charts/mendabot/` and confirm it passes
+- [ ] Copy CRD to `charts/mechanic/crds/remediationjob.yaml`
+- [ ] Run `helm lint charts/mechanic/` and confirm it passes
 
 ---
 
@@ -50,7 +50,7 @@ iterate on templates and run `helm lint` from the very first commit.
 - The `crds/` directory is a Helm-native mechanism: Helm installs CRDs from this
   directory during `helm install` but deliberately skips them on `helm upgrade`.
   The upgrade gap is covered by the pre-upgrade hook in STORY_08.
-- `appVersion` tracks the mendabot release version, not the chart version.
+- `appVersion` tracks the mechanic release version, not the chart version.
   Chart version (`version`) increments independently when chart-only changes ship.
 
 ---
@@ -64,5 +64,5 @@ iterate on templates and run `helm lint` from the very first commit.
 
 ## Definition of Done
 
-- [ ] `helm lint charts/mendabot/` exits 0
+- [ ] `helm lint charts/mechanic/` exits 0
 - [ ] CRD file in `crds/` is byte-for-byte identical to the Kustomize original

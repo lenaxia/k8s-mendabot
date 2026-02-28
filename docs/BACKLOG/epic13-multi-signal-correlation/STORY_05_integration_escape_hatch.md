@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **mendabot developer**, I want end-to-end integration tests that exercise the full
+As a **mechanic developer**, I want end-to-end integration tests that exercise the full
 correlation path from `RemediationJob` creation through window hold, correlator
 evaluation, and `Suppressed` phase transition, and I want a `DISABLE_CORRELATION=true`
 escape hatch that restores the pre-epic dispatch behaviour completely.

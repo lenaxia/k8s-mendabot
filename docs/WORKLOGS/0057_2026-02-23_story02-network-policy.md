@@ -20,7 +20,7 @@ and HTTPS (443 TCP). The policy must live in an opt-in overlay, not in the base 
 
 Created `deploy/kustomize/network-policy-agent.yaml`:
 - Kind: `NetworkPolicy`, apiVersion: `networking.k8s.io/v1`
-- Selector: `app.kubernetes.io/managed-by: mendabot-watcher` (the label applied by
+- Selector: `app.kubernetes.io/managed-by: mechanic-watcher` (the label applied by
   `JobBuilder.Build()` at `internal/jobbuilder/job.go:229`)
 - `policyTypes: [Egress]` only — no ingress restriction
 - Three egress rules: DNS (53 UDP+TCP), kube-apiserver (6443 TCP), HTTPS (443 TCP)
@@ -89,19 +89,19 @@ kubectl kustomize deploy/overlays/security/ | grep "kind: NetworkPolicy"
 → kind: NetworkPolicy  (policy present in overlay — correct)
 
 go test -timeout 30s -race ./...
-→ ok  github.com/lenaxia/k8s-mendabot/api/v1alpha1         (cached)
-→ ok  github.com/lenaxia/k8s-mendabot/cmd/watcher          (cached)
-→ ok  github.com/lenaxia/k8s-mendabot/internal             (cached)
-→ ok  github.com/lenaxia/k8s-mendabot/internal/cascade     (cached)
-→ ok  github.com/lenaxia/k8s-mendabot/internal/circuitbreaker (cached)
-→ ok  github.com/lenaxia/k8s-mendabot/internal/config      (cached)
-→ ok  github.com/lenaxia/k8s-mendabot/internal/controller  9.978s
-→ ok  github.com/lenaxia/k8s-mendabot/internal/domain      (cached)
-→ ok  github.com/lenaxia/k8s-mendabot/internal/jobbuilder  (cached)
-→ ok  github.com/lenaxia/k8s-mendabot/internal/logging     (cached)
-→ ok  github.com/lenaxia/k8s-mendabot/internal/metrics     (cached)
-→ ok  github.com/lenaxia/k8s-mendabot/internal/provider    10.737s
-→ ok  github.com/lenaxia/k8s-mendabot/internal/provider/native (cached)
+→ ok  github.com/lenaxia/k8s-mechanic/api/v1alpha1         (cached)
+→ ok  github.com/lenaxia/k8s-mechanic/cmd/watcher          (cached)
+→ ok  github.com/lenaxia/k8s-mechanic/internal             (cached)
+→ ok  github.com/lenaxia/k8s-mechanic/internal/cascade     (cached)
+→ ok  github.com/lenaxia/k8s-mechanic/internal/circuitbreaker (cached)
+→ ok  github.com/lenaxia/k8s-mechanic/internal/config      (cached)
+→ ok  github.com/lenaxia/k8s-mechanic/internal/controller  9.978s
+→ ok  github.com/lenaxia/k8s-mechanic/internal/domain      (cached)
+→ ok  github.com/lenaxia/k8s-mechanic/internal/jobbuilder  (cached)
+→ ok  github.com/lenaxia/k8s-mechanic/internal/logging     (cached)
+→ ok  github.com/lenaxia/k8s-mechanic/internal/metrics     (cached)
+→ ok  github.com/lenaxia/k8s-mechanic/internal/provider    10.737s
+→ ok  github.com/lenaxia/k8s-mechanic/internal/provider/native (cached)
 All 13 packages pass.
 ```
 

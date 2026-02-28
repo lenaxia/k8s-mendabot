@@ -7,7 +7,7 @@ resource and emits a finding when it detects a problem. There is no way for an o
 to say "investigate this resource now" without touching the cluster directly.
 
 This epic introduces a **`TriggerProvider` interface**: a pluggable abstraction for
-external systems that can request a mendabot investigation on-demand. Any system that
+external systems that can request a mechanic investigation on-demand. Any system that
 can POST a webhook, send a Slack message, create a GitHub issue with a specific label,
 or transition a Jira ticket can become a trigger source. The watcher converts trigger
 events into `RemediationJob` objects using the same deduplication and dispatch pipeline
@@ -123,7 +123,7 @@ alert webhooks.
 ### 2 — GitHubIssueTrigger
 
 Polls a configured GitHub repository for issues carrying a specific label (default:
-`mendabot-investigate`). Each matching issue is converted to a `FindingRequest`:
+`mechanic-investigate`). Each matching issue is converted to a `FindingRequest`:
 
 - `Kind`, `Namespace`, `Name` are parsed from the issue title using a structured
   convention: `[investigate] Kind/namespace/name`
@@ -132,11 +132,11 @@ Polls a configured GitHub repository for issues carrying a specific label (defau
 
 After a `RemediationJob` is created, the trigger acknowledges by adding a comment to
 the issue: `"Investigation dispatched. RemediationJob: <name>. Follow progress with
-\`kubectl describe rjob <name>\`."` and applying a `mendabot-dispatched` label.
+\`kubectl describe rjob <name>\`."` and applying a `mechanic-dispatched` label.
 
 Polling interval: `GITHUB_TRIGGER_POLL_INTERVAL` (default: `2m`).
 Repository: `GITHUB_TRIGGER_REPO` (e.g. `org/ops-repo`).
-Label: `GITHUB_TRIGGER_LABEL` (default: `mendabot-investigate`).
+Label: `GITHUB_TRIGGER_LABEL` (default: `mechanic-investigate`).
 
 Uses the same `internal/github/token.go` token provider from epic26.
 
@@ -145,7 +145,7 @@ Uses the same `internal/github/token.go` token provider from epic26.
 Listens for Slack slash commands or app mentions via the Slack Events API
 (push model — no polling). Requires a Slack App with:
 - `commands` scope (for `/investigate Kind/namespace/name`)
-- `app_mentions:read` scope (for `@mendabot investigate Kind/namespace/name`)
+- `app_mentions:read` scope (for `@mechanic investigate Kind/namespace/name`)
 - `chat:write` scope (to acknowledge in-channel)
 
 The Slack App sends an HTTP POST to the watcher's `/slack/events` endpoint (same HTTP
@@ -187,7 +187,7 @@ type RemediationJobSpec struct {
 ```
 
 `Source = "manual"` is surfaced in:
-- Prometheus metrics label `source` on `mendabot_remediationjobs_created_total`
+- Prometheus metrics label `source` on `mechanic_remediationjobs_created_total`
 - Structured audit log `event="remediationjob_created"` entry
 - `kubectl get rjob` print column (added to CRD printer columns)
 
@@ -217,8 +217,8 @@ TRIGGER_WEBHOOK_TOKEN=
 GITHUB_TRIGGER_ENABLED=false
 # Repository to watch for trigger issues (owner/repo format)
 GITHUB_TRIGGER_REPO=
-# Issue label that marks a trigger request (default: mendabot-investigate)
-GITHUB_TRIGGER_LABEL=mendabot-investigate
+# Issue label that marks a trigger request (default: mechanic-investigate)
+GITHUB_TRIGGER_LABEL=mechanic-investigate
 # Poll interval for trigger issues (default: 2m)
 GITHUB_TRIGGER_POLL_INTERVAL=2m
 
@@ -290,8 +290,8 @@ STORY_01 (CRD types)
 | `internal/config/config_test.go` | Config parsing tests |
 | `deploy/kustomize/deployment-watcher.yaml` | Add trigger env vars; expose port `8083` |
 | `deploy/kustomize/service-watcher.yaml` | New: Service exposing port `8083` for webhook ingress |
-| `charts/mendabot/templates/deployment-watcher.yaml` | Same for Helm chart |
-| `charts/mendabot/values.yaml` | New `trigger.*` values section |
+| `charts/mechanic/templates/deployment-watcher.yaml` | Same for Helm chart |
+| `charts/mechanic/values.yaml` | New `trigger.*` values section |
 | `testdata/crds/remediationjob_crd.yaml` | Add `source` and `triggerRef` to spec schema |
 
 ## Definition of Done
@@ -301,7 +301,7 @@ STORY_01 (CRD types)
 - [ ] All three backends disabled by default; none start unless explicitly configured
 - [ ] `WebhookTrigger`: a `curl -X POST` with the correct token creates a `RemediationJob`
       (manual verification in dev cluster)
-- [ ] `GitHubIssueTrigger`: a GitHub issue with `mendabot-investigate` label is
+- [ ] `GitHubIssueTrigger`: a GitHub issue with `mechanic-investigate` label is
       acknowledged and creates a `RemediationJob` (manual verification)
 - [ ] `SlackTrigger`: `/investigate Deployment/production/my-app` creates a
       `RemediationJob` and posts a thread reply (manual verification)

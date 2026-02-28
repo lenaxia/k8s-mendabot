@@ -15,10 +15,10 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
-	"github.com/lenaxia/k8s-mendabot/internal/config"
-	"github.com/lenaxia/k8s-mendabot/internal/controller"
-	"github.com/lenaxia/k8s-mendabot/internal/testutil"
+	v1alpha1 "github.com/lenaxia/k8s-mechanic/api/v1alpha1"
+	"github.com/lenaxia/k8s-mechanic/internal/config"
+	"github.com/lenaxia/k8s-mechanic/internal/controller"
+	"github.com/lenaxia/k8s-mechanic/internal/testutil"
 	"go.uber.org/zap"
 )
 
@@ -136,8 +136,8 @@ func newIntegrationRJob(name, fp string) *v1alpha1.RemediationJob {
 			},
 			GitOpsRepo:         "org/repo",
 			GitOpsManifestRoot: "deploy",
-			AgentImage:         "mendabot-agent:test",
-			AgentSA:            "mendabot-agent",
+			AgentImage:         "mechanic-agent:test",
+			AgentSA:            "mechanic-agent",
 		},
 	}
 }
@@ -154,7 +154,7 @@ func minimalPodTemplateSpec() corev1.PodTemplateSpec {
 			Containers: []corev1.Container{
 				{
 					Name:  "agent",
-					Image: "mendabot-agent:test",
+					Image: "mechanic-agent:test",
 				},
 			},
 		},
@@ -168,19 +168,19 @@ func newIntegrationJob(rjob *v1alpha1.RemediationJob) *batchv1.Job {
 	}
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-agent-" + rjob.Spec.Fingerprint[:12],
+			Name:      "mechanic-agent-" + rjob.Spec.Fingerprint[:12],
 			Namespace: ns,
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					APIVersion: "remediation.mendabot.io/v1alpha1",
+					APIVersion: "remediation.mechanic.io/v1alpha1",
 					Kind:       "RemediationJob",
 					Name:       rjob.Name,
 					UID:        rjob.UID,
 				},
 			},
 			Labels: map[string]string{
-				"remediation.mendabot.io/remediation-job": rjob.Name,
-				"app.kubernetes.io/managed-by":            "mendabot-watcher",
+				"remediation.mechanic.io/remediation-job": rjob.Name,
+				"app.kubernetes.io/managed-by":            "mechanic-watcher",
 			},
 		},
 		Spec: batchv1.JobSpec{
@@ -202,7 +202,7 @@ func TestRemediationJobReconciler_CreatesJob(t *testing.T) {
 	// Pre-test: batch/v1 Jobs have finalizers and remain terminating after Delete. Wait
 	// until the deterministic job name from any prior run is fully gone so the reconciler
 	// does not find a stale terminating job and skip dispatch.
-	staleJob := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "mendabot-agent-aaaa0000bbbb", Namespace: integrationCtrlNamespace}}
+	staleJob := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "mechanic-agent-aaaa0000bbbb", Namespace: integrationCtrlNamespace}}
 	deleteJob(ctx, c, staleJob)
 	waitForGone(t, ctx, c, staleJob, 10*time.Second)
 
@@ -242,7 +242,7 @@ func TestRemediationJobReconciler_CreatesJob(t *testing.T) {
 	var jobList batchv1.JobList
 	waitFor(t, func() bool {
 		if err := c.List(ctx, &jobList, client.InNamespace(integrationCtrlNamespace),
-			client.MatchingLabels{"remediation.mendabot.io/remediation-job": rjob.Name}); err != nil {
+			client.MatchingLabels{"remediation.mechanic.io/remediation-job": rjob.Name}); err != nil {
 			return false
 		}
 		return len(jobList.Items) == 1
@@ -290,7 +290,7 @@ func TestRemediationJobReconciler_SyncsStatus_Running(t *testing.T) {
 	c := newIntegrationClient(t)
 
 	// Pre-test: wait for any stale job from a prior run to be fully gone.
-	staleJob := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "mendabot-agent-bbbb1111cccc", Namespace: integrationCtrlNamespace}}
+	staleJob := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "mechanic-agent-bbbb1111cccc", Namespace: integrationCtrlNamespace}}
 	deleteJob(ctx, c, staleJob)
 	waitForGone(t, ctx, c, staleJob, 10*time.Second)
 
@@ -303,10 +303,10 @@ func TestRemediationJobReconciler_SyncsStatus_Running(t *testing.T) {
 
 	existingJob := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-agent-" + fp[:12],
+			Name:      "mechanic-agent-" + fp[:12],
 			Namespace: integrationCtrlNamespace,
 			Labels: map[string]string{
-				"remediation.mendabot.io/remediation-job": rjob.Name,
+				"remediation.mechanic.io/remediation-job": rjob.Name,
 			},
 		},
 		Spec:   batchv1.JobSpec{BackoffLimit: ptr(int32(1)), Template: minimalPodTemplateSpec()},
@@ -352,7 +352,7 @@ func TestRemediationJobReconciler_SyncsStatus_Succeeded(t *testing.T) {
 	c := newIntegrationClient(t)
 
 	// Pre-test: wait for any stale job from a prior run to be fully gone.
-	staleJob := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "mendabot-agent-cccc2222dddd", Namespace: integrationCtrlNamespace}}
+	staleJob := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "mechanic-agent-cccc2222dddd", Namespace: integrationCtrlNamespace}}
 	deleteJob(ctx, c, staleJob)
 	waitForGone(t, ctx, c, staleJob, 10*time.Second)
 
@@ -365,10 +365,10 @@ func TestRemediationJobReconciler_SyncsStatus_Succeeded(t *testing.T) {
 
 	existingJob := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-agent-" + fp[:12],
+			Name:      "mechanic-agent-" + fp[:12],
 			Namespace: integrationCtrlNamespace,
 			Labels: map[string]string{
-				"remediation.mendabot.io/remediation-job": rjob.Name,
+				"remediation.mechanic.io/remediation-job": rjob.Name,
 			},
 		},
 		Spec:   batchv1.JobSpec{BackoffLimit: ptr(int32(1)), Template: minimalPodTemplateSpec()},
@@ -426,7 +426,7 @@ func TestRemediationJobReconciler_SyncsStatus_Failed(t *testing.T) {
 	c := newIntegrationClient(t)
 
 	// Pre-test: wait for any stale job from a prior run to be fully gone.
-	staleJob := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "mendabot-agent-dddd3333eeee", Namespace: integrationCtrlNamespace}}
+	staleJob := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "mechanic-agent-dddd3333eeee", Namespace: integrationCtrlNamespace}}
 	deleteJob(ctx, c, staleJob)
 	waitForGone(t, ctx, c, staleJob, 10*time.Second)
 
@@ -440,10 +440,10 @@ func TestRemediationJobReconciler_SyncsStatus_Failed(t *testing.T) {
 
 	existingJob := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-agent-" + fp[:12],
+			Name:      "mechanic-agent-" + fp[:12],
 			Namespace: integrationCtrlNamespace,
 			Labels: map[string]string{
-				"remediation.mendabot.io/remediation-job": rjob.Name,
+				"remediation.mechanic.io/remediation-job": rjob.Name,
 			},
 		},
 		Spec:   batchv1.JobSpec{BackoffLimit: &backoffLimit, Template: minimalPodTemplateSpec()},
@@ -518,7 +518,7 @@ func TestRemediationJobReconciler_MaxConcurrentJobs_Requeues(t *testing.T) {
 			Name:      "active-job-concurrent",
 			Namespace: integrationCtrlNamespace,
 			Labels: map[string]string{
-				"app.kubernetes.io/managed-by": "mendabot-watcher",
+				"app.kubernetes.io/managed-by": "mechanic-watcher",
 			},
 		},
 		Spec: batchv1.JobSpec{Template: minimalPodTemplateSpec()},
@@ -575,7 +575,7 @@ func TestRemediationJobReconciler_MaxConcurrentJobs_Requeues(t *testing.T) {
 
 	var jobList batchv1.JobList
 	if err := c.List(ctx, &jobList, client.InNamespace(integrationCtrlNamespace),
-		client.MatchingLabels{"remediation.mendabot.io/remediation-job": rjob.Name}); err != nil {
+		client.MatchingLabels{"remediation.mechanic.io/remediation-job": rjob.Name}); err != nil {
 		t.Fatalf("list jobs: %v", err)
 	}
 	if len(jobList.Items) != 0 {
@@ -603,7 +603,7 @@ func TestRemediationJobReconciler_OwnerReference(t *testing.T) {
 
 	// Pre-test: wait for any stale job from a prior run to be fully gone so the
 	// waitFor loop below does not find a job with an old OwnerReference UID.
-	staleJob := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "mendabot-agent-ffff5555aaaa", Namespace: integrationCtrlNamespace}}
+	staleJob := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "mechanic-agent-ffff5555aaaa", Namespace: integrationCtrlNamespace}}
 	deleteJob(ctx, c, staleJob)
 	waitForGone(t, ctx, c, staleJob, 10*time.Second)
 
@@ -634,7 +634,7 @@ func TestRemediationJobReconciler_OwnerReference(t *testing.T) {
 	var jobList batchv1.JobList
 	waitFor(t, func() bool {
 		if err := c.List(ctx, &jobList, client.InNamespace(integrationCtrlNamespace),
-			client.MatchingLabels{"remediation.mendabot.io/remediation-job": rjob.Name}); err != nil {
+			client.MatchingLabels{"remediation.mechanic.io/remediation-job": rjob.Name}); err != nil {
 			return false
 		}
 		return len(jobList.Items) == 1
@@ -755,7 +755,7 @@ func TestRemediationJobReconciler_Terminal_NoOp(t *testing.T) {
 
 			var jobList batchv1.JobList
 			if err := c.List(ctx, &jobList, client.InNamespace(integrationCtrlNamespace),
-				client.MatchingLabels{"remediation.mendabot.io/remediation-job": tc.rjobName}); err != nil {
+				client.MatchingLabels{"remediation.mechanic.io/remediation-job": tc.rjobName}); err != nil {
 				t.Fatalf("list jobs: %v", err)
 			}
 			if len(jobList.Items) != 0 {
@@ -777,7 +777,7 @@ func TestRemediationJobReconciler_PermanentlyFailed(t *testing.T) {
 	const fp = "eeee5555ffff6666aaaa7777bbbb8888eeee5555ffff6666aaaa7777bbbb8888"
 
 	// Pre-test: wait for any stale job from a prior run to be fully gone.
-	staleJob := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "mendabot-agent-" + fp[:12], Namespace: integrationCtrlNamespace}}
+	staleJob := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "mechanic-agent-" + fp[:12], Namespace: integrationCtrlNamespace}}
 	deleteJob(ctx, c, staleJob)
 	waitForGone(t, ctx, c, staleJob, 10*time.Second)
 
@@ -814,10 +814,10 @@ func TestRemediationJobReconciler_PermanentlyFailed(t *testing.T) {
 	backoffLimit := int32(1)
 	existingJob := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-agent-" + fp[:12],
+			Name:      "mechanic-agent-" + fp[:12],
 			Namespace: integrationCtrlNamespace,
 			Labels: map[string]string{
-				"remediation.mendabot.io/remediation-job": rjob.Name,
+				"remediation.mechanic.io/remediation-job": rjob.Name,
 			},
 		},
 		Spec: batchv1.JobSpec{BackoffLimit: &backoffLimit, Template: minimalPodTemplateSpec()},
@@ -881,14 +881,14 @@ func TestRemediationJobChainDepthRoundTrip(t *testing.T) {
 			SourceType:  "native",
 			Finding: v1alpha1.FindingSpec{
 				Kind:       "Job",
-				Name:       "mendabot-agent-abc",
+				Name:       "mechanic-agent-abc",
 				Namespace:  integrationCtrlNamespace,
 				ChainDepth: 2,
 			},
 			GitOpsRepo:         "org/repo",
 			GitOpsManifestRoot: "deploy",
-			AgentImage:         "mendabot-agent:test",
-			AgentSA:            "mendabot-agent",
+			AgentImage:         "mechanic-agent:test",
+			AgentSA:            "mechanic-agent",
 		},
 	}
 

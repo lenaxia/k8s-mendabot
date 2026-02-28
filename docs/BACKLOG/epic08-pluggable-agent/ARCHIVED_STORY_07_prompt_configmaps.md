@@ -32,7 +32,7 @@ tune the opencode prompt without breaking the claude prompt and vice versa.
     - Adjusted ENVIRONMENT section: describes `claude` CLI tools instead of opencode
     - Adjusted agent invocation language (e.g. "you are running as Claude Code" rather
       than references to opencode)
-    - Branch naming convention updated: `fix/mendabot-${FINDING_FINGERPRINT}` (drop the
+    - Branch naming convention updated: `fix/mechanic-${FINDING_FINGERPRINT}` (drop the
       `k8sgpt-` prefix — this is a good opportunity to make it agent-agnostic)
 - [ ] `deploy/kustomize/kustomization.yaml` updated to reference both new ConfigMap
   filenames and remove the old filename
@@ -49,7 +49,7 @@ tune the opencode prompt without breaking the claude prompt and vice versa.
 - [ ] Create `configmap-prompt-claude.yaml` with adapted prompt
 - [ ] Update `kustomization.yaml`
 - [ ] Update branch naming in the opencode prompt from `fix/k8sgpt-${FINDING_FINGERPRINT}`
-  to `fix/mendabot-${FINDING_FINGERPRINT}` for consistency
+  to `fix/mechanic-${FINDING_FINGERPRINT}` for consistency
 - [ ] Verify `envsubst` test in epic05 still passes
 
 ---
@@ -68,7 +68,7 @@ it is defined in the `JobBuilder` as a volume mount. Only the ConfigMap name (th
 Kubernetes object name) and the `jobbuilder` reference to it change.
 
 The branch naming change from `fix/k8sgpt-${FINDING_FINGERPRINT}` to
-`fix/mendabot-${FINDING_FINGERPRINT}` is a breaking change for any existing open PRs.
+`fix/mechanic-${FINDING_FINGERPRINT}` is a breaking change for any existing open PRs.
 Note this in the worklog.
 
 ---

@@ -76,7 +76,7 @@ from `rjob.Spec` — the builder no longer accepts a separate fingerprint argume
 ### Job name
 
 ```go
-jobName := "mendabot-agent-" + rjob.Spec.Fingerprint[:12]
+jobName := "mechanic-agent-" + rjob.Spec.Fingerprint[:12]
 ```
 
 12 characters provides sufficient collision resistance for a single cluster workload
@@ -102,7 +102,7 @@ volumeMounts:
 ### Main container spec
 
 ```
-name:    "mendabot-agent"
+name:    "mechanic-agent"
 image:   rjob.Spec.AgentImage
 # No command override — ENTRYPOINT ["/usr/local/bin/agent-entrypoint.sh"] is set in the image.
 env:
@@ -150,18 +150,18 @@ batchv1.Job{
         Name:      jobName,
         Namespace: b.cfg.AgentNamespace,
         Labels: map[string]string{
-            "app.kubernetes.io/managed-by":            "mendabot-watcher",
-            "remediation.mendabot.io/fingerprint":       rjob.Spec.Fingerprint[:12],
-            "remediation.mendabot.io/remediation-job":   rjob.Name,
-            "remediation.mendabot.io/finding-kind":      rjob.Spec.Finding.Kind,
+            "app.kubernetes.io/managed-by":            "mechanic-watcher",
+            "remediation.mechanic.io/fingerprint":       rjob.Spec.Fingerprint[:12],
+            "remediation.mechanic.io/remediation-job":   rjob.Name,
+            "remediation.mechanic.io/finding-kind":      rjob.Spec.Finding.Kind,
         },
         Annotations: map[string]string{
-            "remediation.mendabot.io/fingerprint-full":  rjob.Spec.Fingerprint,
-            "remediation.mendabot.io/finding-parent":    rjob.Spec.Finding.ParentObject,
+            "remediation.mechanic.io/fingerprint-full":  rjob.Spec.Fingerprint,
+            "remediation.mechanic.io/finding-parent":    rjob.Spec.Finding.ParentObject,
         },
         OwnerReferences: []metav1.OwnerReference{
             {
-                APIVersion:         "remediation.mendabot.io/v1alpha1",
+                APIVersion:         "remediation.mechanic.io/v1alpha1",
                 Kind:               "RemediationJob",
                 Name:               rjob.Name,
                 UID:                rjob.UID,
@@ -275,7 +275,7 @@ function that takes a `*RemediationJob` and returns a `*batchv1.Job`.
 
 | Test | Description |
 |---|---|
-| `TestBuild_JobName` | Name is `mendabot-agent-<first-12-of-fp>` |
+| `TestBuild_JobName` | Name is `mechanic-agent-<first-12-of-fp>` |
 | `TestBuild_JobNameDeterministic` | Same input twice → same Job name |
 | `TestBuild_Namespace` | Job is in configured namespace |
 | `TestBuild_ServiceAccount` | Job uses configured ServiceAccount |
@@ -286,7 +286,7 @@ function that takes a `*RemediationJob` and returns a `*batchv1.Job`.
 | `TestBuild_EnvVars_SinkType` | SINK_TYPE equals rjob.Spec.SinkType |
 | `TestBuild_InitContainer_Present` | Init container named "git-token-clone" exists |
 | `TestBuild_InitContainer_UsesAgentImage` | Init container uses same image as main container |
-| `TestBuild_MainContainer_Present` | Main container named "mendabot-agent" exists |
+| `TestBuild_MainContainer_Present` | Main container named "mechanic-agent" exists |
 | `TestBuild_MainContainer_NoCommandOverride` | Main container has no Command field set (entrypoint is in image) |
 | `TestBuild_SecretKeyRefs` | secretKeyRef keys match Secret key names |
 | `TestBuild_Volumes_AllPresent` | shared-workspace, prompt-configmap, github-app-secret (pod volumes); main container has only shared-workspace + prompt-configmap mounts |

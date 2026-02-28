@@ -31,7 +31,7 @@ Added `EventRecorder record.EventRecorder` field to `SourceProviderReconciler`. 
 
 All calls are guarded with `if r.EventRecorder != nil`. The `EventRecorder` is emitted against `obj` (the watched source object), which is always non-nil at each emit point.
 
-**Wired in `cmd/watcher/main.go`** — `EventRecorder: mgr.GetEventRecorderFor("mendabot-watcher")` added to all `SourceProviderReconciler` constructions in the provider loop.
+**Wired in `cmd/watcher/main.go`** — `EventRecorder: mgr.GetEventRecorderFor("mechanic-watcher")` added to all `SourceProviderReconciler` constructions in the provider loop.
 
 **TDD:** Four tests written first (failed), then implemented (passed):
 - `TestReconcile_CircuitBreakerBlocked_EmitsEvent`
@@ -62,7 +62,7 @@ GAP-10 is architecturally significant: `FirstSeen()`, `SetFirstSeenForTest()`, `
 
 **File:** `deploy/monitoring/grafana-dashboard.json`
 
-Project-level dashboard covering all mendabot metrics. Five sections:
+Project-level dashboard covering all mechanic metrics. Five sections:
 
 | Section | Panels |
 |---------|--------|
@@ -72,7 +72,7 @@ Project-level dashboard covering all mendabot metrics. Five sections:
 | Chain Depth | p50/p90/p99 depth distribution (timeseries), max-depth-exceeded rate (timeseries) |
 | Circuit Breaker | Activation rate (timeseries), cooldown remaining (timeseries) |
 
-Template variables for `namespace` and `provider` filters. UID: `mendabot-operator-overview`.
+Template variables for `namespace` and `provider` filters. UID: `mechanic-operator-overview`.
 
 ### 4. Prometheus alert rules
 
@@ -80,18 +80,18 @@ Template variables for `namespace` and `provider` filters. UID: `mendabot-operat
 
 `PrometheusRule` manifest with two rule groups:
 
-**`mendabot.remediation`:**
-- `MendabotSelfRemediationSuccessRateLow` — rate < 0.5 for 15m (critical)
-- `MendabotSelfRemediationSuccessRateDegraded` — rate < 0.8 for 30m (warning)
-- `MendabotHighFailureRate` — > 0.1 failures/sec over 5m (warning)
+**`mechanic.remediation`:**
+- `MechanicSelfRemediationSuccessRateLow` — rate < 0.5 for 15m (critical)
+- `MechanicSelfRemediationSuccessRateDegraded` — rate < 0.8 for 30m (warning)
+- `MechanicHighFailureRate` — > 0.1 failures/sec over 5m (warning)
 
-**`mendabot.cascade`:**
-- `MendabotCircuitBreakerHighActivationRate` — > 0.05 trips/sec for 5m (warning)
-- `MendabotCircuitBreakerStuckOpen` — cooldown active for > 30m (warning)
-- `MendabotDeepCascadeDetected` — any `max_depth_exceeded` increment (warning)
-- `MendabotHighCascadeSuppressionRate` — > 0.2 suppressions/sec for 10m (warning)
-- `MendabotInfrastructureCascadeSuppressing` — infrastructure_cascade active for 5m (warning)
-- `MendabotCascadeChainDepthHigh` — p95 chain depth > 3 for 5m (warning)
+**`mechanic.cascade`:**
+- `MechanicCircuitBreakerHighActivationRate` — > 0.05 trips/sec for 5m (warning)
+- `MechanicCircuitBreakerStuckOpen` — cooldown active for > 30m (warning)
+- `MechanicDeepCascadeDetected` — any `max_depth_exceeded` increment (warning)
+- `MechanicHighCascadeSuppressionRate` — > 0.2 suppressions/sec for 10m (warning)
+- `MechanicInfrastructureCascadeSuppressing` — infrastructure_cascade active for 5m (warning)
+- `MechanicCascadeChainDepthHigh` — p95 chain depth > 3 for 5m (warning)
 
 ---
 

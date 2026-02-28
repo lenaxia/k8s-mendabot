@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **mendabot operator**, I want the system to detect and mitigate attempts to
+As a **mechanic operator**, I want the system to detect and mitigate attempts to
 override the agent's instructions via crafted Kubernetes error messages, so that an
 attacker who controls a failing pod's log output cannot use it to exfiltrate data or
 bypass the agent's hard rules.

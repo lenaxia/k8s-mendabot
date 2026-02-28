@@ -16,16 +16,16 @@ I must configure are `gitops.repo`, `gitops.manifestRoot`, and the two Secret na
 
 ## Acceptance Criteria
 
-- [ ] `charts/mendabot/templates/deployment-watcher.yaml` renders a valid `apps/v1 Deployment`
-- [ ] Deployment name: `{{ include "mendabot.fullname" . }}`
-- [ ] `spec.selector.matchLabels` uses `include "mendabot.selectorLabels"`
-- [ ] `spec.template.metadata.labels` uses `include "mendabot.selectorLabels"`
-- [ ] `spec.template.spec.serviceAccountName`: `{{ include "mendabot.watcherSAName" . }}`
+- [ ] `charts/mechanic/templates/deployment-watcher.yaml` renders a valid `apps/v1 Deployment`
+- [ ] Deployment name: `{{ include "mechanic.fullname" . }}`
+- [ ] `spec.selector.matchLabels` uses `include "mechanic.selectorLabels"`
+- [ ] `spec.template.metadata.labels` uses `include "mechanic.selectorLabels"`
+- [ ] `spec.template.spec.serviceAccountName`: `{{ include "mechanic.watcherSAName" . }}`
 - [ ] `securityContext` on Pod: `runAsNonRoot: true`, `runAsUser: 1000`,
   `seccompProfile.type: RuntimeDefault` — identical to Kustomize source
 - [ ] Container security context: `allowPrivilegeEscalation: false`,
   `readOnlyRootFilesystem: true`, `capabilities.drop: ["ALL"]`
-- [ ] Container image: `{{ include "mendabot.watcherImage" . }}`
+- [ ] Container image: `{{ include "mechanic.watcherImage" . }}`
 - [ ] `imagePullPolicy`: `{{ .Values.image.pullPolicy }}`
 - [ ] All env vars wired from values:
 
@@ -33,22 +33,22 @@ I must configure are `gitops.repo`, `gitops.manifestRoot`, and the two Secret na
   |---------|--------|
   | `GITOPS_REPO` | `{{ required "gitops.repo is required" .Values.gitops.repo }}` |
   | `GITOPS_MANIFEST_ROOT` | `{{ required "gitops.manifestRoot is required" .Values.gitops.manifestRoot }}` |
-  | `AGENT_IMAGE` | `{{ include "mendabot.agentImage" . }}` |
+  | `AGENT_IMAGE` | `{{ include "mechanic.agentImage" . }}` |
   | `AGENT_NAMESPACE` | `{{ .Release.Namespace }}` |
-  | `AGENT_SA` | `{{ include "mendabot.agentSAName" . }}` |
+  | `AGENT_SA` | `{{ include "mechanic.agentSAName" . }}` |
   | `SINK_TYPE` | `{{ .Values.watcher.sinkType }}` |
   | `LOG_LEVEL` | `{{ .Values.watcher.logLevel }}` |
   | `MAX_CONCURRENT_JOBS` | `{{ .Values.watcher.maxConcurrentJobs \| quote }}` |
   | `REMEDIATION_JOB_TTL_SECONDS` | `{{ .Values.watcher.remediationJobTTLSeconds \| quote }}` |
   | `STABILISATION_WINDOW_SECONDS` | `{{ .Values.watcher.stabilisationWindowSeconds \| quote }}` |
   | `SELF_REMEDIATION_MAX_DEPTH` | `{{ .Values.selfRemediation.maxDepth \| quote }}` |
-  | `MENDABOT_UPSTREAM_REPO` | `{{ .Values.selfRemediation.upstreamRepo }}` |
-  | `MENDABOT_DISABLE_UPSTREAM_CONTRIBUTIONS` | `{{ .Values.selfRemediation.disableUpstreamContributions \| quote }}` |
+  | `MECHANIC_UPSTREAM_REPO` | `{{ .Values.selfRemediation.upstreamRepo }}` |
+  | `MECHANIC_DISABLE_UPSTREAM_CONTRIBUTIONS` | `{{ .Values.selfRemediation.disableUpstreamContributions \| quote }}` |
 
   All three self-remediation env vars are always emitted unconditionally.
   `config.go` reads them on startup with defaults regardless; there is no
   on/off toggle. Self-remediation is automatically triggered by `JobProvider`
-  when it detects a failed Job with `app.kubernetes.io/managed-by: mendabot-watcher`.
+  when it detects a failed Job with `app.kubernetes.io/managed-by: mechanic-watcher`.
   To disable it, operators set `selfRemediation.maxDepth: 0`.
 
 - [ ] Ports: `metrics 8080`, `healthz 8081`
@@ -91,6 +91,6 @@ I must configure are `gitops.repo`, `gitops.manifestRoot`, and the two Secret na
 
 ## Definition of Done
 
-- [ ] `helm lint charts/mendabot/` exits 0
+- [ ] `helm lint charts/mechanic/` exits 0
 - [ ] All env vars present in `helm template` output
 - [ ] Missing required values produce a clear error message

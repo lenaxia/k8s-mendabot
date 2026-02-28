@@ -155,7 +155,7 @@ type SourceRef struct {
 ## 4. SinkProvider Interface
 
 The sink is where a fix is delivered. In v1, this is a GitHub PR opened by the
-`mendabot-agent` running inside a `batch/v1 Job`. Future sinks could be GitLab MRs,
+`mechanic-agent` running inside a `batch/v1 Job`. Future sinks could be GitLab MRs,
 Gitea PRs, or Jira tickets.
 
 The sink is **not a Go controller interface** — it is an abstraction at the agent level:
@@ -218,7 +218,7 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
     //    If nil, nil: skip. Return nil.
     //    If nil, err: return err (requeue).
     // 4. fp = Provider.Fingerprint(finding)
-    // 5. List RemediationJobs with label remediation.mendabot.io/fingerprint=fp[:12]
+    // 5. List RemediationJobs with label remediation.mechanic.io/fingerprint=fp[:12]
     //    Skip if non-Failed match with matching full fingerprint exists.
     // 6. Build and create RemediationJob from finding + fp + provider name.
     //    If AlreadyExists: return nil.
@@ -363,7 +363,7 @@ The `sourceType` field also serves as documentation in `kubectl get remediationj
 
 ```
 NAME                    PHASE      KIND    PARENT         SOURCE    AGE
-mendabot-a3f9c2b14d8e  Succeeded  Pod     my-deployment  k8sgpt    2h
+mechanic-a3f9c2b14d8e  Succeeded  Pod     my-deployment  k8sgpt    2h
 ```
 
 ---

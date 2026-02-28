@@ -24,7 +24,7 @@ across watcher restarts.
 | Concern | In-memory map | RemediationJob CRD |
 |---|---|---|
 | Watcher restart | State lost; re-dispatch races | State survives; reconciler checks existing objects |
-| Observability | None — no `kubectl get` | `kubectl get remediationjobs -n mendabot` shows everything |
+| Observability | None — no `kubectl get` | `kubectl get remediationjobs -n mechanic` shows everything |
 | Audit trail | None | Full history: when dispatched, what Job, what PR |
 | Deduplication | Map evicted on restart | CRD exists until explicitly deleted or TTL expires |
 | Upstream contribution | Bespoke, hard to integrate | Natural fit as a first-class k8sgpt-operator resource type |
@@ -38,7 +38,7 @@ across watcher restarts.
 - `RemediationJob` owns the `batch/v1 Job` via `ownerReferences` — deleting a
   `RemediationJob` deletes its Job
 - Status is written back to the `RemediationJob` as the Job progresses
-- `RemediationJob` objects are created in the same namespace as the watcher (`mendabot`)
+- `RemediationJob` objects are created in the same namespace as the watcher (`mechanic`)
 
 ---
 
@@ -47,12 +47,12 @@ across watcher restarts.
 ### 2.1 Group / Version / Kind
 
 ```
-Group:   remediation.mendabot.io
+Group:   remediation.mechanic.io
 Version: v1alpha1
 Kind:    RemediationJob
 ```
 
-The group `remediation.mendabot.io` is chosen to sit adjacent to the existing
+The group `remediation.mechanic.io` is chosen to sit adjacent to the existing
 `core.k8sgpt.ai` group, making upstream contribution natural. If this project is
 eventually contributed to `k8sgpt-ai/k8sgpt-operator`, the group is already correct.
 
@@ -241,12 +241,12 @@ type RemediationJobList struct {
 ## 3. Controller Architecture
 
 Introducing the `RemediationJob` CRD splits what was one controller into two reconcilers.
-Both run in the same `mendabot-watcher` binary.
+Both run in the same `mechanic-watcher` binary.
 
 ### 3.1 SourceProviderReconciler
 
 **Watches:** `results.core.k8sgpt.ai` (all namespaces) — via `K8sGPTProvider.ObjectType()`
-**Writes:** `RemediationJob` objects (in `mendabot` namespace)
+**Writes:** `RemediationJob` objects (in `mechanic` namespace)
 **Does NOT:** create `batch/v1 Jobs` directly — that is now the job of the RemediationJobReconciler
 
 `SourceProviderReconciler` (in `internal/provider/provider.go`) is itself the
@@ -272,7 +272,7 @@ Reconcile(Result):
      If nil, err: return err (requeue).
   3. fingerprintFor(result.Namespace, result.Spec) → fp
   4. List RemediationJobs in AgentNamespace with label
-     remediation.mendabot.io/fingerprint=<fp[:12]>
+     remediation.mechanic.io/fingerprint=<fp[:12]>
      If one exists and its Phase is not Failed → return nil (already handled).
   5. Build RemediationJob spec from Result + watcher config.
   6. client.Create(RemediationJob).
@@ -287,7 +287,7 @@ state. It also does not enforce `MAX_CONCURRENT_JOBS` — that is enforced by th
 
 ### 3.2 RemediationJobReconciler
 
-**Watches:** `RemediationJob` (in `mendabot` namespace)
+**Watches:** `RemediationJob` (in `mechanic` namespace)
 **Also watches:** `batch/v1 Jobs` owned by `RemediationJob` (via `Owns()`)
 **Writes:** `batch/v1 Jobs`; patches `RemediationJob.Status`
 
@@ -306,12 +306,12 @@ Reconcile(RemediationJob):
         If TTL is not yet due: return RequeueAfter(deadline - now).
         If CompletedAt is not set: return nil (will be set when Job syncs).
       If Phase is Failed → return nil (terminal, retained indefinitely for postmortem).
-  3. Look up owned Job by label remediation.mendabot.io/remediation-job=<rjob.Name>.
+  3. Look up owned Job by label remediation.mechanic.io/remediation-job=<rjob.Name>.
      If Job exists:
        a. Sync phase from Job status → update RemediationJob.Status.
        b. Return nil.
    4. Check MAX_CONCURRENT_JOBS:
-      List Jobs with label app.kubernetes.io/managed-by=mendabot-watcher in AgentNamespace.
+      List Jobs with label app.kubernetes.io/managed-by=mechanic-watcher in AgentNamespace.
       Count those where job.Status.Active > 0 OR
                        (job.Status.Succeeded == 0 AND job.Status.CompletionTime == nil).
       (This counts Jobs that are actively running or pending; it excludes Failed jobs
@@ -346,7 +346,7 @@ The `RemediationJobReconciler` is re-triggered whenever the owned `batch/v1 Job`
 ### RemediationJob name
 
 ```
-mendabot-<first-12-chars-of-fingerprint>
+mechanic-<first-12-chars-of-fingerprint>
 ```
 
 This mirrors the original Job naming and is deterministic — the watcher can check for
@@ -355,7 +355,7 @@ existence by name without listing.
 ### batch/v1 Job name
 
 ```
-mendabot-agent-<first-12-chars-of-fingerprint>
+mechanic-agent-<first-12-chars-of-fingerprint>
 ```
 
 Unchanged from the original design.
@@ -369,7 +369,7 @@ The `batch/v1 Job` is created with an `ownerReference` pointing at the `Remediat
 ```go
 job.OwnerReferences = []metav1.OwnerReference{
     {
-        APIVersion:         "remediation.mendabot.io/v1alpha1",
+        APIVersion:         "remediation.mechanic.io/v1alpha1",
         Kind:               "RemediationJob",
         Name:               rjob.Name,
         UID:                rjob.UID,
@@ -387,13 +387,13 @@ Deleting a `RemediationJob` cascades to delete its `batch/v1 Job` and the Job's 
 
 The agent (running inside the `batch/v1 Job`) can optionally patch the `RemediationJob`
 status with the PR URL before exiting. This requires the agent ServiceAccount to have
-`patch` on `remediationjobs/status` in the `mendabot` namespace (a Role, not ClusterRole).
+`patch` on `remediationjobs/status` in the `mechanic` namespace (a Role, not ClusterRole).
 
 The agent does this via `kubectl`:
 
 ```bash
-kubectl patch remediationjob mendabot-<fingerprint[:12]> \
-  -n mendabot \
+kubectl patch remediationjob mechanic-<fingerprint[:12]> \
+  -n mechanic \
   --subresource=status \
   --type=merge \
   --patch "{\"status\":{\"prRef\":\"${PR_URL}\"}}"
@@ -404,7 +404,7 @@ a `prRef` — the PR still exists on GitHub. The agent does not retry or fail be
 a status patch failure.
 
 The agent knows its own `RemediationJob` name from the `FINDING_FINGERPRINT` env var:
-`mendabot-${FINDING_FINGERPRINT:0:12}`.
+`mechanic-${FINDING_FINGERPRINT:0:12}`.
 
 ---
 
@@ -430,10 +430,10 @@ The watcher ClusterRole and Role must be extended:
 
 ```yaml
 # clusterrole-watcher.yaml — add:
-- apiGroups: ["remediation.mendabot.io"]
+- apiGroups: ["remediation.mechanic.io"]
   resources: ["remediationjobs"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-- apiGroups: ["remediation.mendabot.io"]
+- apiGroups: ["remediation.mechanic.io"]
   resources: ["remediationjobs/status"]
   verbs: ["get", "patch", "update"]
 ```
@@ -441,14 +441,14 @@ The watcher ClusterRole and Role must be extended:
 ### Agent addition (status writeback)
 
 ```yaml
-# role-agent.yaml (new, namespaced to mendabot):
+# role-agent.yaml (new, namespaced to mechanic):
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: mendabot-agent
-  namespace: mendabot
+  name: mechanic-agent
+  namespace: mechanic
 rules:
-- apiGroups: ["remediation.mendabot.io"]
+- apiGroups: ["remediation.mechanic.io"]
   resources: ["remediationjobs/status"]
   verbs: ["get", "patch"]
 ```

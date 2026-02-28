@@ -1,6 +1,6 @@
 # Cascade Prevention Metrics
 
-This document describes the Prometheus metrics exposed by the Mendabot cascade prevention system.
+This document describes the Prometheus metrics exposed by the Mechanic cascade prevention system.
 
 ## Overview
 
@@ -14,13 +14,13 @@ The cascade prevention metrics provide operational visibility into:
 
 ### Circuit Breaker Metrics
 
-#### `mendabot_circuit_breaker_activations_total`
+#### `mechanic_circuit_breaker_activations_total`
 - **Type**: Counter
 - **Labels**: `provider`, `namespace`
 - **Description**: Total number of circuit breaker activations (trips)
 - **When incremented**: When a self-remediation is blocked due to circuit breaker cooldown
 
-#### `mendabot_circuit_breaker_cooldown_seconds`
+#### `mechanic_circuit_breaker_cooldown_seconds`
 - **Type**: Gauge
 - **Labels**: `provider`, `namespace`
 - **Description**: Remaining cooldown time for circuit breaker in seconds
@@ -28,14 +28,14 @@ The cascade prevention metrics provide operational visibility into:
 
 ### Chain Depth Metrics
 
-#### `mendabot_chain_depth_distribution`
+#### `mechanic_chain_depth_distribution`
 - **Type**: Histogram
 - **Labels**: `provider`, `namespace`
 - **Description**: Distribution of cascade chain depths
 - **Buckets**: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 - **When observed**: When a self-remediation with chain depth > 2 is processed
 
-#### `mendabot_max_depth_exceeded_total`
+#### `mechanic_max_depth_exceeded_total`
 - **Type**: Counter
 - **Labels**: `provider`, `namespace`, `depth`
 - **Description**: Total number of times maximum chain depth was exceeded
@@ -43,13 +43,13 @@ The cascade prevention metrics provide operational visibility into:
 
 ### Self-Remediation Metrics
 
-#### `mendabot_self_remediation_attempts_total`
+#### `mechanic_self_remediation_attempts_total`
 - **Type**: Counter
 - **Labels**: `provider`, `namespace`, `success`
 - **Description**: Total number of self-remediation attempts
 - **Success values**: `true` for successful attempts, `false` for failed attempts
 
-#### `mendabot_self_remediation_success_rate`
+#### `mechanic_self_remediation_success_rate`
 - **Type**: Gauge
 - **Labels**: `provider`, `namespace`
 - **Description**: Success rate of self-remediation attempts (0.0 to 1.0)
@@ -57,13 +57,13 @@ The cascade prevention metrics provide operational visibility into:
 
 ### Cascade Suppression Metrics
 
-#### `mendabot_cascade_suppressions_total`
+#### `mechanic_cascade_suppressions_total`
 - **Type**: Counter
 - **Labels**: `provider`, `namespace`, `suppression_type`
 - **Description**: Total number of cascade suppression events
 - **Suppression types**: `circuit_breaker`, `max_depth`, `stabilisation_window`
 
-#### `mendabot_cascade_suppression_reasons`
+#### `mechanic_cascade_suppression_reasons`
 - **Type**: Counter
 - **Labels**: `provider`, `namespace`, `reason`
 - **Description**: Count of cascade suppression reasons
@@ -74,50 +74,50 @@ The cascade prevention metrics provide operational visibility into:
 ### Circuit Breaker Monitoring
 ```promql
 # Circuit breaker activation rate (per minute)
-rate(mendabot_circuit_breaker_activations_total[5m])
+rate(mechanic_circuit_breaker_activations_total[5m])
 
 # Active circuit breaker cooldowns
-mendabot_circuit_breaker_cooldown_seconds > 0
+mechanic_circuit_breaker_cooldown_seconds > 0
 
 # Circuit breaker activations by provider
-sum by (provider) (rate(mendabot_circuit_breaker_activations_total[5m]))
+sum by (provider) (rate(mechanic_circuit_breaker_activations_total[5m]))
 ```
 
 ### Chain Depth Analysis
 ```promql
 # Average chain depth
-avg(mendabot_chain_depth_distribution_bucket)
+avg(mechanic_chain_depth_distribution_bucket)
 
 # Chain depth distribution percentiles
-histogram_quantile(0.95, sum(rate(mendabot_chain_depth_distribution_bucket[5m])) by (le))
+histogram_quantile(0.95, sum(rate(mechanic_chain_depth_distribution_bucket[5m])) by (le))
 
 # Max depth violations
-sum(rate(mendabot_max_depth_exceeded_total[5m])) by (depth)
+sum(rate(mechanic_max_depth_exceeded_total[5m])) by (depth)
 ```
 
 ### Self-Remediation Success Tracking
 ```promql
 # Current success rate by provider
-mendabot_self_remediation_success_rate
+mechanic_self_remediation_success_rate
 
 # Success rate trend (30-minute moving average)
-avg_over_time(mendabot_self_remediation_success_rate[30m])
+avg_over_time(mechanic_self_remediation_success_rate[30m])
 
 # Total attempts by outcome
-sum by (success) (mendabot_self_remediation_attempts_total)
+sum by (success) (mechanic_self_remediation_attempts_total)
 ```
 
 ### Cascade Suppression Analysis
 ```promql
 # Suppression rate by type
-sum by (suppression_type) (rate(mendabot_cascade_suppressions_total[5m]))
+sum by (suppression_type) (rate(mechanic_cascade_suppressions_total[5m]))
 
 # Top suppression reasons
-topk(5, sum by (reason) (rate(mendabot_cascade_suppression_reasons[5m])))
+topk(5, sum by (reason) (rate(mechanic_cascade_suppression_reasons[5m])))
 
 # Suppression ratio (suppressions / total self-remediation attempts)
-sum(rate(mendabot_cascade_suppressions_total[5m])) / 
-sum(rate(mendabot_self_remediation_attempts_total[5m]))
+sum(rate(mechanic_cascade_suppressions_total[5m])) / 
+sum(rate(mechanic_self_remediation_attempts_total[5m]))
 ```
 
 ## Alerting Examples
@@ -125,7 +125,7 @@ sum(rate(mendabot_self_remediation_attempts_total[5m]))
 ### High Circuit Breaker Activation Rate
 ```yaml
 alert: HighCircuitBreakerActivationRate
-expr: rate(mendabot_circuit_breaker_activations_total[5m]) > 0.1
+expr: rate(mechanic_circuit_breaker_activations_total[5m]) > 0.1
 for: 5m
 labels:
   severity: warning
@@ -137,7 +137,7 @@ annotations:
 ### Low Self-Remediation Success Rate
 ```yaml
 alert: LowSelfRemediationSuccessRate
-expr: mendabot_self_remediation_success_rate < 0.5
+expr: mechanic_self_remediation_success_rate < 0.5
 for: 10m
 labels:
   severity: critical
@@ -149,7 +149,7 @@ annotations:
 ### Deep Cascade Chains
 ```yaml
 alert: DeepCascadeChains
-expr: histogram_quantile(0.95, sum(rate(mendabot_chain_depth_distribution_bucket[5m])) by (le)) > 5
+expr: histogram_quantile(0.95, sum(rate(mechanic_chain_depth_distribution_bucket[5m])) by (le)) > 5
 for: 5m
 labels:
   severity: warning

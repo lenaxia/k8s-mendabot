@@ -128,7 +128,7 @@ exist — only the agent-side implementation would be new.
 
 ## 5. Agent Image Sink Requirements (v1)
 
-The following tools must be present in the `mendabot-agent` image for the GitHub PR sink:
+The following tools must be present in the `mechanic-agent` image for the GitHub PR sink:
 
 | Tool | Purpose |
 |---|---|

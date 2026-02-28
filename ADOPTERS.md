@@ -1,6 +1,6 @@
 # Adopters
 
-This file lists organizations and individuals using k8s-mendabot in production
+This file lists organizations and individuals using k8s-mechanic in production
 or evaluation environments.
 
 Adding yourself here helps demonstrate project adoption for CNCF due diligence
@@ -11,7 +11,7 @@ organization, open a pull request editing this file.
 
 | Organization | Use Case | Since |
 |---|---|---|
-| _(your org here)_ | _(brief description of how you use k8s-mendabot)_ | _(YYYY-MM)_ |
+| _(your org here)_ | _(brief description of how you use k8s-mechanic)_ | _(YYYY-MM)_ |
 
 ## Evaluation / Staging Adopters
 

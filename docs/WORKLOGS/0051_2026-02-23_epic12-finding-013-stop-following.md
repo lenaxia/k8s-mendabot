@@ -69,7 +69,7 @@ None.
 
 ```
 go test -timeout 30s -race ./internal/domain/...
-ok  	github.com/lenaxia/k8s-mendabot/internal/domain	1.123s
+ok  	github.com/lenaxia/k8s-mechanic/internal/domain	1.123s
 ```
 
 ---

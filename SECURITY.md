@@ -5,7 +5,7 @@
 **Do not open a public GitHub issue for security vulnerabilities.**
 
 To report a vulnerability, open a
-[GitHub Security Advisory](https://github.com/lenaxia/k8s-mendabot/security/advisories/new)
+[GitHub Security Advisory](https://github.com/lenaxia/k8s-mechanic/security/advisories/new)
 on this repository. This keeps the report confidential until a fix is ready.
 
 If you are unable to use GitHub Security Advisories, contact the maintainer
@@ -16,7 +16,7 @@ Please include:
 
 - A clear description of the vulnerability
 - Steps to reproduce or a proof-of-concept (as much as you can provide)
-- The component affected (`mendabot-watcher`, `mendabot-agent`, Helm chart,
+- The component affected (`mechanic-watcher`, `mechanic-agent`, Helm chart,
   RBAC manifests, etc.)
 - Your assessment of impact and severity
 - Any suggested remediation, if you have one
@@ -39,7 +39,7 @@ issue is confirmed, we will coordinate a fix and disclosure timeline with you.
 
 ## Security Architecture
 
-k8s-mendabot is designed to run inside a Kubernetes cluster with a minimal,
+k8s-mechanic is designed to run inside a Kubernetes cluster with a minimal,
 auditable attack surface. The key security properties are:
 
 ### Agent isolation
@@ -133,7 +133,7 @@ mitigation are documented in the threat model.
 
 ## Security Review Process
 
-mendabot undergoes a structured, evidence-based security review after any
+mechanic undergoes a structured, evidence-based security review after any
 major change and at minimum quarterly. The review process is documented in
 [`docs/SECURITY/PROCESS.md`](docs/SECURITY/PROCESS.md) and covers 10 phases:
 

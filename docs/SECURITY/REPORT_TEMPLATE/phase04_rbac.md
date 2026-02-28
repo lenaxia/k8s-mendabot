@@ -12,7 +12,7 @@
 
 ```bash
 kubectl auth can-i get secret/rbac-test-secret -n default \
-  --as=system:serviceaccount:mendabot:mendabot-agent
+  --as=system:serviceaccount:mechanic:mechanic-agent
 ```
 ```
 <!-- paste output -->
@@ -20,7 +20,7 @@ kubectl auth can-i get secret/rbac-test-secret -n default \
 
 ```bash
 kubectl get secret rbac-test-secret -n default \
-  --as=system:serviceaccount:mendabot:mendabot-agent -o yaml
+  --as=system:serviceaccount:mechanic:mechanic-agent -o yaml
 ```
 ```
 <!-- paste output -->
@@ -42,7 +42,7 @@ Record it as a confirmed accepted risk, not a defect.
 ```bash
 # Out-of-scope namespace — should be forbidden
 kubectl auth can-i get secret -n production \
-  --as=system:serviceaccount:mendabot:mendabot-agent-ns
+  --as=system:serviceaccount:mechanic:mechanic-agent-ns
 ```
 ```
 <!-- paste output -->
@@ -51,7 +51,7 @@ kubectl auth can-i get secret -n production \
 ```bash
 # In-scope namespace — should be allowed
 kubectl auth can-i get secret -n default \
-  --as=system:serviceaccount:mendabot:mendabot-agent-ns
+  --as=system:serviceaccount:mechanic:mechanic-agent-ns
 ```
 ```
 <!-- paste output -->
@@ -70,13 +70,13 @@ kubectl auth can-i get secret -n default \
 
 ```bash
 kubectl auth can-i create pod -n default \
-  --as=system:serviceaccount:mendabot:mendabot-agent
+  --as=system:serviceaccount:mechanic:mechanic-agent
 kubectl auth can-i create deployment -n default \
-  --as=system:serviceaccount:mendabot:mendabot-agent
+  --as=system:serviceaccount:mechanic:mechanic-agent
 kubectl auth can-i create pods/exec -n default \
-  --as=system:serviceaccount:mendabot:mendabot-agent
+  --as=system:serviceaccount:mechanic:mechanic-agent
 kubectl auth can-i get nodes/proxy \
-  --as=system:serviceaccount:mendabot:mendabot-agent
+  --as=system:serviceaccount:mechanic:mechanic-agent
 ```
 ```
 <!-- paste output -->
@@ -97,9 +97,9 @@ kubectl auth can-i get nodes/proxy \
 
 ```bash
 kubectl auth can-i get secret -n default \
-  --as=system:serviceaccount:mendabot:mendabot-watcher
+  --as=system:serviceaccount:mechanic:mechanic-watcher
 kubectl auth can-i delete remediationjob -n kube-system \
-  --as=system:serviceaccount:mendabot:mendabot-watcher
+  --as=system:serviceaccount:mechanic:mechanic-watcher
 ```
 ```
 <!-- paste output -->
@@ -108,7 +108,7 @@ kubectl auth can-i delete remediationjob -n kube-system \
 | Check | Expected | Actual | Pass? |
 |-------|----------|--------|-------|
 | Watcher cannot read Secrets | no | | |
-| Watcher cannot delete RemediationJobs outside mendabot ns | no | | |
+| Watcher cannot delete RemediationJobs outside mechanic ns | no | | |
 
 ---
 

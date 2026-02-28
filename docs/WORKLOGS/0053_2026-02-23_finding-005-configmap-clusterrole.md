@@ -10,7 +10,7 @@
 
 Fix finding 2026-02-23-005: the watcher ClusterRole granted `create/update/patch` on ConfigMaps
 cluster-wide, violating least-privilege. The watcher only needs to write ConfigMaps in its own
-namespace (`mendabot`). ConfigMap reads must remain cluster-wide so the watcher can watch prompt
+namespace (`mechanic`). ConfigMap reads must remain cluster-wide so the watcher can watch prompt
 ConfigMap changes across namespaces.
 
 ---
@@ -25,7 +25,7 @@ Split the single first rule that covered `pods, pvcs, nodes, namespaces, events,
 - `pods, persistentvolumeclaims, nodes, namespaces, events` — `get/list/watch/create/update/patch` (unchanged)
 - `configmaps` — `get/list/watch` only (write verbs removed)
 
-All other rules (apps, batch, remediation.mendabot.io) are unchanged.
+All other rules (apps, batch, remediation.mechanic.io) are unchanged.
 
 ### 2. `deploy/kustomize/role-watcher.yaml`
 
@@ -44,7 +44,7 @@ Added a new rule for namespace-scoped ConfigMap writes:
 - `create/update/patch` removed from ClusterRole configmaps rule — watcher never needs to write
   ConfigMaps outside its own namespace.
 - Write verbs placed in the namespace-scoped Role, not a second ClusterRole, so they are
-  constrained to the `mendabot` namespace at the RoleBinding level.
+  constrained to the `mechanic` namespace at the RoleBinding level.
 - `delete` not added to the Role configmaps rule — the watcher has no use case for deleting
   ConfigMaps.
 

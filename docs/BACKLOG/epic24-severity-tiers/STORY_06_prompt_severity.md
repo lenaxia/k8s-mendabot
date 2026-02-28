@@ -18,8 +18,8 @@ over-acted upon.
 
 ## Background
 
-The agent prompt lives in `charts/mendabot/files/prompts/core.txt`. This file is
-loaded by the Helm template `charts/mendabot/templates/configmap-prompt.yaml` and
+The agent prompt lives in `charts/mechanic/files/prompts/core.txt`. This file is
+loaded by the Helm template `charts/mechanic/templates/configmap-prompt.yaml` and
 rendered into the `opencode-prompt` ConfigMap. The `deploy/kustomize/` directory does
 not exist in this repository — Kustomize was replaced by the Helm chart.
 
@@ -30,7 +30,7 @@ string before this story can work end-to-end.**
 
 ## Design
 
-### charts/mendabot/files/prompts/core.txt
+### charts/mechanic/files/prompts/core.txt
 
 **Finding context block** (currently lines 7–17): add `Severity` after `Fingerprint`:
 
@@ -63,20 +63,20 @@ SEVERITY CALIBRATION:
 
 ## Acceptance Criteria
 
-- [ ] `FINDING_SEVERITY=${FINDING_SEVERITY}` line added to the finding context block in `charts/mendabot/files/prompts/core.txt`
+- [ ] `FINDING_SEVERITY=${FINDING_SEVERITY}` line added to the finding context block in `charts/mechanic/files/prompts/core.txt`
 - [ ] Severity calibration instruction present covering all four values plus the empty case
-- [ ] `charts/mendabot/templates/configmap-prompt.yaml` does not need changes (it loads the file contents via `{{ .Files.Get "files/prompts/core.txt" }}`)
+- [ ] `charts/mechanic/templates/configmap-prompt.yaml` does not need changes (it loads the file contents via `{{ .Files.Get "files/prompts/core.txt" }}`)
 - [ ] `${FINDING_SEVERITY}` is present in the `VARS` string in `docker/scripts/entrypoint-common.sh` (done in STORY_05 — verify before merging)
 
 ---
 
 ## Tasks
 
-- [ ] Read `charts/mendabot/files/prompts/core.txt` in full to identify the exact insertion points
+- [ ] Read `charts/mechanic/files/prompts/core.txt` in full to identify the exact insertion points
 - [ ] Add `Severity:     ${FINDING_SEVERITY}` to the finding context block
 - [ ] Add severity calibration instruction after the finding context block
 - [ ] Verify `docker/scripts/entrypoint-common.sh` VARS string contains `${FINDING_SEVERITY}` (added in STORY_05)
-- [ ] Run `helm lint charts/mendabot/` — must pass with no errors
+- [ ] Run `helm lint charts/mechanic/` — must pass with no errors
 - [ ] Write worklog entry for the completed epic
 
 ---
@@ -90,7 +90,7 @@ SEVERITY CALIBRATION:
 
 ## Definition of Done
 
-- [ ] `charts/mendabot/files/prompts/core.txt` updated with `Severity: ${FINDING_SEVERITY}` in the finding context block
+- [ ] `charts/mechanic/files/prompts/core.txt` updated with `Severity: ${FINDING_SEVERITY}` in the finding context block
 - [ ] Severity calibration instruction present in the prompt
-- [ ] `helm lint charts/mendabot/` passes with no errors
+- [ ] `helm lint charts/mechanic/` passes with no errors
 - [ ] Worklog written for the epic

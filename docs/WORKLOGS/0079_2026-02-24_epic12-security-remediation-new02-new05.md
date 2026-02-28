@@ -31,7 +31,7 @@ code path in the watcher requiring cross-namespace Secret access.
 
 ### 2. Removed `secrets` from watcher ClusterRole
 
-`charts/mendabot/templates/clusterrole-watcher.yaml` line 10:
+`charts/mechanic/templates/clusterrole-watcher.yaml` line 10:
 
 Before: `resources: ["pods", "persistentvolumeclaims", "nodes", "namespaces", "secrets"]`
 After:  `resources: ["pods", "persistentvolumeclaims", "nodes", "namespaces"]`
@@ -42,7 +42,7 @@ scoped `secrets` access.
 
 ### 3. Restored untrusted-data envelope in `core.txt`
 
-`charts/mendabot/files/prompts/core.txt` — two changes:
+`charts/mechanic/files/prompts/core.txt` — two changes:
 
 **Change 1** — wrapped both untrusted fields in BEGIN/END delimiters:
 
@@ -108,7 +108,7 @@ None.
 ## Tests Run
 
 ```
-helm template test ./charts/mendabot --set gitops.repo=org/repo --set gitops.manifestRoot=k8s
+helm template test ./charts/mechanic --set gitops.repo=org/repo --set gitops.manifestRoot=k8s
 # Verified: ClusterRole does not include "secrets"
 # Verified: BEGIN/END envelopes present in rendered ConfigMap for both fields
 # Verified: HARD RULE 8 present in rendered ConfigMap
@@ -130,8 +130,8 @@ Four open findings remain from the 2026-02-24 review (all LOW or INFO):
 
 ## Files Modified
 
-- `charts/mendabot/files/prompts/core.txt` — added BEGIN/END envelopes + HARD RULE 8
-- `charts/mendabot/templates/clusterrole-watcher.yaml` — removed `secrets` from ClusterRole
+- `charts/mechanic/files/prompts/core.txt` — added BEGIN/END envelopes + HARD RULE 8
+- `charts/mechanic/templates/clusterrole-watcher.yaml` — removed `secrets` from ClusterRole
 - `docs/SECURITY/2026-02-24_security_report/README.md` — new report README
 - `docs/SECURITY/2026-02-24_security_report/findings.md` — new findings document (7 entries)
 - `docs/BACKLOG/epic12-security-review/pentest-report-2.md` — deleted (content in report folder)

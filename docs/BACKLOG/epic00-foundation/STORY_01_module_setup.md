@@ -16,7 +16,7 @@ structure so that all subsequent epics have a consistent base to build on.
 
 ## Acceptance Criteria
 
-- [x] `go.mod` declares module `github.com/lenaxia/k8s-mendabot`
+- [x] `go.mod` declares module `github.com/lenaxia/k8s-mechanic`
 - [x] Go version is 1.23 or later
 - [x] Core dependencies added: `sigs.k8s.io/controller-runtime`, `k8s.io/api`,
   `k8s.io/apimachinery`, `k8s.io/client-go`, `go.uber.org/zap`

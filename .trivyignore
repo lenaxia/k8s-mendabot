@@ -5,8 +5,8 @@
 # Affected binaries (agent image): helm, kubectl, kubeconform, kustomize,
 # stern, flux, talosctl, sops, yq.
 #
-# These are NOT suppressions for code we own. The mendabot-watcher and
-# mendabot-agent (age/age-keygen) binaries are compiled with Go 1.25.7 and
+# These are NOT suppressions for code we own. The mechanic-watcher and
+# mechanic-agent (age/age-keygen) binaries are compiled with Go 1.25.7 and
 # are clean.
 #
 # Expiry: 2026-06-01 — re-evaluate at that date. If upstream tools still

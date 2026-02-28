@@ -1,4 +1,4 @@
-# k8s-mendabot — LLM Implementation Guide
+# k8s-mechanic — LLM Implementation Guide
 
 **Version:** 1.0
 **Last Updated:** 2026-02-25
@@ -24,7 +24,7 @@
 
 ## Project Overview
 
-**k8s-mendabot** watches core Kubernetes resources (Pods, Deployments, StatefulSets,
+**k8s-mechanic** watches core Kubernetes resources (Pods, Deployments, StatefulSets,
 PersistentVolumeClaims, Nodes, Jobs) directly, deduplicates findings by parent resource,
 and spawns a per-finding Kubernetes Job that runs an
 [OpenCode](https://opencode.ai) agent in-cluster. The agent investigates the live cluster
@@ -38,8 +38,8 @@ and the GitOps repository, then opens a pull request with a proposed fix.
 - Self-contained Kubernetes deployment via Kustomize, compatible with any GitOps tool (Flux, ArgoCD, etc.)
 
 **Two deliverables:**
-1. `mendabot-watcher` — Go controller binary (controller-runtime)
-2. `mendabot-agent` — Docker image (opencode + kubectl + helm + gh)
+1. `mechanic-watcher` — Go controller binary (controller-runtime)
+2. `mechanic-agent` — Docker image (opencode + kubectl + helm + gh)
 
 **Note:** Upstream contribution feature has been removed due to GitHub App permission complexity. The system focuses on self-remediation cascade prevention without attempting upstream bug reporting.
 
@@ -136,7 +136,7 @@ fits the overall data flow. Never modify code without knowing why.
 ## Repository Structure
 
 ```
-k8s-mendabot/
+k8s-mechanic/
 ├── README.md                          # User-facing README
 ├── README-LLM.md                      # This file
 ├── go.mod
@@ -265,7 +265,7 @@ k8s-mendabot/
 │  └──────────────────┘           └──────────────┬───────────────┘   │
 │                                                 │ watch             │
 │                                  ┌──────────────▼───────────────┐  │
-│                                  │  mendabot-watcher             │  │
+│                                  │  mechanic-watcher             │  │
 │                                  │  (Deployment)                 │  │
 │                                  │                               │  │
 │                                  │  SourceProviderReconciler     │  │
@@ -281,13 +281,13 @@ k8s-mendabot/
 │                                                 │ creates           │
 │                              ┌──────────────────▼──────────────┐   │
 │                              │  RemediationJob CRDs            │   │
-│                              │  (remediation.mendabot.io)      │   │
+│                              │  (remediation.mechanic.io)      │   │
 │                              │  - durable dedup state          │   │
 │                              │  - survives watcher restarts    │   │
 │                              └──────────────────┬──────────────┘   │
 │                                                 │ creates           │
 │                                  ┌──────────────▼───────────────┐  │
-│                                  │  mendabot-agent Job           │  │
+│                                  │  mechanic-agent Job           │  │
 │                                  │  (one per unique finding)     │  │
 │                                  │                               │  │
 │                                  │  init: git clone GitOps repo  │  │
@@ -330,7 +330,7 @@ objects and skips any with a non-Failed phase. No in-memory map is used.
 | `backoffLimit` | `1` |
 | `activeDeadlineSeconds` | `900` (15 min hard timeout) |
 | `ttlSecondsAfterFinished` | `86400` (1 day cleanup) |
-| Name | `mendabot-agent-<first-12-chars-of-fingerprint>` |
+| Name | `mechanic-agent-<first-12-chars-of-fingerprint>` |
 
 ### GitHub authentication
 
@@ -833,7 +833,7 @@ SUCCESS CRITERIA:
 go mod tidy
 
 # Build watcher binary
-go build -o bin/mendabot-watcher ./cmd/watcher/
+go build -o bin/mechanic-watcher ./cmd/watcher/
 
 # Run all tests with timeout and race detector
 go test -timeout 30s -race ./...
@@ -848,7 +848,7 @@ go fmt ./...
 go vet ./...
 
 # Build agent image locally
-docker build -f docker/Dockerfile.agent -t mendabot-agent:dev .
+docker build -f docker/Dockerfile.agent -t mechanic-agent:dev .
 
 # Apply Kustomize manifests (dry-run)
 kubectl apply -k deploy/kustomize/ --dry-run=client
@@ -984,13 +984,13 @@ corresponding entry added to the CRD was:
 
 **Rule 2 — Pre-test cleanup for deterministic object names.** When a test creates a
 Kubernetes object with a name derived from a fixed constant (e.g. a `batch/v1` Job
-named `mendabot-agent-<fingerprint[:12]>`), add a pre-test delete at the start of the
+named `mechanic-agent-<fingerprint[:12]>`), add a pre-test delete at the start of the
 test body, before creating any objects:
 
 ```go
 // Pre-test cleanup: delete any stale object from a previous run.
 _ = c.Delete(ctx, &batchv1.Job{ObjectMeta: metav1.ObjectMeta{
-    Name:      "mendabot-agent-" + fp[:12],
+    Name:      "mechanic-agent-" + fp[:12],
     Namespace: integrationCtrlNamespace,
 }})
 ```

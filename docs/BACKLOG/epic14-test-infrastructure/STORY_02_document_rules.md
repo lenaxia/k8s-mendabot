@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **mendabot developer** (or agent session), I want the test infrastructure rules
+As a **mechanic developer** (or agent session), I want the test infrastructure rules
 documented in `README-LLM.md`, so that future sessions adding new CRD fields or new
 envtest tests do not re-introduce the same class of defects that this epic was created
 to fix.
@@ -80,13 +80,13 @@ corresponding entry added to the CRD was:
 
 **Rule 2 — Pre-test cleanup for deterministic object names.** When a test creates a
 Kubernetes object with a name derived from a fixed constant (e.g. a `batch/v1` Job
-named `mendabot-agent-<fingerprint[:12]>`), add a pre-test delete at the start of the
+named `mechanic-agent-<fingerprint[:12]>`), add a pre-test delete at the start of the
 test body, before creating any objects:
 
 ```go
 // Pre-test cleanup: delete any stale object from a previous run.
 _ = c.Delete(ctx, &batchv1.Job{ObjectMeta: metav1.ObjectMeta{
-    Name:      "mendabot-agent-" + fp[:12],
+    Name:      "mechanic-agent-" + fp[:12],
     Namespace: integrationCtrlNamespace,
 }})
 ```

@@ -25,7 +25,7 @@ All prior-session work was already present on the branch:
 - `internal/provider/native/pod.go` — `ExtractFinding` already populates
   `NodeName: pod.Spec.NodeName` in the returned `domain.Finding{}` literal (line 118).
 - `internal/provider/provider.go` — The `rjob` construction block already writes
-  `rjob.Annotations["mendabot.io/node-name"] = finding.NodeName` when non-empty
+  `rjob.Annotations["mechanic.io/node-name"] = finding.NodeName` when non-empty
   (lines 331–333).
 - `internal/correlator/rules.go` — All three rules fully implemented:
   `SameNamespaceParentRule`, `PVCPodRule` (both orientations), `MultiPodSameNodeRule`.
@@ -63,7 +63,7 @@ All tests pass after the fix:
 
 ```
 go test -timeout 30s -race ./internal/correlator/...
-# ok  github.com/lenaxia/k8s-mendabot/internal/correlator  1.093s  (41 tests)
+# ok  github.com/lenaxia/k8s-mechanic/internal/correlator  1.093s  (41 tests)
 
 go test -timeout 30s -race ./...
 # All 17 packages pass
@@ -105,10 +105,10 @@ go test -timeout 30s -race -run TestMultiPodSameNodeRule_PrimaryUID_Tiebreaker_L
 # FAIL before fix, PASS after fix
 
 go test -timeout 30s -race ./internal/correlator/... ./internal/domain/... ./internal/provider/...
-# ok  github.com/lenaxia/k8s-mendabot/internal/correlator  1.093s
-# ok  github.com/lenaxia/k8s-mendabot/internal/domain      (cached)
-# ok  github.com/lenaxia/k8s-mendabot/internal/provider    (cached)
-# ok  github.com/lenaxia/k8s-mendabot/internal/provider/native (cached)
+# ok  github.com/lenaxia/k8s-mechanic/internal/correlator  1.093s
+# ok  github.com/lenaxia/k8s-mechanic/internal/domain      (cached)
+# ok  github.com/lenaxia/k8s-mechanic/internal/provider    (cached)
+# ok  github.com/lenaxia/k8s-mechanic/internal/provider/native (cached)
 
 go test -timeout 30s -race ./...
 # All 17 packages pass

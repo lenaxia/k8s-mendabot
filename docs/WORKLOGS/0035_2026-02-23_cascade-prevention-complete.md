@@ -134,13 +134,13 @@ Implement a comprehensive cascade prevention system to prevent infinite remediat
 ### Unit Tests (All Passing)
 ```bash
 go test -timeout 30s -race ./internal/cascade/...
-ok  	github.com/lenaxia/k8s-mendabot/internal/cascade	1.096s
+ok  	github.com/lenaxia/k8s-mechanic/internal/cascade	1.096s
 
 go test -timeout 30s -race ./internal/circuitbreaker/...
-ok  	github.com/lenaxia/k8s-mendabot/internal/circuitbreaker	1.357s
+ok  	github.com/lenaxia/k8s-mechanic/internal/circuitbreaker	1.357s
 
 go test -timeout 30s -race ./internal/metrics/...
-ok  	github.com/lenaxia/k8s-mendabot/internal/metrics	1.075s
+ok  	github.com/lenaxia/k8s-mechanic/internal/metrics	1.075s
 ```
 
 ### Integration Tests (Failing Due to Race Conditions)

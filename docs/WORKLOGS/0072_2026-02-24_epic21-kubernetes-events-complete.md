@@ -36,7 +36,7 @@ All calls nil-guarded with `if r.EventRecorder != nil`.
 
 - Added `Recorder record.EventRecorder` field to `RemediationJobReconciler` struct.
 - Added `corev1` and `record` imports.
-- Added `Recorder: mgr.GetEventRecorderFor("mendabot-watcher")` in `cmd/watcher/main.go`.
+- Added `Recorder: mgr.GetEventRecorderFor("mechanic-watcher")` in `cmd/watcher/main.go`.
 - **JobDispatched** — in `dispatch()` after status patch succeeds; also added to the
   `IsAlreadyExists` branch (GAP 8 fix); emits on `rjob`.
 - **JobSucceeded** — when `newPhase == PhaseSucceeded`; includes PR URL if `rjob.Status.PRRef != ""`.
@@ -132,7 +132,7 @@ go test -timeout 60s -race ./...       → 12/12 packages pass
 - `internal/provider/provider_test.go` — 5 new tests; 1 redundant test removed
 - `internal/controller/remediationjob_controller.go` — Recorder field, imports, 4 event calls
 - `internal/controller/remediationjob_controller_test.go` — 6 new tests; type assertions strengthened
-- `cmd/watcher/main.go` — `Recorder: mgr.GetEventRecorderFor("mendabot-watcher")` added
+- `cmd/watcher/main.go` — `Recorder: mgr.GetEventRecorderFor("mechanic-watcher")` added
 - `docs/BACKLOG/epic21-kubernetes-events/STORY_01_source_provider_events.md` — status → Complete
 - `docs/BACKLOG/epic21-kubernetes-events/STORY_02_controller_events.md` — status → Complete
 - `docs/BACKLOG/epic21-kubernetes-events/README.md` — status → Complete

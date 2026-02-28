@@ -8,24 +8,24 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/lenaxia/k8s-mendabot/api/v1alpha1"
+	"github.com/lenaxia/k8s-mechanic/api/v1alpha1"
 )
 
 const (
-	CorrelationGroupIDLabel = "mendabot.io/correlation-group-id"
+	CorrelationGroupIDLabel = "mechanic.io/correlation-group-id"
 	// CorrelationGroupRoleLabel is the metadata label recording a job's role within a
 	// correlation group ("primary" or "correlated").
 	// Design note: STORY_00 originally specified this constant as "CorrelationRoleLabel";
 	// the implementation chose the more descriptive name "CorrelationGroupRoleLabel" to
 	// clarify that it belongs to the correlation group subsystem. All code uses the
 	// implementation name consistently — no runtime impact from the naming divergence.
-	CorrelationGroupRoleLabel = "mendabot.io/correlation-role"
+	CorrelationGroupRoleLabel = "mechanic.io/correlation-role"
 	CorrelationRolePrimary    = "primary"
 	CorrelationRoleCorrelated = "correlated"
 	// NodeNameAnnotation is set on a RemediationJob by the provider to record the
 	// Kubernetes node name of the failing pod. MultiPodSameNodeRule reads this annotation
 	// to group pods that fail on the same node.
-	NodeNameAnnotation = "mendabot.io/node-name"
+	NodeNameAnnotation = "mechanic.io/node-name"
 )
 
 // CorrelationResult is returned by a CorrelationRule evaluation.

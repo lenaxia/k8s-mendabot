@@ -9,7 +9,7 @@
 ## Objective
 
 Promote manifest validation from an advisory STEP 7 to a non-negotiable HARD RULE in
-the agent prompt (`charts/mendabot/files/prompts/core.txt`). Zero Go code changes.
+the agent prompt (`charts/mechanic/files/prompts/core.txt`). Zero Go code changes.
 
 ---
 
@@ -19,10 +19,10 @@ the agent prompt (`charts/mendabot/files/prompts/core.txt`). Zero Go code change
 
 Validation of the epic docs revealed they were written against `deploy/kustomize/configmap-prompt.yaml`,
 which was deleted in epic08 (2026-02-24). Both the README and STORY_02 were rewritten to
-target the correct file (`charts/mendabot/files/prompts/core.txt`) and to reflect the
+target the correct file (`charts/mechanic/files/prompts/core.txt`) and to reflect the
 actual current state of the HARD RULES (no duplicate rule 8, rules 1–8 clean).
 
-### 2. Prompt changes (`charts/mendabot/files/prompts/core.txt`)
+### 2. Prompt changes (`charts/mechanic/files/prompts/core.txt`)
 
 Three edits:
 
@@ -62,7 +62,7 @@ None.
 No Go tests — prompt-only change. Validation:
 
 ```bash
-helm template mendabot charts/mendabot \
+helm template mechanic charts/mechanic \
   --set gitops.repo=https://github.com/example/repo \
   --set gitops.manifestRoot=clusters/prod \
   | grep -E "STEP 7|HARD RULE|^\s+[0-9]+\."
@@ -88,6 +88,6 @@ Output confirmed:
 
 | File | Change |
 |------|--------|
-| `charts/mendabot/files/prompts/core.txt` | Rule 8→9, append HARD RULE 10, update STEP 7 |
+| `charts/mechanic/files/prompts/core.txt` | Rule 8→9, append HARD RULE 10, update STEP 7 |
 | `docs/BACKLOG/epic18-manifest-validation/README.md` | Rewritten: corrected file paths, line numbers, validation command, DoD |
 | `docs/BACKLOG/epic18-manifest-validation/STORY_02_prompt_hard_rule.md` | Rewritten: corrected target file, BEFORE/AFTER blocks, implementation steps |

@@ -17,12 +17,12 @@ environment variables.
 
 ## Acceptance Criteria
 
-- [ ] Labels: `app.kubernetes.io/managed-by: mendabot-watcher`,
-  `remediation.mendabot.io/fingerprint: <first-12>`,
-  `remediation.mendabot.io/remediation-job: <rjob.Name>`,
-  `remediation.mendabot.io/finding-kind: <kind>`
-- [ ] Annotations: `remediation.mendabot.io/fingerprint-full: <full-64>`,
-  `remediation.mendabot.io/finding-parent: <parentObject>`
+- [ ] Labels: `app.kubernetes.io/managed-by: mechanic-watcher`,
+  `remediation.mechanic.io/fingerprint: <first-12>`,
+  `remediation.mechanic.io/remediation-job: <rjob.Name>`,
+  `remediation.mechanic.io/finding-kind: <kind>`
+- [ ] Annotations: `remediation.mechanic.io/fingerprint-full: <full-64>`,
+  `remediation.mechanic.io/finding-parent: <parentObject>`
 - [ ] OwnerReference: points at the `RemediationJob` with correct UID, `Controller=true`,
   `BlockOwnerDeletion=true`
 - [ ] Job settings: `BackoffLimit=1`, `ActiveDeadlineSeconds=900`,

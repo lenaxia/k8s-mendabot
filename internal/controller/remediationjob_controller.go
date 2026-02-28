@@ -18,14 +18,14 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
-	"github.com/lenaxia/k8s-mendabot/internal/config"
-	"github.com/lenaxia/k8s-mendabot/internal/correlator"
-	"github.com/lenaxia/k8s-mendabot/internal/domain"
+	v1alpha1 "github.com/lenaxia/k8s-mechanic/api/v1alpha1"
+	"github.com/lenaxia/k8s-mechanic/internal/config"
+	"github.com/lenaxia/k8s-mechanic/internal/correlator"
+	"github.com/lenaxia/k8s-mechanic/internal/domain"
 )
 
-//+kubebuilder:rbac:groups=remediation.mendabot.io,resources=remediationjobs,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=remediation.mendabot.io,resources=remediationjobs/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=remediation.mechanic.io,resources=remediationjobs,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=remediation.mechanic.io,resources=remediationjobs/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;delete,namespace=agent
 
@@ -142,7 +142,7 @@ func (r *RemediationJobReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	var ownedJobs batchv1.JobList
 	if err := r.List(ctx, &ownedJobs,
 		client.InNamespace(r.Cfg.AgentNamespace),
-		client.MatchingLabels{"remediation.mendabot.io/remediation-job": rjob.Name},
+		client.MatchingLabels{"remediation.mechanic.io/remediation-job": rjob.Name},
 	); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -201,7 +201,7 @@ func (r *RemediationJobReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			rjob.Status.JobRef = job.Name
 		}
 		if newPhase == v1alpha1.PhaseSucceeded &&
-			job.Annotations["mendabot.io/dry-run"] == "true" &&
+			job.Annotations["mechanic.io/dry-run"] == "true" &&
 			rjob.Status.Message == "" {
 			rjob.Status.Message = r.fetchDryRunReport(ctx, &rjob)
 		}
@@ -299,7 +299,7 @@ func (r *RemediationJobReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 				var allInNS v1alpha1.RemediationJobList
 				if listErr := r.List(ctx, &allInNS,
 					client.InNamespace(r.Cfg.AgentNamespace),
-					client.MatchingLabels{"app.kubernetes.io/managed-by": "mendabot-watcher"},
+					client.MatchingLabels{"app.kubernetes.io/managed-by": "mechanic-watcher"},
 				); listErr != nil {
 					return ctrl.Result{}, fmt.Errorf("listing all jobs to check primary liveness: %w", listErr)
 				} else {
@@ -365,7 +365,7 @@ func (r *RemediationJobReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			var allPeers v1alpha1.RemediationJobList
 			if listErr := r.List(ctx, &allPeers,
 				client.InNamespace(r.Cfg.AgentNamespace),
-				client.MatchingLabels{"app.kubernetes.io/managed-by": "mendabot-watcher"},
+				client.MatchingLabels{"app.kubernetes.io/managed-by": "mechanic-watcher"},
 			); listErr != nil {
 				return ctrl.Result{}, fmt.Errorf("listing peers for correlation recovery: %w", listErr)
 			}
@@ -418,14 +418,14 @@ func (r *RemediationJobReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 }
 
 // DryRunCMName returns the name of the ConfigMap written by the agent at the
-// end of a dry-run job. The name mirrors the Job name (mendabot-agent-<fp12>)
+// end of a dry-run job. The name mirrors the Job name (mechanic-agent-<fp12>)
 // so the controller can derive it directly from the RJob fingerprint.
 // Exported so tests can derive the expected name without duplicating the logic.
 func DryRunCMName(fingerprint string) string {
 	if len(fingerprint) > 12 {
 		fingerprint = fingerprint[:12]
 	}
-	return "mendabot-dryrun-" + fingerprint
+	return "mechanic-dryrun-" + fingerprint
 }
 
 // fetchDryRunReport reads the dry-run report ConfigMap written by the agent,
@@ -498,17 +498,17 @@ func syncPhaseFromJob(job *batchv1.Job) v1alpha1.RemediationJobPhase {
 // pendingPeers lists all Pending RemediationJob objects in AgentNamespace,
 // excluding the candidate itself. Returns an error if the API server is unavailable
 // so the caller can requeue rather than silently treating the cluster as having zero peers.
-// The managed-by label selector restricts the list to mendabot-owned objects, preventing
+// The managed-by label selector restricts the list to mechanic-owned objects, preventing
 // O(N) full-namespace scans from amplifying into O(N²) API-server load on every reconcile.
 //
-// Contract: this function only returns jobs that carry app.kubernetes.io/managed-by=mendabot-watcher.
+// Contract: this function only returns jobs that carry app.kubernetes.io/managed-by=mechanic-watcher.
 // RemediationJobs created without this label (e.g. manually) are invisible to correlation.
 // SourceProviderReconciler always sets this label at creation time — see provider.go.
 func (r *RemediationJobReconciler) pendingPeers(ctx context.Context, candidate *v1alpha1.RemediationJob) ([]*v1alpha1.RemediationJob, error) {
 	var list v1alpha1.RemediationJobList
 	if err := r.List(ctx, &list,
 		client.InNamespace(r.Cfg.AgentNamespace),
-		client.MatchingLabels{"app.kubernetes.io/managed-by": "mendabot-watcher"},
+		client.MatchingLabels{"app.kubernetes.io/managed-by": "mechanic-watcher"},
 	); err != nil {
 		return nil, err
 	}
@@ -699,7 +699,7 @@ func (r *RemediationJobReconciler) concurrencyGate(ctx context.Context) (bool, c
 	var jobs batchv1.JobList
 	if err := r.List(ctx, &jobs,
 		client.InNamespace(r.Cfg.AgentNamespace),
-		client.MatchingLabels{"app.kubernetes.io/managed-by": "mendabot-watcher"},
+		client.MatchingLabels{"app.kubernetes.io/managed-by": "mechanic-watcher"},
 	); err != nil {
 		return false, ctrl.Result{}, err
 	}

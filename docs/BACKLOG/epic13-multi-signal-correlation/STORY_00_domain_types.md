@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **mendabot developer**, I want a well-defined `CorrelationRule` interface and
+As a **mechanic developer**, I want a well-defined `CorrelationRule` interface and
 supporting domain types, so that all built-in rules and any future rules share a
 consistent contract and the correlator can apply them generically.
 
@@ -30,8 +30,8 @@ are the foundation for every subsequent story in this epic.
   - `CorrelationRule` interface with method `Evaluate(ctx context.Context, candidate *v1alpha1.RemediationJob, peers []*v1alpha1.RemediationJob, c client.Client) (CorrelationResult, error)`
   - `CorrelationResult` struct: `Matched bool`, `GroupID string`, `PrimaryUID types.UID`, `Reason string`
   - `NewCorrelationGroupID() string` — generates a stable 12-char hex ID from 6 random bytes
-  - `CorrelationGroupIDLabel = "mendabot.io/correlation-group-id"` constant
-  - `CorrelationGroupRoleLabel = "mendabot.io/correlation-role"` constant (values: `"primary"`, `"correlated"`)
+  - `CorrelationGroupIDLabel = "mechanic.io/correlation-group-id"` constant
+  - `CorrelationGroupRoleLabel = "mechanic.io/correlation-role"` constant (values: `"primary"`, `"correlated"`)
   - `CorrelationRolePrimary = "primary"` and `CorrelationRoleCorrelated = "correlated"` constants
 - [x] `api/v1alpha1/remediationjob_types.go` gains:
   - `PhaseSuppressed RemediationJobPhase = "Suppressed"` constant
@@ -61,12 +61,12 @@ import (
     "k8s.io/apimachinery/pkg/types"
     "sigs.k8s.io/controller-runtime/pkg/client"
 
-    "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
+    "github.com/lenaxia/k8s-mechanic/api/v1alpha1"
 )
 
 const (
-    CorrelationGroupIDLabel   = "mendabot.io/correlation-group-id"
-    CorrelationGroupRoleLabel = "mendabot.io/correlation-role"
+    CorrelationGroupIDLabel   = "mechanic.io/correlation-group-id"
+    CorrelationGroupRoleLabel = "mechanic.io/correlation-role"
     CorrelationRolePrimary    = "primary"
     CorrelationRoleCorrelated = "correlated"
 )

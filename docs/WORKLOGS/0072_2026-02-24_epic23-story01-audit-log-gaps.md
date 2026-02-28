@@ -84,18 +84,18 @@ go test -count=1 -timeout 30s -race ./...
 All 12 packages pass:
 
 ```
-ok  github.com/lenaxia/k8s-mendabot/api/v1alpha1             1.243s
-ok  github.com/lenaxia/k8s-mendabot/cmd/watcher              1.285s
-ok  github.com/lenaxia/k8s-mendabot/internal/config          1.060s
-ok  github.com/lenaxia/k8s-mendabot/internal/controller      12.593s
-ok  github.com/lenaxia/k8s-mendabot/internal/domain          1.312s
-ok  github.com/lenaxia/k8s-mendabot/internal/jobbuilder      1.235s
-ok  github.com/lenaxia/k8s-mendabot/internal/logging         1.069s
-ok  github.com/lenaxia/k8s-mendabot/internal/provider        12.173s
-ok  github.com/lenaxia/k8s-mendabot/internal/provider/native 1.684s
-ok  github.com/lenaxia/k8s-mendabot/internal/readiness       1.097s
-ok  github.com/lenaxia/k8s-mendabot/internal/readiness/llm   1.654s
-ok  github.com/lenaxia/k8s-mendabot/internal/readiness/sink  1.524s
+ok  github.com/lenaxia/k8s-mechanic/api/v1alpha1             1.243s
+ok  github.com/lenaxia/k8s-mechanic/cmd/watcher              1.285s
+ok  github.com/lenaxia/k8s-mechanic/internal/config          1.060s
+ok  github.com/lenaxia/k8s-mechanic/internal/controller      12.593s
+ok  github.com/lenaxia/k8s-mechanic/internal/domain          1.312s
+ok  github.com/lenaxia/k8s-mechanic/internal/jobbuilder      1.235s
+ok  github.com/lenaxia/k8s-mechanic/internal/logging         1.069s
+ok  github.com/lenaxia/k8s-mechanic/internal/provider        12.173s
+ok  github.com/lenaxia/k8s-mechanic/internal/provider/native 1.684s
+ok  github.com/lenaxia/k8s-mechanic/internal/readiness       1.097s
+ok  github.com/lenaxia/k8s-mechanic/internal/readiness/llm   1.654s
+ok  github.com/lenaxia/k8s-mechanic/internal/readiness/sink  1.524s
 ```
 
 ---

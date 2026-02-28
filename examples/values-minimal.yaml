@@ -1,11 +1,11 @@
-# mendabot — minimal values
-# The absolute minimum required to run mendabot.
+# mechanic — minimal values
+# The absolute minimum required to run mechanic.
 # Copy this file and fill in the three required fields.
 #
 # Install:
-#   kubectl create namespace mendabot
+#   kubectl create namespace mechanic
 #   # Create required secrets first — see NOTES.txt in the chart
-#   helm install mendabot charts/mendabot/ -n mendabot -f values-minimal.yaml
+#   helm install mechanic charts/mechanic/ -n mechanic -f values-minimal.yaml
 
 gitops:
   repo: "myorg/my-gitops-repo"        # required: GitHub org/repo

@@ -53,10 +53,10 @@ objects or touching the Kubernetes API.
 
 - [x] A `defaultFakeJob(rjob *v1alpha1.RemediationJob) *batchv1.Job` helper returns a
   minimal valid `*batchv1.Job` with:
-  - Correct name (`mendabot-agent-<fp[:12]>`)
+  - Correct name (`mechanic-agent-<fp[:12]>`)
   - Correct namespace
   - The ownerReference pointing at `rjob`
-  - Label `remediation.mendabot.io/remediation-job=rjob.Name`
+  - Label `remediation.mechanic.io/remediation-job=rjob.Name`
   - `Spec.BackoffLimit: ptr(int32(1))` — required so that `syncPhaseFromJob` can
     safely dereference `BackoffLimit` without a nil pointer panic. The Kubernetes API
     server applies a default of 6, but test environments (fakeJobBuilder, envtest without

@@ -118,7 +118,7 @@ fi
 # git wrapper: verify it contains all three dry-run enforcement layers
 printf 'Checking git wrapper has sentinel file layer ... '
 if docker run --rm --entrypoint /bin/sh "$IMAGE" -c \
-    "grep -qF '/mendabot-cfg/dry-run' /usr/local/bin/git"; then
+    "grep -qF '/mechanic-cfg/dry-run' /usr/local/bin/git"; then
     echo "OK"; ((pass++)) || true
 else
     echo "FAIL"; ((fail++)) || true
@@ -143,7 +143,7 @@ fi
 # git wrapper: verify sentinel file layer blocks even when DRY_RUN is unset
 printf 'Checking git wrapper blocks via sentinel file when DRY_RUN is unset ... '
 block_rc=$(docker run --rm --entrypoint /bin/sh "$IMAGE" -c \
-    'mkdir -p /mendabot-cfg && echo -n true > /mendabot-cfg/dry-run \
+    'mkdir -p /mechanic-cfg && echo -n true > /mechanic-cfg/dry-run \
      && unset DRY_RUN \
      && git push 2>&1; echo "exit:$?"') || true
 if echo "$block_rc" | grep -q "DRY_RUN.*blocked" && echo "$block_rc" | grep -q "exit:0"; then
@@ -155,7 +155,7 @@ fi
 # gh wrapper: verify all three layers present
 printf 'Checking gh wrapper has sentinel file layer ... '
 if docker run --rm --entrypoint /bin/sh "$IMAGE" -c \
-    "grep -qF '/mendabot-cfg/dry-run' /usr/local/bin/gh"; then
+    "grep -qF '/mechanic-cfg/dry-run' /usr/local/bin/gh"; then
     echo "OK"; ((pass++)) || true
 else
     echo "FAIL"; ((fail++)) || true
@@ -172,7 +172,7 @@ fi
 # gh wrapper: verify sentinel file layer blocks even when DRY_RUN is unset
 printf 'Checking gh wrapper blocks via sentinel file when DRY_RUN is unset ... '
 block_gh_rc=$(docker run --rm --entrypoint /bin/sh "$IMAGE" -c \
-    'mkdir -p /mendabot-cfg && echo -n true > /mendabot-cfg/dry-run \
+    'mkdir -p /mechanic-cfg && echo -n true > /mechanic-cfg/dry-run \
      && unset DRY_RUN \
      && /usr/local/bin/gh pr create 2>&1; echo "exit:$?"') || true
 if echo "$block_gh_rc" | grep -q "DRY_RUN.*blocked" && echo "$block_gh_rc" | grep -q "exit:0"; then

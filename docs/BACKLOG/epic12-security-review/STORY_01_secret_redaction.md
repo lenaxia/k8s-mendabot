@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **mendabot operator**, I want credentials and other sensitive values to be stripped
+As a **mechanic operator**, I want credentials and other sensitive values to be stripped
 from error text before they are stored in `RemediationJob.Spec.Finding.Errors` or injected
 into the agent Job environment, so that a pod failure message containing a database URL
 or API key does not expose that credential to anyone who can read the Job spec or logs.
@@ -30,7 +30,7 @@ may contain credentials. For example:
 `Finding.Errors` flows to `RemediationJob.Spec.Finding.Errors` in
 `SourceProviderReconciler.Reconcile()` (`internal/provider/provider.go` line 307), then to
 the `FINDING_ERRORS` env var in the agent Job via `jobbuilder/job.go` line 122.
-Anyone with `kubectl describe job -n mendabot` access can read the raw env var value.
+Anyone with `kubectl describe job -n mechanic` access can read the raw env var value.
 
 The comment in `domain.Finding` already acknowledges this:
 ```go

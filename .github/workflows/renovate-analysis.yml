@@ -12,7 +12,7 @@ on:
 
 env:
   OWNER: lenaxia
-  REPO: k8s-mendabot
+  REPO: k8s-mechanic
 
 jobs:
   analyze-prs:
@@ -88,7 +88,7 @@ jobs:
           use_github_token: "true"
           share: "false"
           prompt: |
-            You are an AI assistant that analyzes Renovatebot pull requests for k8s-mendabot, a Kubernetes operator (Go/controller-runtime) that watches cluster events, calls an LLM to diagnose issues, and optionally remediates them via RemediationJob CRDs.
+            You are an AI assistant that analyzes Renovatebot pull requests for k8s-mechanic, a Kubernetes operator (Go/controller-runtime) that watches cluster events, calls an LLM to diagnose issues, and optionally remediates them via RemediationJob CRDs.
 
             Target PR (empty = find and analyze all open Renovate PRs): ${{ inputs.pr_number }}
 

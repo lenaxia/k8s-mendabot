@@ -33,15 +33,15 @@ jobs:
           use_github_token: "true"
           share: "false"
           prompt: |
-            You are a code reviewer for the k8s-mendabot repository. A new pull request has been opened. Perform a thorough review and post your findings as a PR review comment.
+            You are a code reviewer for the k8s-mechanic repository. A new pull request has been opened. Perform a thorough review and post your findings as a PR review comment.
 
-            Repository: k8s-mendabot — a Kubernetes operator (Go/controller-runtime) that watches cluster events, uses an LLM to diagnose issues, and optionally remediates them via RemediationJob CRDs. Single maintainer: @lenaxia.
+            Repository: k8s-mechanic — a Kubernetes operator (Go/controller-runtime) that watches cluster events, uses an LLM to diagnose issues, and optionally remediates them via RemediationJob CRDs. Single maintainer: @lenaxia.
 
             Key directories:
             - cmd/               — operator entrypoints
             - internal/          — controller, agent, jobbuilder, redact wrappers
-            - api/               — CRD types (RemediationJob, MendabotConfig)
-            - charts/mendabot/   — Helm chart
+            - api/               — CRD types (RemediationJob, MechanicConfig)
+            - charts/mechanic/   — Helm chart
             - docs/SECURITY/     — THREAT_MODEL.md, pentest findings
             - docker/            — Dockerfiles, smoke/wrapper test scripts
 
@@ -70,7 +70,7 @@ jobs:
             PROJECT ALIGNMENT
             - Does the PR follow conventional commit format (feat:, fix:, chore:, docs:)?
             - Does the PR body explain what the change does, why, and how it was tested?
-            - If a CRD type or Helm chart value changed, is charts/mendabot/ updated?
+            - If a CRD type or Helm chart value changed, is charts/mechanic/ updated?
             - If a CRD type changed, is testdata/crds/ regenerated?
             - For a substantive session (>30 min of work), is a worklog entry present in docs/WORKLOGS/?
             - Does the change break any existing public API or operator behaviour without a clear migration path?

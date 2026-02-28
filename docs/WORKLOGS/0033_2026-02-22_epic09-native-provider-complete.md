@@ -10,7 +10,7 @@
 
 Implement epic09-native-provider: replace the k8sgpt operator dependency with a native
 `SourceProvider` implementation that watches core Kubernetes resources directly. After this
-epic, mendabot no longer requires k8sgpt-operator to be installed in the cluster.
+epic, mechanic no longer requires k8sgpt-operator to be installed in the cluster.
 
 ---
 

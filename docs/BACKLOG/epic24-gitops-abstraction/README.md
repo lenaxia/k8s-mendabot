@@ -5,7 +5,7 @@
 
 ## Purpose
 
-Remove the hard coupling between mendabot and Flux. The system was originally built
+Remove the hard coupling between mechanic and Flux. The system was originally built
 assuming Flux + GitHub as the only GitOps deployment pattern. This epic makes four
 independent changes to support any GitOps tool (Flux, ArgoCD, plain Helm, etc.) and any
 git host (GitHub, GitLab, Gitea, Bitbucket, self-hosted).
@@ -35,7 +35,7 @@ This hardcodes three assumptions simultaneously:
 A PAT or token from GitLab, Gitea, or Bitbucket cannot be used. SSH is not supported.
 
 **Layer 2 — Prompt Step 5 (STORY_03)**
-`charts/mendabot/files/prompts/core.txt:80–93` — the entire investigation step is
+`charts/mechanic/files/prompts/core.txt:80–93` — the entire investigation step is
 Flux-specific:
 - `flux get all -n ${FINDING_NAMESPACE}` — fails with confusing errors on non-Flux clusters
 - `kubectl get helmreleases` — Flux CRD, absent on non-Flux clusters
@@ -69,8 +69,8 @@ All new fields are optional with defaults that preserve current behaviour:
 ## Dependencies
 
 - epic03-agent-image complete (`docker/Dockerfile.agent`, init scripts)
-- epic05-prompt complete (`charts/mendabot/files/prompts/core.txt`)
-- epic10-helm-chart complete (`charts/mendabot/`)
+- epic05-prompt complete (`charts/mechanic/files/prompts/core.txt`)
+- epic10-helm-chart complete (`charts/mechanic/`)
 
 ## Blocks
 

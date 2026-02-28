@@ -14,7 +14,7 @@ The circuit breaker prevents rapid cascades of self-remediations by enforcing a 
    - Provides `ShouldAllow()` method for cooldown checks
 
 2. **ConfigMap-based persistence**:
-   - Name: `mendabot-circuit-breaker`
+   - Name: `mechanic-circuit-breaker`
    - Namespace: Same as agent namespace
    - Data:
      - `last-self-remediation`: RFC3339 timestamp of last self-remediation
@@ -46,7 +46,7 @@ The circuit breaker prevents rapid cascades of self-remediations by enforcing a 
 
 ## Persistence
 
-- State stored in ConfigMap `mendabot-circuit-breaker`
+- State stored in ConfigMap `mechanic-circuit-breaker`
 - Survives controller pod restarts
 - Shared across multiple controller instances (if scaled)
 - ConfigMap created on first self-remediation if not exists
@@ -126,14 +126,14 @@ if finding.IsSelfRemediation {
 
 ```bash
 # Delete ConfigMap to reset circuit breaker
-kubectl delete configmap mendabot-circuit-breaker -n <agent-namespace>
+kubectl delete configmap mechanic-circuit-breaker -n <agent-namespace>
 ```
 
 ### Inspect State
 
 ```bash
 # Check last self-remediation time
-kubectl get configmap mendabot-circuit-breaker -n <agent-namespace> -o yaml
+kubectl get configmap mechanic-circuit-breaker -n <agent-namespace> -o yaml
 ```
 
 ## Design Decisions

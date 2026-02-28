@@ -61,8 +61,8 @@ None.
 
 ```
 go test -timeout 30s -race ./internal/domain/... ./api/...
-# ok  github.com/lenaxia/k8s-mendabot/internal/domain  1.081s
-# ok  github.com/lenaxia/k8s-mendabot/api/v1alpha1     1.029s
+# ok  github.com/lenaxia/k8s-mechanic/internal/domain  1.081s
+# ok  github.com/lenaxia/k8s-mechanic/api/v1alpha1     1.029s
 
 go build ./...
 # (no output — clean)

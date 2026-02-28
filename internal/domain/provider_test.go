@@ -8,7 +8,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/lenaxia/k8s-mendabot/internal/domain"
+	"github.com/lenaxia/k8s-mechanic/internal/domain"
 )
 
 // TestFinding_ZeroValue verifies the zero value of Finding is safe (no panic, zero values).

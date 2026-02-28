@@ -25,7 +25,7 @@ fixed all failing test packages after the code removal.
 
 - `internal/provider/native/job_test.go` — removed `SelfRemediationMaxDepth` from
   `newTestConfig()` helper; removed `sync`, `client`, `v1alpha1` imports; removed
-  all `TestMendabotJob_*`, `TestNonMendabotJob_*`, `TestConcurrentChainDepthRace`,
+  all `TestMechanicJob_*`, `TestNonMechanicJob_*`, `TestConcurrentChainDepthRace`,
   `TestAtomicChainDepthTracking`, `TestJobProvider_SelfRemediation*`, and related
   test functions (~750 lines)
 

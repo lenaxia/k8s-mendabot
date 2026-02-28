@@ -57,7 +57,7 @@ All confirmed: truncation applied before `RedactSecrets` on all free-form messag
 | Temp file path not attacker-controlled | PASS | Hardcoded path | Cannot be influenced by env vars |
 | No double-expansion of variables | PASS | `printf '%s'` | Uses printf, not echo |
 
-### Prompt template (`charts/mendabot/files/prompts/core.txt`)
+### Prompt template (`charts/mechanic/files/prompts/core.txt`)
 
 | Check | Result | Notes |
 |-------|--------|-------|
@@ -69,7 +69,7 @@ All confirmed: truncation applied before `RedactSecrets` on all free-form messag
 
 ## 2.2 RBAC Audit
 
-### ClusterRole: mendabot-agent (deployed v0.3.9)
+### ClusterRole: mechanic-agent (deployed v0.3.9)
 
 ```yaml
 rules:
@@ -87,17 +87,17 @@ rules:
 
 **Live test results:**
 ```
-kubectl auth can-i get nodes/proxy --as=system:serviceaccount:default:mendabot-agent
+kubectl auth can-i get nodes/proxy --as=system:serviceaccount:default:mechanic-agent
 → yes
 
-kubectl get --raw "/api/v1/nodes/cp-00/proxy/metrics" --as=...mendabot-agent
+kubectl get --raw "/api/v1/nodes/cp-00/proxy/metrics" --as=...mechanic-agent
 → # HELP aggregator_discovery_aggregation_count_total ...   (SUCCESS)
 
-kubectl get --raw "/api/v1/nodes/cp-00/proxy/logs/" --as=...mendabot-agent
+kubectl get --raw "/api/v1/nodes/cp-00/proxy/logs/" --as=...mechanic-agent
 → <listing of node log files>  (SUCCESS)
 ```
 
-### ClusterRole: mendabot-watcher (deployed v0.3.9)
+### ClusterRole: mechanic-watcher (deployed v0.3.9)
 
 ```yaml
 rules:
@@ -110,20 +110,20 @@ rules:
 |-------|--------|-------|
 | `secrets` removed from ClusterRole | **FAIL** | 2026-02-24-002 was remediated in the Helm chart source (`charts/`) but the live deployed instance still has `secrets` in ClusterRole. Regression from not re-deploying. See 2026-02-24-P-005. |
 | ConfigMap write cluster-wide | PASS | Not in ClusterRole — namespace Role handles it |
-| No write outside mendabot ns (except RemediationJobs) | PASS | Only remediationjobs/jobs have write verbs |
+| No write outside mechanic ns (except RemediationJobs) | PASS | Only remediationjobs/jobs have write verbs |
 | RemediationJob delete cluster-wide | Note | ClusterRole grants delete on `remediationjobs` — functionally this is cluster-wide since the CRD is not namespace-specific. This is by design for watcher cleanup. No cross-namespace RemediationJob objects exist. Acceptable. |
 
 **Live test results:**
 ```
-kubectl get secret -n kube-system --as=...mendabot-watcher
+kubectl get secret -n kube-system --as=...mechanic-watcher
 → NAME ... bootstrap-token-m1akoo ... (SUCCESS — confirmed credential access)
 ```
 
-### Role: mendabot-agent (namespace-scoped, default)
+### Role: mechanic-agent (namespace-scoped, default)
 
 ```yaml
 rules:
-- apiGroups: ["remediation.mendabot.io"]
+- apiGroups: ["remediation.mechanic.io"]
   resources: ["remediationjobs/status"]
   verbs: ["get", "patch"]
 ```
@@ -140,7 +140,7 @@ rules:
 
 ### GitHub App private key
 
-**Live job spec inspection** (`kubectl get job mendabot-agent-0cd2345e0966 -n default`):
+**Live job spec inspection** (`kubectl get job mechanic-agent-0cd2345e0966 -n default`):
 
 Init container env vars:
 - `GITHUB_APP_ID` → secretKeyRef `github-app`
@@ -159,7 +159,7 @@ Main container env vars: `FINDING_KIND`, `FINDING_NAME`, `FINDING_NAMESPACE`, `F
 
 ### LLM API key
 
-`AGENT_PROVIDER_CONFIG` sourced from `secretKeyRef` on main container. Not logged in entrypoint. Content is opaque to mendabot.
+`AGENT_PROVIDER_CONFIG` sourced from `secretKeyRef` on main container. Not logged in entrypoint. Content is opaque to mechanic.
 
 ---
 
@@ -178,7 +178,7 @@ Main container env vars: `FINDING_KIND`, `FINDING_NAME`, `FINDING_NAMESPACE`, `F
 | Base image pinned to digest | PASS | `debian:bookworm-slim@sha256:6458e6ce2b6448...` |
 | Build stage pinned to digest | PASS | `golang:1.25.7-bookworm@sha256:0b5f101af6e4f...` |
 | No secrets in ARG/ENV | PASS | No credential values in build args |
-| GIT_AUTHOR_EMAIL hardcoded | INFO | `mendabot-agent@users.noreply.github.com` — not a secret, acceptable |
+| GIT_AUTHOR_EMAIL hardcoded | INFO | `mechanic-agent@users.noreply.github.com` — not a secret, acceptable |
 
 ### Dockerfile.watcher
 

@@ -18,7 +18,7 @@ rjob silently, and no PR was ever auto-closed.
 Worklog 0091, STORY_05 stated:
 
 > *"Agent RBAC already had `remediationjobs/status` with `patch` verb
-> (verified in `charts/mendabot/templates/role-agent.yaml`)"*
+> (verified in `charts/mechanic/templates/role-agent.yaml`)"*
 
 This was incorrect in two ways:
 
@@ -36,21 +36,21 @@ no alert fired.
 
 ## Fix
 
-**File:** `charts/mendabot/templates/clusterrole-agent.yaml`
+**File:** `charts/mechanic/templates/clusterrole-agent.yaml`
 
 Split the single combined rule into two separate rules:
 
 ```yaml
 # Before (broken):
-- apiGroups: ["remediation.mendabot.io"]
+- apiGroups: ["remediation.mechanic.io"]
   resources: ["remediationjobs", "remediationjobs/status"]
   verbs: ["get", "list", "watch"]
 
 # After (fixed):
-- apiGroups: ["remediation.mendabot.io"]
+- apiGroups: ["remediation.mechanic.io"]
   resources: ["remediationjobs"]
   verbs: ["get", "list", "watch"]
-- apiGroups: ["remediation.mendabot.io"]
+- apiGroups: ["remediation.mechanic.io"]
   resources: ["remediationjobs/status"]
   verbs: ["get", "patch"]
 ```
@@ -79,7 +79,7 @@ All 6 tests pass. This test now runs as part of `go test ./...` in CI.
    `clusterrole-agent.yaml` **and** `role-agent.yaml`.
 
 2. **Verify with `kubectl auth can-i`.** Before marking an RBAC story done,
-   run `kubectl auth can-i patch remediationjobs/status --as=system:serviceaccount:mendabot:mendabot-agent`
+   run `kubectl auth can-i patch remediationjobs/status --as=system:serviceaccount:mechanic:mechanic-agent`
    in a real cluster. Static file review is not sufficient.
 
 3. **Swallowed errors hide RBAC failures.** The `|| echo "WARNING:"` pattern

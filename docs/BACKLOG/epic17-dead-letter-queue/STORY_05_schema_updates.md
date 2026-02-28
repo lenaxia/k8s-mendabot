@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **mendabot operator**, I want the CRD YAML files used by `envtest` integration
+As a **mechanic operator**, I want the CRD YAML files used by `envtest` integration
 tests and by the Helm chart to reflect the new `retryCount`, `maxRetries`, and
 `PermanentlyFailed` fields so that the operator installs cleanly and integration tests
 validate the correct schema.
@@ -25,7 +25,7 @@ There are two CRD YAML files that must be kept in sync with `remediationjob_type
    `../../testdata/crds` configured in `internal/controller/suite_test.go:41`.
    This file has 98 lines today.
 
-2. **`charts/mendabot/crds/remediationjob.yaml`** — the Helm chart CRD (105 lines
+2. **`charts/mechanic/crds/remediationjob.yaml`** — the Helm chart CRD (105 lines
    today). This file is installed by `helm install` and is the production CRD.
 
 Both files carry the same OpenAPI v3 schema for the `RemediationJob` CRD. There is also
@@ -43,7 +43,7 @@ of the chart CRD; see the Tasks section.
   - `status.phase` enum includes `PermanentlyFailed`
   - `status.retryCount` field added (`type: integer`, `format: int32`, `minimum: 0`)
   - `spec.maxRetries` field added (`type: integer`, `format: int32`, `minimum: 1`, `default: 3`)
-- [x] `charts/mendabot/crds/remediationjob.yaml` has the same additions
+- [x] `charts/mechanic/crds/remediationjob.yaml` has the same additions
 - [x] `envtest` integration suite loads the updated CRD without error
 - [x] `go test -timeout 60s -race ./internal/controller/...` passes (envtest)
 - [x] `go test -timeout 60s -race ./internal/provider/...` passes (envtest)
@@ -150,7 +150,7 @@ of the chart CRD; see the Tasks section.
                   x-kubernetes-preserve-unknown-fields: true
 ```
 
-### `charts/mendabot/crds/remediationjob.yaml`
+### `charts/mechanic/crds/remediationjob.yaml`
 
 Apply identical changes. The chart CRD currently has two extra fields compared to the
 testdata CRD (`isSelfRemediation`, `chainDepth` in `spec`, and `correlationGroupID` and
@@ -219,7 +219,7 @@ go test -timeout 60s -race ./internal/provider/... -v -run TestSuite_StartsAndSt
 To validate the Helm chart CRD is well-formed YAML:
 
 ```bash
-helm lint charts/mendabot
+helm lint charts/mechanic
 ```
 
 ---
@@ -231,14 +231,14 @@ helm lint charts/mendabot
   - Add `maxRetries` to spec properties
   - Add `retryCount` to status properties
   - Add `PermanentlyFailed` to phase enum
-- [x] Update `charts/mendabot/crds/remediationjob.yaml`:
+- [x] Update `charts/mechanic/crds/remediationjob.yaml`:
   - Add `maxRetries` to spec properties
   - Add `retryCount` to status properties
   - Add `PermanentlyFailed` to phase enum
 - [x] Update `deploy/kustomize/crd-remediationjob.yaml` if it is a standalone copy
 - [x] Run: `go test -timeout 60s -race ./internal/controller/...` — envtest must start
 - [x] Run: `go test -timeout 60s -race ./internal/provider/...` — envtest must start
-- [x] Run: `helm lint charts/mendabot` — no errors
+- [x] Run: `helm lint charts/mechanic` — no errors
 
 ---
 
@@ -255,7 +255,7 @@ helm lint charts/mendabot
 - [x] `testdata/crds/remediationjob_crd.yaml` phase enum includes `PermanentlyFailed`
 - [x] `testdata/crds/remediationjob_crd.yaml` has `spec.maxRetries` field
 - [x] `testdata/crds/remediationjob_crd.yaml` has `status.retryCount` field
-- [x] `charts/mendabot/crds/remediationjob.yaml` has the same three additions
-- [x] `helm lint charts/mendabot` clean
+- [x] `charts/mechanic/crds/remediationjob.yaml` has the same three additions
+- [x] `helm lint charts/mechanic` clean
 - [x] envtest suite loads the CRD and all integration tests pass
 - [x] `go test -timeout 60s -race ./...` green

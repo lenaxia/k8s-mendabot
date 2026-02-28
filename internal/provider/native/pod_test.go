@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	"github.com/lenaxia/k8s-mendabot/internal/domain"
+	"github.com/lenaxia/k8s-mechanic/internal/domain"
 )
 
 // runningPod returns a healthy running pod with all containers ready.
@@ -852,7 +852,7 @@ func TestUnschedulableMessageRedacted(t *testing.T) {
 	assertErrorTextContains(t, finding.Errors, "[REDACTED]")
 }
 
-// TestPodAnnotationEnabled_False: crashing pod with mendabot.io/enabled=false → (nil, nil).
+// TestPodAnnotationEnabled_False: crashing pod with mechanic.io/enabled=false → (nil, nil).
 // Uses an unhealthy CrashLoopBackOff pod to prove the gate fires on an object that would
 // otherwise produce a non-nil finding.
 func TestPodAnnotationEnabled_False(t *testing.T) {
@@ -892,7 +892,7 @@ func TestPodAnnotationEnabled_False(t *testing.T) {
 	}
 }
 
-// TestPodAnnotationSkipUntilFuture: crashing pod with mendabot.io/skip-until=2099-12-31 → (nil, nil).
+// TestPodAnnotationSkipUntilFuture: crashing pod with mechanic.io/skip-until=2099-12-31 → (nil, nil).
 func TestPodAnnotationSkipUntilFuture(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()

@@ -12,8 +12,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
-	"github.com/lenaxia/k8s-mendabot/internal/controller"
+	v1alpha1 "github.com/lenaxia/k8s-mechanic/api/v1alpha1"
+	"github.com/lenaxia/k8s-mechanic/internal/controller"
 )
 
 // ---------------------------------------------------------------------------
@@ -37,9 +37,9 @@ func newDryRunRJobWithJob(
 
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        "mendabot-agent-" + fp[:12],
+			Name:        "mechanic-agent-" + fp[:12],
 			Namespace:   testNamespace,
-			Labels:      map[string]string{"remediation.mendabot.io/remediation-job": rjobName},
+			Labels:      map[string]string{"remediation.mechanic.io/remediation-job": rjobName},
 			Annotations: jobAnnotations,
 		},
 		Spec:   batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
@@ -78,22 +78,22 @@ func TestDryRunCMName(t *testing.T) {
 		{
 			name:        "longer than 12 chars — truncated",
 			fingerprint: "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345",
-			want:        "mendabot-dryrun-abcdefghijkl",
+			want:        "mechanic-dryrun-abcdefghijkl",
 		},
 		{
 			name:        "exactly 12 chars — boundary, no truncation",
 			fingerprint: "abcdefghijkl",
-			want:        "mendabot-dryrun-abcdefghijkl",
+			want:        "mechanic-dryrun-abcdefghijkl",
 		},
 		{
 			name:        "shorter than 12 chars — used as-is (jobbuilder rejects this, but function should not panic)",
 			fingerprint: "short",
-			want:        "mendabot-dryrun-short",
+			want:        "mechanic-dryrun-short",
 		},
 		{
 			name:        "different 12-char prefix",
 			fingerprint: "aabbccddeeff00112233445566778899",
-			want:        "mendabot-dryrun-aabbccddeeff",
+			want:        "mechanic-dryrun-aabbccddeeff",
 		},
 	}
 	for _, tt := range tests {
@@ -116,7 +116,7 @@ func TestReconcile_DryRunSucceeded_ReportAndPatchStored(t *testing.T) {
 	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
 	rjob, job := newDryRunRJobWithJob(
 		"test-dryrun-full", fp, v1alpha1.PhaseDispatched,
-		map[string]string{"mendabot.io/dry-run": "true"},
+		map[string]string{"mechanic.io/dry-run": "true"},
 	)
 
 	cmName := controller.DryRunCMName(fp)
@@ -177,7 +177,7 @@ func TestReconcile_DryRunSucceeded_ReportOnlyNoPatch(t *testing.T) {
 	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
 	rjob, job := newDryRunRJobWithJob(
 		"test-dryrun-nopatch", fp, v1alpha1.PhaseDispatched,
-		map[string]string{"mendabot.io/dry-run": "true"},
+		map[string]string{"mechanic.io/dry-run": "true"},
 	)
 
 	cm := newDryRunCM(controller.DryRunCMName(fp), testNamespace,
@@ -225,7 +225,7 @@ func TestReconcile_DryRunSucceeded_CMNotFound(t *testing.T) {
 	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
 	rjob, job := newDryRunRJobWithJob(
 		"test-dryrun-nocm", fp, v1alpha1.PhaseDispatched,
-		map[string]string{"mendabot.io/dry-run": "true"},
+		map[string]string{"mechanic.io/dry-run": "true"},
 	)
 
 	// No ConfigMap created.
@@ -305,7 +305,7 @@ func TestReconcile_DryRunSucceeded_MessageAlreadySet(t *testing.T) {
 	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
 	rjob, job := newDryRunRJobWithJob(
 		"test-dryrun-alreadyset", fp, v1alpha1.PhaseDispatched,
-		map[string]string{"mendabot.io/dry-run": "true"},
+		map[string]string{"mechanic.io/dry-run": "true"},
 	)
 	rjob.Status.Message = "existing report"
 
@@ -354,17 +354,17 @@ func TestReconcile_DryRunSucceeded_MessageAlreadySet(t *testing.T) {
 }
 
 // TestReconcile_DryRunSucceeded_CMNameDerivedFromFingerprint verifies that the
-// controller constructs the ConfigMap name as "mendabot-dryrun-<fp[:12]>", which
+// controller constructs the ConfigMap name as "mechanic-dryrun-<fp[:12]>", which
 // must match what emit_dry_run_report() writes. Tests the exact-12-char boundary.
 func TestReconcile_DryRunSucceeded_CMNameDerivedFromFingerprint(t *testing.T) {
 	// Use a fingerprint whose first 12 chars are distinctive.
 	const fp = "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899"
 	rjob, job := newDryRunRJobWithJob(
 		"test-dryrun-cmname", fp, v1alpha1.PhaseDispatched,
-		map[string]string{"mendabot.io/dry-run": "true"},
+		map[string]string{"mechanic.io/dry-run": "true"},
 	)
 
-	expectedCMName := controller.DryRunCMName(fp) // "mendabot-dryrun-aabbccddeeff"
+	expectedCMName := controller.DryRunCMName(fp) // "mechanic-dryrun-aabbccddeeff"
 	cm := newDryRunCM(expectedCMName, testNamespace, "root cause found", "")
 
 	s := newTestScheme(t)
@@ -411,7 +411,7 @@ func TestReconcile_DryRunSucceeded_WrongNamespaceCMNotFound(t *testing.T) {
 	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
 	rjob, job := newDryRunRJobWithJob(
 		"test-dryrun-wrongns", fp, v1alpha1.PhaseDispatched,
-		map[string]string{"mendabot.io/dry-run": "true"},
+		map[string]string{"mechanic.io/dry-run": "true"},
 	)
 
 	// CM written to a different namespace than AgentNamespace.
@@ -458,7 +458,7 @@ func TestReconcile_DryRunSucceeded_CMDeletedAfterRead(t *testing.T) {
 	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
 	rjob, job := newDryRunRJobWithJob(
 		"test-dryrun-cmdelete", fp, v1alpha1.PhaseDispatched,
-		map[string]string{"mendabot.io/dry-run": "true"},
+		map[string]string{"mechanic.io/dry-run": "true"},
 	)
 
 	cmName := controller.DryRunCMName(fp)

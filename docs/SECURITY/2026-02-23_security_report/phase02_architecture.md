@@ -46,7 +46,7 @@ Replica mismatch error uses only integer fields — no free-form text.
 
 Base error text (line 106) uses only structured fields (`job.Name`, `job.Status.Failed`).
 
-Self-remediation `Details` field (line 145): `fmt.Sprintf("Mendabot agent job failed (chain depth: %d)...")` — contains only integer `chainDepth`, not user-controlled text. Pass.
+Self-remediation `Details` field (line 145): `fmt.Sprintf("Mechanic agent job failed (chain depth: %d)...")` — contains only integer `chainDepth`, not user-controlled text. Pass.
 
 ### NodeProvider (`internal/provider/native/node.go`)
 
@@ -80,7 +80,7 @@ Self-remediation `Details` field (line 145): `fmt.Sprintf("Mendabot agent job fa
 | Check | Result | Line | Notes |
 |-------|--------|------|-------|
 | `FINDING_ERRORS` is the only env var with untrusted error text | **FAIL** | 123 | `FINDING_DETAILS` also carries externally-sourced text (LLM analysis for k8sgpt path, or job failure message for self-remediation). See finding 2026-02-23-003. |
-| `FINDING_DETAILS` assessed for untrusted content | assessed | 123 | Contains either LLM output (external) or internal mendabot text. No envelope in prompt. |
+| `FINDING_DETAILS` assessed for untrusted content | assessed | 123 | Contains either LLM output (external) or internal mechanic text. No envelope in prompt. |
 | All `Finding` fields injected as env vars reviewed | **pass** | 118–165 | `FINDING_KIND`, `FINDING_NAME`, `FINDING_NAMESPACE`, `FINDING_PARENT` are Kubernetes resource metadata (names, namespace) — validated by k8s API server against naming rules. `FINDING_FINGERPRINT` is a hex SHA256. All structural. |
 
 ### Agent entrypoint (`docker/scripts/agent-entrypoint.sh`)
@@ -108,13 +108,13 @@ Self-remediation `Details` field (line 145): `fmt.Sprintf("Mendabot agent job fa
 
 ## 2.2 RBAC Audit
 
-### ClusterRole: mendabot-agent
+### ClusterRole: mechanic-agent
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: mendabot-agent
+  name: mechanic-agent
 rules:
 - apiGroups: ["*"]
   resources: ["*"]
@@ -130,13 +130,13 @@ rules:
 
 **Note on `resources: ["*"]`:** This grants read access to **all** resource types cluster-wide, including Secrets. This is accepted residual risk AR-01.
 
-### ClusterRole: mendabot-watcher
+### ClusterRole: mechanic-watcher
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: mendabot-watcher
+  name: mechanic-watcher
 rules:
 - apiGroups: [""]
   resources: ["pods", "persistentvolumeclaims", "nodes", "namespaces", "events", "configmaps"]
@@ -147,19 +147,19 @@ rules:
 | Check | Result | Notes |
 |-------|--------|-------|
 | ConfigMap write is namespace-scoped | **FAIL** | `configmaps` write (`create`, `update`, `patch`) is granted at the **ClusterRole** level (cluster-wide). See finding 2026-02-23-005. |
-| No write outside mendabot ns (except RemediationJobs) | **FAIL** | ConfigMap write is cluster-wide. |
-| `delete` on remediationjobs — blast radius acceptable | **pass** | `delete` on `remediationjobs` is necessary for cancellation logic. All RemediationJobs live in `mendabot` namespace. Blast radius: all in-flight investigations would be cancelled on watcher compromise. Accepted. |
+| No write outside mechanic ns (except RemediationJobs) | **FAIL** | ConfigMap write is cluster-wide. |
+| `delete` on remediationjobs — blast radius acceptable | **pass** | `delete` on `remediationjobs` is necessary for cancellation logic. All RemediationJobs live in `mechanic` namespace. Blast radius: all in-flight investigations would be cancelled on watcher compromise. Accepted. |
 
-### Role: mendabot-agent (namespace-scoped)
+### Role: mechanic-agent (namespace-scoped)
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: mendabot-agent
+  name: mechanic-agent
   namespace: default
 rules:
-- apiGroups: ["remediation.mendabot.io"]
+- apiGroups: ["remediation.mechanic.io"]
   resources: ["remediationjobs/status"]
   verbs: ["get", "patch"]
 ```
@@ -189,7 +189,7 @@ Main container VolumeMounts (lines 167–182):
 ```
 {Name: "shared-workspace", MountPath: "/workspace"}
 {Name: "prompt-configmap",  MountPath: "/prompt"}
-{Name: "agent-token",       MountPath: "/var/run/secrets/mendabot/serviceaccount"}
+{Name: "agent-token",       MountPath: "/var/run/secrets/mechanic/serviceaccount"}
 ```
 
 | Check | Result | Line | Notes |

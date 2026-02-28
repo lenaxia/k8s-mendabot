@@ -76,7 +76,7 @@ analysis step from the agent prompt. Migrate the 6 reconciler integration test s
 
 - Preamble updated (k8sgpt-operator reference removed)
 - STEP 4 (k8sgpt analyze) deleted; steps 5–9 renumbered to 4–8
-- Branch names changed from `fix/k8sgpt-…` to `fix/mendabot-…`
+- Branch names changed from `fix/k8sgpt-…` to `fix/mechanic-…`
 - Tools list updated (k8sgpt removed)
 - Rule 5 updated (Result CRD → RemediationJob CRD)
 
@@ -107,7 +107,7 @@ analysis step from the agent prompt. Migrate the 6 reconciler integration test s
 - **Suite TestMain**: The `provider_test` package already had tests in `provider_test.go`.
   The new `suite_test.go` adds `TestMain` which is valid since there was no existing
   `TestMain` in `provider_test.go` (unit tests used fake clients only).
-- **Branch name update**: Changed `fix/k8sgpt-…` to `fix/mendabot-…` in the prompt to
+- **Branch name update**: Changed `fix/k8sgpt-…` to `fix/mechanic-…` in the prompt to
   remove the k8sgpt brand association.
 
 ---
@@ -128,15 +128,15 @@ go test -timeout 120s -race ./...  — all 9 packages pass
 
 Full output (no cache):
 ```
-ok  github.com/lenaxia/k8s-mendabot/api/v1alpha1           1.031s
-ok  github.com/lenaxia/k8s-mendabot/cmd/watcher             1.109s
-ok  github.com/lenaxia/k8s-mendabot/internal/config         1.022s
-ok  github.com/lenaxia/k8s-mendabot/internal/controller     7.980s
-ok  github.com/lenaxia/k8s-mendabot/internal/domain         1.083s
-ok  github.com/lenaxia/k8s-mendabot/internal/jobbuilder     1.087s
-ok  github.com/lenaxia/k8s-mendabot/internal/logging        1.023s
-ok  github.com/lenaxia/k8s-mendabot/internal/provider       9.101s
-ok  github.com/lenaxia/k8s-mendabot/internal/provider/native 1.222s
+ok  github.com/lenaxia/k8s-mechanic/api/v1alpha1           1.031s
+ok  github.com/lenaxia/k8s-mechanic/cmd/watcher             1.109s
+ok  github.com/lenaxia/k8s-mechanic/internal/config         1.022s
+ok  github.com/lenaxia/k8s-mechanic/internal/controller     7.980s
+ok  github.com/lenaxia/k8s-mechanic/internal/domain         1.083s
+ok  github.com/lenaxia/k8s-mechanic/internal/jobbuilder     1.087s
+ok  github.com/lenaxia/k8s-mechanic/internal/logging        1.023s
+ok  github.com/lenaxia/k8s-mechanic/internal/provider       9.101s
+ok  github.com/lenaxia/k8s-mechanic/internal/provider/native 1.222s
 ```
 
 ---

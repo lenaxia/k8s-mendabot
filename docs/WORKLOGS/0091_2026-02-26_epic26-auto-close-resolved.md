@@ -52,21 +52,21 @@ scenario and was entirely unhandled.
 
 ### STORY_04 — Helm chart + config
 - `internal/config/config.go` — added `PRAutoClose bool` (default `true`)
-- `charts/mendabot/values.yaml` — added `prAutoClose: true`
-- `charts/mendabot/templates/deployment-watcher.yaml` — added `PR_AUTO_CLOSE` env var
+- `charts/mechanic/values.yaml` — added `prAutoClose: true`
+- `charts/mechanic/templates/deployment-watcher.yaml` — added `PR_AUTO_CLOSE` env var
   and `envFrom` for GitHub App Secret; Secret is **required** (no `optional: true`)
-- `charts/mendabot/values.schema.json` — added `prAutoClose` boolean field
+- `charts/mechanic/values.schema.json` — added `prAutoClose` boolean field
 - `cmd/watcher/main.go` — constructs `GitHubAppTokenProvider` + `GitHubSinkCloser`
   when `PRAutoClose=true`; falls back to `NoopSinkCloser` otherwise
 
 ### STORY_05 — Agent: write SinkRef after gh pr create
-- Added STEP 9 to `charts/mendabot/files/prompts/core.txt`
+- Added STEP 9 to `charts/mechanic/files/prompts/core.txt`
 - Agent captures `PR_URL` and `PR_NUMBER` from `gh pr create --json url,number` output
   (or `gh pr view` if finding an existing PR in STEP 1)
 - Agent runs `kubectl patch remediationjob --subresource=status` to populate
   `status.sinkRef` and `status.prRef`; patch failure is a warning, never aborts the job
 - Agent RBAC already had `remediationjobs/status` with `patch` verb (verified in
-  `charts/mendabot/templates/role-agent.yaml`)
+  `charts/mechanic/templates/role-agent.yaml`)
 
 ## Test Coverage
 
@@ -74,10 +74,10 @@ All new code covered by unit tests with mock HTTP servers. No fake environment o
 cluster required.
 
 ```
-ok  github.com/lenaxia/k8s-mendabot/internal/github       (cached)
-ok  github.com/lenaxia/k8s-mendabot/internal/sink/github  (cached)
-ok  github.com/lenaxia/k8s-mendabot/internal/provider     9.917s
-ok  github.com/lenaxia/k8s-mendabot/internal/config       1.210s
+ok  github.com/lenaxia/k8s-mechanic/internal/github       (cached)
+ok  github.com/lenaxia/k8s-mechanic/internal/sink/github  (cached)
+ok  github.com/lenaxia/k8s-mechanic/internal/provider     9.917s
+ok  github.com/lenaxia/k8s-mechanic/internal/config       1.210s
 ```
 
 Full suite: `go test -timeout 30s -race ./...` — all pass.
@@ -105,7 +105,7 @@ are silently skipped. Migration is natural: old rjobs expire via TTL; new ones p
 
 ```bash
 # After agent completes on a new finding:
-kubectl get rjob -n mendabot mendabot-<fp12> -o jsonpath='{.status.sinkRef}'
+kubectl get rjob -n mechanic mechanic-<fp12> -o jsonpath='{.status.sinkRef}'
 
 # After the finding resolves, within a few reconcile cycles the PR should be closed.
 # Check for auto-close comment on the PR.

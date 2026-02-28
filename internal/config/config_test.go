@@ -6,15 +6,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lenaxia/k8s-mendabot/internal/config"
+	"github.com/lenaxia/k8s-mechanic/internal/config"
 )
 
 func TestFromEnv_AllFieldsPresent(t *testing.T) {
 	t.Setenv("GITOPS_REPO", "org/repo")
 	t.Setenv("GITOPS_MANIFEST_ROOT", "kubernetes/")
-	t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mendabot-agent:latest")
-	t.Setenv("AGENT_NAMESPACE", "mendabot")
-	t.Setenv("AGENT_SA", "mendabot-agent")
+	t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mechanic-agent:latest")
+	t.Setenv("AGENT_NAMESPACE", "mechanic")
+	t.Setenv("AGENT_SA", "mechanic-agent")
 	t.Setenv("SINK_TYPE", "gitlab")
 	t.Setenv("LOG_LEVEL", "debug")
 	t.Setenv("MAX_CONCURRENT_JOBS", "5")
@@ -30,14 +30,14 @@ func TestFromEnv_AllFieldsPresent(t *testing.T) {
 	if cfg.GitOpsManifestRoot != "kubernetes/" {
 		t.Errorf("GitOpsManifestRoot: got %q, want %q", cfg.GitOpsManifestRoot, "kubernetes/")
 	}
-	if cfg.AgentImage != "ghcr.io/lenaxia/mendabot-agent:latest" {
-		t.Errorf("AgentImage: got %q, want %q", cfg.AgentImage, "ghcr.io/lenaxia/mendabot-agent:latest")
+	if cfg.AgentImage != "ghcr.io/lenaxia/mechanic-agent:latest" {
+		t.Errorf("AgentImage: got %q, want %q", cfg.AgentImage, "ghcr.io/lenaxia/mechanic-agent:latest")
 	}
-	if cfg.AgentNamespace != "mendabot" {
-		t.Errorf("AgentNamespace: got %q, want %q", cfg.AgentNamespace, "mendabot")
+	if cfg.AgentNamespace != "mechanic" {
+		t.Errorf("AgentNamespace: got %q, want %q", cfg.AgentNamespace, "mechanic")
 	}
-	if cfg.AgentSA != "mendabot-agent" {
-		t.Errorf("AgentSA: got %q, want %q", cfg.AgentSA, "mendabot-agent")
+	if cfg.AgentSA != "mechanic-agent" {
+		t.Errorf("AgentSA: got %q, want %q", cfg.AgentSA, "mechanic-agent")
 	}
 	if cfg.SinkType != "gitlab" {
 		t.Errorf("SinkType: got %q, want %q", cfg.SinkType, "gitlab")
@@ -53,9 +53,9 @@ func TestFromEnv_AllFieldsPresent(t *testing.T) {
 func TestFromEnv_Defaults(t *testing.T) {
 	t.Setenv("GITOPS_REPO", "org/repo")
 	t.Setenv("GITOPS_MANIFEST_ROOT", "kubernetes/")
-	t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mendabot-agent:latest")
-	t.Setenv("AGENT_NAMESPACE", "mendabot")
-	t.Setenv("AGENT_SA", "mendabot-agent")
+	t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mechanic-agent:latest")
+	t.Setenv("AGENT_NAMESPACE", "mechanic")
+	t.Setenv("AGENT_SA", "mechanic-agent")
 	os.Unsetenv("SINK_TYPE")
 	os.Unsetenv("LOG_LEVEL")
 	os.Unsetenv("MAX_CONCURRENT_JOBS")
@@ -85,9 +85,9 @@ func TestFromEnv_MissingRequiredFields(t *testing.T) {
 			name: "missing GITOPS_REPO",
 			unsetFn: func() {
 				t.Setenv("GITOPS_MANIFEST_ROOT", "kubernetes/")
-				t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mendabot-agent:latest")
-				t.Setenv("AGENT_NAMESPACE", "mendabot")
-				t.Setenv("AGENT_SA", "mendabot-agent")
+				t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mechanic-agent:latest")
+				t.Setenv("AGENT_NAMESPACE", "mechanic")
+				t.Setenv("AGENT_SA", "mechanic-agent")
 				os.Unsetenv("GITOPS_REPO")
 			},
 		},
@@ -95,9 +95,9 @@ func TestFromEnv_MissingRequiredFields(t *testing.T) {
 			name: "missing GITOPS_MANIFEST_ROOT",
 			unsetFn: func() {
 				t.Setenv("GITOPS_REPO", "org/repo")
-				t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mendabot-agent:latest")
-				t.Setenv("AGENT_NAMESPACE", "mendabot")
-				t.Setenv("AGENT_SA", "mendabot-agent")
+				t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mechanic-agent:latest")
+				t.Setenv("AGENT_NAMESPACE", "mechanic")
+				t.Setenv("AGENT_SA", "mechanic-agent")
 				os.Unsetenv("GITOPS_MANIFEST_ROOT")
 			},
 		},
@@ -106,8 +106,8 @@ func TestFromEnv_MissingRequiredFields(t *testing.T) {
 			unsetFn: func() {
 				t.Setenv("GITOPS_REPO", "org/repo")
 				t.Setenv("GITOPS_MANIFEST_ROOT", "kubernetes/")
-				t.Setenv("AGENT_NAMESPACE", "mendabot")
-				t.Setenv("AGENT_SA", "mendabot-agent")
+				t.Setenv("AGENT_NAMESPACE", "mechanic")
+				t.Setenv("AGENT_SA", "mechanic-agent")
 				os.Unsetenv("AGENT_IMAGE")
 			},
 		},
@@ -116,8 +116,8 @@ func TestFromEnv_MissingRequiredFields(t *testing.T) {
 			unsetFn: func() {
 				t.Setenv("GITOPS_REPO", "org/repo")
 				t.Setenv("GITOPS_MANIFEST_ROOT", "kubernetes/")
-				t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mendabot-agent:latest")
-				t.Setenv("AGENT_SA", "mendabot-agent")
+				t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mechanic-agent:latest")
+				t.Setenv("AGENT_SA", "mechanic-agent")
 				os.Unsetenv("AGENT_NAMESPACE")
 			},
 		},
@@ -126,8 +126,8 @@ func TestFromEnv_MissingRequiredFields(t *testing.T) {
 			unsetFn: func() {
 				t.Setenv("GITOPS_REPO", "org/repo")
 				t.Setenv("GITOPS_MANIFEST_ROOT", "kubernetes/")
-				t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mendabot-agent:latest")
-				t.Setenv("AGENT_NAMESPACE", "mendabot")
+				t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mechanic-agent:latest")
+				t.Setenv("AGENT_NAMESPACE", "mechanic")
 				os.Unsetenv("AGENT_SA")
 			},
 		},
@@ -147,9 +147,9 @@ func TestFromEnv_MissingRequiredFields(t *testing.T) {
 func TestFromEnv_InvalidMaxConcurrentJobs(t *testing.T) {
 	t.Setenv("GITOPS_REPO", "org/repo")
 	t.Setenv("GITOPS_MANIFEST_ROOT", "kubernetes/")
-	t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mendabot-agent:latest")
-	t.Setenv("AGENT_NAMESPACE", "mendabot")
-	t.Setenv("AGENT_SA", "mendabot-agent")
+	t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mechanic-agent:latest")
+	t.Setenv("AGENT_NAMESPACE", "mechanic")
+	t.Setenv("AGENT_SA", "mechanic-agent")
 	t.Setenv("MAX_CONCURRENT_JOBS", "not-a-number")
 
 	_, err := config.FromEnv()
@@ -161,9 +161,9 @@ func TestFromEnv_InvalidMaxConcurrentJobs(t *testing.T) {
 func TestFromEnv_ZeroMaxConcurrentJobs(t *testing.T) {
 	t.Setenv("GITOPS_REPO", "org/repo")
 	t.Setenv("GITOPS_MANIFEST_ROOT", "kubernetes/")
-	t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mendabot-agent:latest")
-	t.Setenv("AGENT_NAMESPACE", "mendabot")
-	t.Setenv("AGENT_SA", "mendabot-agent")
+	t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mechanic-agent:latest")
+	t.Setenv("AGENT_NAMESPACE", "mechanic")
+	t.Setenv("AGENT_SA", "mechanic-agent")
 	t.Setenv("MAX_CONCURRENT_JOBS", "0")
 
 	_, err := config.FromEnv()
@@ -175,9 +175,9 @@ func TestFromEnv_ZeroMaxConcurrentJobs(t *testing.T) {
 func TestFromEnv_NegativeMaxConcurrentJobs(t *testing.T) {
 	t.Setenv("GITOPS_REPO", "org/repo")
 	t.Setenv("GITOPS_MANIFEST_ROOT", "kubernetes/")
-	t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mendabot-agent:latest")
-	t.Setenv("AGENT_NAMESPACE", "mendabot")
-	t.Setenv("AGENT_SA", "mendabot-agent")
+	t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mechanic-agent:latest")
+	t.Setenv("AGENT_NAMESPACE", "mechanic")
+	t.Setenv("AGENT_SA", "mechanic-agent")
 	t.Setenv("MAX_CONCURRENT_JOBS", "-1")
 
 	_, err := config.FromEnv()
@@ -189,9 +189,9 @@ func TestFromEnv_NegativeMaxConcurrentJobs(t *testing.T) {
 func TestFromEnv_RemediationJobTTLDefault(t *testing.T) {
 	t.Setenv("GITOPS_REPO", "org/repo")
 	t.Setenv("GITOPS_MANIFEST_ROOT", "kubernetes/")
-	t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mendabot-agent:latest")
-	t.Setenv("AGENT_NAMESPACE", "mendabot")
-	t.Setenv("AGENT_SA", "mendabot-agent")
+	t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mechanic-agent:latest")
+	t.Setenv("AGENT_NAMESPACE", "mechanic")
+	t.Setenv("AGENT_SA", "mechanic-agent")
 	os.Unsetenv("REMEDIATION_JOB_TTL_SECONDS")
 
 	cfg, err := config.FromEnv()
@@ -206,9 +206,9 @@ func TestFromEnv_RemediationJobTTLDefault(t *testing.T) {
 func TestFromEnv_RemediationJobTTLExplicit(t *testing.T) {
 	t.Setenv("GITOPS_REPO", "org/repo")
 	t.Setenv("GITOPS_MANIFEST_ROOT", "kubernetes/")
-	t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mendabot-agent:latest")
-	t.Setenv("AGENT_NAMESPACE", "mendabot")
-	t.Setenv("AGENT_SA", "mendabot-agent")
+	t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mechanic-agent:latest")
+	t.Setenv("AGENT_NAMESPACE", "mechanic")
+	t.Setenv("AGENT_SA", "mechanic-agent")
 	t.Setenv("REMEDIATION_JOB_TTL_SECONDS", "86400")
 
 	cfg, err := config.FromEnv()
@@ -223,9 +223,9 @@ func TestFromEnv_RemediationJobTTLExplicit(t *testing.T) {
 func TestFromEnv_InvalidRemediationJobTTL(t *testing.T) {
 	t.Setenv("GITOPS_REPO", "org/repo")
 	t.Setenv("GITOPS_MANIFEST_ROOT", "kubernetes/")
-	t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mendabot-agent:latest")
-	t.Setenv("AGENT_NAMESPACE", "mendabot")
-	t.Setenv("AGENT_SA", "mendabot-agent")
+	t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mechanic-agent:latest")
+	t.Setenv("AGENT_NAMESPACE", "mechanic")
+	t.Setenv("AGENT_SA", "mechanic-agent")
 	t.Setenv("REMEDIATION_JOB_TTL_SECONDS", "not-a-number")
 
 	_, err := config.FromEnv()
@@ -237,9 +237,9 @@ func TestFromEnv_InvalidRemediationJobTTL(t *testing.T) {
 func TestFromEnv_ZeroRemediationJobTTL(t *testing.T) {
 	t.Setenv("GITOPS_REPO", "org/repo")
 	t.Setenv("GITOPS_MANIFEST_ROOT", "kubernetes/")
-	t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mendabot-agent:latest")
-	t.Setenv("AGENT_NAMESPACE", "mendabot")
-	t.Setenv("AGENT_SA", "mendabot-agent")
+	t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mechanic-agent:latest")
+	t.Setenv("AGENT_NAMESPACE", "mechanic")
+	t.Setenv("AGENT_SA", "mechanic-agent")
 	t.Setenv("REMEDIATION_JOB_TTL_SECONDS", "0")
 
 	_, err := config.FromEnv()
@@ -252,9 +252,9 @@ func TestFromEnv_ZeroRemediationJobTTL(t *testing.T) {
 func TestFromEnv_TTLOverflow(t *testing.T) {
 	t.Setenv("GITOPS_REPO", "org/repo")
 	t.Setenv("GITOPS_MANIFEST_ROOT", "kubernetes/")
-	t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mendabot-agent:latest")
-	t.Setenv("AGENT_NAMESPACE", "mendabot")
-	t.Setenv("AGENT_SA", "mendabot-agent")
+	t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mechanic-agent:latest")
+	t.Setenv("AGENT_NAMESPACE", "mechanic")
+	t.Setenv("AGENT_SA", "mechanic-agent")
 	t.Setenv("REMEDIATION_JOB_TTL_SECONDS", "2147483648")
 
 	_, err := config.FromEnv()
@@ -267,9 +267,9 @@ func setRequiredEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("GITOPS_REPO", "org/repo")
 	t.Setenv("GITOPS_MANIFEST_ROOT", "kubernetes/")
-	t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mendabot-agent:latest")
-	t.Setenv("AGENT_NAMESPACE", "mendabot")
-	t.Setenv("AGENT_SA", "mendabot-agent")
+	t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mechanic-agent:latest")
+	t.Setenv("AGENT_NAMESPACE", "mechanic")
+	t.Setenv("AGENT_SA", "mechanic-agent")
 }
 
 func TestFromEnv_StabilisationWindowDefault(t *testing.T) {

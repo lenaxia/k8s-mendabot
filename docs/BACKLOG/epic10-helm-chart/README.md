@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Package mendabot as a Helm chart so external users can deploy it with a single
+Package mechanic as a Helm chart so external users can deploy it with a single
 `helm install` command, without managing raw Kustomize manifests. The chart is
 fully custom templates (no library dependencies) and covers every resource
 currently in `deploy/kustomize/` plus a CRD upgrade hook and optional metrics.
@@ -29,7 +29,7 @@ The only deployment mechanism today is `deploy/kustomize/`, which requires:
 - Manual `kubectl apply -k` with no parameterisation
 - Editing raw YAML files to change image tags, namespaces, or configuration
 - No upgrade path for CRDs (Kustomize has no hook concept)
-- No way for external operators to install mendabot without forking the repo
+- No way for external operators to install mechanic without forking the repo
 
 A Helm chart solves all of these. It also unlocks:
 - Helm repository hosting via GitHub Pages + Chart Releaser Action
@@ -70,8 +70,8 @@ watcher.remediationJobTTLSeconds   default 604800 (7 days)
 watcher.sinkType                   default "github"
 watcher.logLevel                   default "info"
 selfRemediation.maxDepth           SELF_REMEDIATION_MAX_DEPTH; default 2; set 0 to disable
-selfRemediation.upstreamRepo       MENDABOT_UPSTREAM_REPO; default "lenaxia/k8s-mendabot"
-selfRemediation.disableUpstreamContributions  MENDABOT_DISABLE_UPSTREAM_CONTRIBUTIONS; default false
+selfRemediation.upstreamRepo       MECHANIC_UPSTREAM_REPO; default "lenaxia/k8s-mechanic"
+selfRemediation.disableUpstreamContributions  MECHANIC_DISABLE_UPSTREAM_CONTRIBUTIONS; default false
 secrets.githubApp.name             existing Secret name; chart never creates it; default "github-app"
 secrets.llm.name                   existing Secret name; chart never creates it; default "llm-credentials"
 prompt.name                        selects files/prompts/<name>.txt; default "default"
@@ -107,7 +107,7 @@ The two pre-existing Secrets must have these exact key names (hardcoded in
 
 The hook consists of three resources plus a Job, all with
 `helm.sh/hook: pre-upgrade,pre-install` annotation:
-- `ServiceAccount`: `mendabot-crd-upgrader`
+- `ServiceAccount`: `mechanic-crd-upgrader`
 - `ClusterRole`: permission to `get`, `create`, `update`, `patch`
   `customresourcedefinitions`
 - `ClusterRoleBinding`
@@ -120,7 +120,7 @@ so they are cleaned up after a successful upgrade.
 ### File layout
 
 ```
-charts/mendabot/
+charts/mechanic/
 ├── Chart.yaml
 ├── values.yaml
 ├── templates/
@@ -156,10 +156,10 @@ charts/mendabot/
 
 ## Success Criteria
 
-- [ ] `helm lint charts/mendabot/` passes with no errors
-- [ ] `helm template charts/mendabot/ --set gitops.repo=org/repo --set gitops.manifestRoot=kubernetes | kubectl apply --dry-run=client -f -` succeeds
+- [ ] `helm lint charts/mechanic/` passes with no errors
+- [ ] `helm template charts/mechanic/ --set gitops.repo=org/repo --set gitops.manifestRoot=kubernetes | kubectl apply --dry-run=client -f -` succeeds
 - [ ] `helm install` on a fresh cluster creates all expected resources including CRD
-- [ ] `mendabot-agent-token` Secret of type `kubernetes.io/service-account-token`
+- [ ] `mechanic-agent-token` Secret of type `kubernetes.io/service-account-token`
   is created and auto-populated by the token controller (agent Jobs can authenticate)
 - [ ] `helm upgrade` applies any CRD schema changes via the pre-upgrade hook
 - [ ] All values documented and defaulted in `values.yaml`

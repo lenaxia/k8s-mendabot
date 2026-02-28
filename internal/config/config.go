@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lenaxia/k8s-mendabot/internal/domain"
+	"github.com/lenaxia/k8s-mechanic/internal/domain"
 )
 
 // AgentType identifies which agent runner binary the watcher dispatches.
@@ -19,7 +19,7 @@ const (
 	AgentTypeClaude   AgentType = "claude"
 )
 
-// Config holds all runtime configuration for the mendabot-watcher controller.
+// Config holds all runtime configuration for the mechanic-watcher controller.
 // All fields are populated from environment variables at startup via FromEnv.
 type Config struct {
 	GitOpsRepo                string        // GITOPS_REPO — required

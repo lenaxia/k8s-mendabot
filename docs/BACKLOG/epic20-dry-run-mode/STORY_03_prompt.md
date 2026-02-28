@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **cluster operator** evaluating mendabot in shadow mode, I want the agent prompt to
+As a **cluster operator** evaluating mechanic in shadow mode, I want the agent prompt to
 inform the LLM that it is in dry-run mode and explain that write operations are blocked,
 and I want the investigation report to appear in the agent Job's stdout so the watcher can
 read it via the Kubernetes pod logs API.
@@ -49,8 +49,8 @@ VARS='${FINDING_KIND}${FINDING_NAME}${FINDING_NAMESPACE}${FINDING_PARENT}${FINDI
 
 ### Prompt template location
 
-The shared prompt template lives at `charts/mendabot/files/prompts/core.txt`. It is
-packaged into the `agent-prompt-core` ConfigMap by `charts/mendabot/templates/configmap-prompt.yaml`
+The shared prompt template lives at `charts/mechanic/files/prompts/core.txt`. It is
+packaged into the `agent-prompt-core` ConfigMap by `charts/mechanic/templates/configmap-prompt.yaml`
 and mounted at `/prompt/core.txt` in every agent Job. **There is no `configmap-prompt.yaml`
 in `deploy/kustomize/` — that path does not exist.**
 
@@ -101,7 +101,7 @@ call it from each per-agent entrypoint after the agent binary returns.
   use `exec`, calls `emit_dry_run_report` after opencode returns
 - [x] `entrypoint-claude.sh` receives the same structural change for consistency (claude path
   is a stub that currently exits 1, but the dry-run pattern should be present)
-- [x] HARD RULE 11 appended to `charts/mendabot/files/prompts/core.txt` after rule 10
+- [x] HARD RULE 11 appended to `charts/mechanic/files/prompts/core.txt` after rule 10
 - [x] Decision tree in `core.txt` gains a dry-run branch prepended at the top
 - [x] No other parts of the prompt are changed by this story
 
@@ -189,7 +189,7 @@ fi
 > structure ready without enabling the broken stub. Remove the `exit 1` and uncomment the
 > claude invocation as part of whichever epic implements the real claude entrypoint.
 
-### 4. Add HARD RULE 11 to `charts/mendabot/files/prompts/core.txt`
+### 4. Add HARD RULE 11 to `charts/mechanic/files/prompts/core.txt`
 
 Append after rule 10 (the kubeconform block), still inside `=== HARD RULES ===`:
 
@@ -259,7 +259,7 @@ The watcher truncates to 10,000 bytes after sentinel extraction before storing i
 - [x] Add `emit_dry_run_report` function to `entrypoint-common.sh`
 - [x] Restructure `exec opencode` in `entrypoint-opencode.sh` for dry-run path
 - [x] Apply equivalent structural change to `entrypoint-claude.sh` (stub remains `exit 1`)
-- [x] Append HARD RULE 11 to `charts/mendabot/files/prompts/core.txt`
+- [x] Append HARD RULE 11 to `charts/mechanic/files/prompts/core.txt`
 - [x] Prepend dry-run branch to `=== DECISION TREE ===` in `core.txt`
 - [x] Manual smoke test: render the prompt with `envsubst` and confirm `${DRY_RUN}` is
   substituted correctly with both `DRY_RUN=true` and `DRY_RUN=false`
@@ -281,8 +281,8 @@ the agent can read it at runtime)
 - [x] `entrypoint-common.sh` has `${DRY_RUN}` in VARS, default assignment, and `emit_dry_run_report`
 - [x] `entrypoint-opencode.sh` has the dry-run/normal branch replacing bare `exec opencode`
 - [x] `entrypoint-claude.sh` has the structural dry-run/normal branch (stub still exits 1)
-- [x] HARD RULE 11 is present verbatim in `charts/mendabot/files/prompts/core.txt`
+- [x] HARD RULE 11 is present verbatim in `charts/mechanic/files/prompts/core.txt`
 - [x] Decision tree has the dry-run branch prepended
 - [x] `git diff --stat` shows only `entrypoint-common.sh`, `entrypoint-opencode.sh`,
-  `entrypoint-claude.sh`, and `charts/mendabot/files/prompts/core.txt` changed
+  `entrypoint-claude.sh`, and `charts/mechanic/files/prompts/core.txt` changed
 - [x] Full test suite passes: `go test -timeout 120s -race ./...` (no Go changes in this story)

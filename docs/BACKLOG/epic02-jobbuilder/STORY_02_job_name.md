@@ -17,7 +17,7 @@ enabling safe `IsAlreadyExists` detection in the controller.
 
 ## Acceptance Criteria
 
-- [ ] Job name format: `mendabot-agent-<first-12-chars-of-fingerprint>`
+- [ ] Job name format: `mechanic-agent-<first-12-chars-of-fingerprint>`
 - [ ] Same fingerprint always produces the same name
 - [ ] Different fingerprints produce different names
 - [ ] Name is valid as a Kubernetes resource name (lowercase alphanumeric and hyphens only)

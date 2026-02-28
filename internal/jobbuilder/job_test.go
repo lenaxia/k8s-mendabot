@@ -10,18 +10,18 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/lenaxia/k8s-mendabot/api/v1alpha1"
-	"github.com/lenaxia/k8s-mendabot/internal/config"
+	"github.com/lenaxia/k8s-mechanic/api/v1alpha1"
+	"github.com/lenaxia/k8s-mechanic/internal/config"
 )
 
 var testRJob = &v1alpha1.RemediationJob{
 	ObjectMeta: metav1.ObjectMeta{
-		Name: "mendabot-abc123def456",
+		Name: "mechanic-abc123def456",
 		UID:  types.UID("test-uid-1234"),
 	},
 	Spec: v1alpha1.RemediationJobSpec{
-		AgentImage:         "ghcr.io/lenaxia/mendabot-agent:latest",
-		AgentSA:            "mendabot-agent",
+		AgentImage:         "ghcr.io/lenaxia/mechanic-agent:latest",
+		AgentSA:            "mechanic-agent",
 		GitOpsRepo:         "lenaxia/talos-ops-prod",
 		GitOpsManifestRoot: "kubernetes/",
 		SinkType:           "github",
@@ -40,7 +40,7 @@ var testRJob = &v1alpha1.RemediationJob{
 
 func buildJob(t *testing.T) *batchv1.Job {
 	t.Helper()
-	b, err := New(Config{AgentNamespace: "mendabot"})
+	b, err := New(Config{AgentNamespace: "mechanic"})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestNew_EmptyAgentNamespace_ReturnsError(t *testing.T) {
 }
 
 func TestNew_ValidConfig_Succeeds(t *testing.T) {
-	b, err := New(Config{AgentNamespace: "mendabot"})
+	b, err := New(Config{AgentNamespace: "mechanic"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -111,14 +111,14 @@ var _ func(*v1alpha1.RemediationJob, []v1alpha1.FindingSpec) (*batchv1.Job, erro
 
 func TestBuild_JobName(t *testing.T) {
 	job := buildJob(t)
-	want := "mendabot-agent-abcdef012345"
+	want := "mechanic-agent-abcdef012345"
 	if job.Name != want {
 		t.Errorf("job name = %q, want %q", job.Name, want)
 	}
 }
 
 func TestBuild_JobNameDeterministic(t *testing.T) {
-	b, err := New(Config{AgentNamespace: "mendabot"})
+	b, err := New(Config{AgentNamespace: "mechanic"})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -137,16 +137,16 @@ func TestBuild_JobNameDeterministic(t *testing.T) {
 
 func TestBuild_Namespace(t *testing.T) {
 	job := buildJob(t)
-	if job.Namespace != "mendabot" {
-		t.Errorf("namespace = %q, want %q", job.Namespace, "mendabot")
+	if job.Namespace != "mechanic" {
+		t.Errorf("namespace = %q, want %q", job.Namespace, "mechanic")
 	}
 }
 
 func TestBuild_ServiceAccount(t *testing.T) {
 	job := buildJob(t)
 	got := job.Spec.Template.Spec.ServiceAccountName
-	if got != "mendabot-agent" {
-		t.Errorf("ServiceAccountName = %q, want %q", got, "mendabot-agent")
+	if got != "mechanic-agent" {
+		t.Errorf("ServiceAccountName = %q, want %q", got, "mechanic-agent")
 	}
 }
 
@@ -185,8 +185,8 @@ func TestBuild_EnvVars_AllPresent(t *testing.T) {
 	}
 	// AGENT_NAMESPACE must equal the builder's AgentNamespace so emit_dry_run_report()
 	// writes the ConfigMap to the same namespace the controller reads from.
-	if val, ok := getEnv(main, "AGENT_NAMESPACE"); !ok || val != "mendabot" {
-		t.Errorf("AGENT_NAMESPACE = %q (ok=%v), want %q", val, ok, "mendabot")
+	if val, ok := getEnv(main, "AGENT_NAMESPACE"); !ok || val != "mechanic" {
+		t.Errorf("AGENT_NAMESPACE = %q (ok=%v), want %q", val, ok, "mechanic")
 	}
 }
 
@@ -286,13 +286,13 @@ func TestBuild_MainContainer_Present(t *testing.T) {
 	}
 	found := false
 	for _, c := range containers {
-		if c.Name == "mendabot-agent" {
+		if c.Name == "mechanic-agent" {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Error("main container named \"mendabot-agent\" not found")
+		t.Error("main container named \"mechanic-agent\" not found")
 	}
 }
 
@@ -300,7 +300,7 @@ func TestBuild_MainContainer_NoCommandOverride(t *testing.T) {
 	job := buildJob(t)
 	var main corev1.Container
 	for _, c := range job.Spec.Template.Spec.Containers {
-		if c.Name == "mendabot-agent" {
+		if c.Name == "mechanic-agent" {
 			main = c
 			break
 		}
@@ -382,7 +382,7 @@ func TestBuild_Volumes_AllPresent(t *testing.T) {
 
 	var main corev1.Container
 	for _, c := range podSpec.Containers {
-		if c.Name == "mendabot-agent" {
+		if c.Name == "mechanic-agent" {
 			main = c
 			break
 		}
@@ -449,10 +449,10 @@ func TestBuild_Labels(t *testing.T) {
 		key  string
 		want string
 	}{
-		{"app.kubernetes.io/managed-by", "mendabot-watcher"},
-		{"remediation.mendabot.io/fingerprint", "abcdef012345"},
-		{"remediation.mendabot.io/remediation-job", "mendabot-abc123def456"},
-		{"remediation.mendabot.io/finding-kind", "Deployment"},
+		{"app.kubernetes.io/managed-by", "mechanic-watcher"},
+		{"remediation.mechanic.io/fingerprint", "abcdef012345"},
+		{"remediation.mechanic.io/remediation-job", "mechanic-abc123def456"},
+		{"remediation.mechanic.io/finding-kind", "Deployment"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.key, func(t *testing.T) {
@@ -469,8 +469,8 @@ func TestBuild_Labels(t *testing.T) {
 		key  string
 		want string
 	}{
-		{"remediation.mendabot.io/fingerprint-full", "abcdef012345abcdef012345abcdef012345abcdef012345abcdef012345abcd"},
-		{"remediation.mendabot.io/finding-parent", "my-app"},
+		{"remediation.mechanic.io/fingerprint-full", "abcdef012345abcdef012345abcdef012345abcdef012345abcdef012345abcd"},
+		{"remediation.mechanic.io/finding-parent", "my-app"},
 	}
 	for _, tt := range annotationTests {
 		t.Run("annotation_"+tt.key, func(t *testing.T) {
@@ -490,14 +490,14 @@ func TestBuild_OwnerReference(t *testing.T) {
 		t.Fatalf("expected 1 OwnerReference, got %d", len(refs))
 	}
 	ref := refs[0]
-	if ref.APIVersion != "remediation.mendabot.io/v1alpha1" {
-		t.Errorf("APIVersion = %q, want %q", ref.APIVersion, "remediation.mendabot.io/v1alpha1")
+	if ref.APIVersion != "remediation.mechanic.io/v1alpha1" {
+		t.Errorf("APIVersion = %q, want %q", ref.APIVersion, "remediation.mechanic.io/v1alpha1")
 	}
 	if ref.Kind != "RemediationJob" {
 		t.Errorf("Kind = %q, want %q", ref.Kind, "RemediationJob")
 	}
-	if ref.Name != "mendabot-abc123def456" {
-		t.Errorf("Name = %q, want %q", ref.Name, "mendabot-abc123def456")
+	if ref.Name != "mechanic-abc123def456" {
+		t.Errorf("Name = %q, want %q", ref.Name, "mechanic-abc123def456")
 	}
 	if ref.UID != "test-uid-1234" {
 		t.Errorf("UID = %q, want %q", ref.UID, "test-uid-1234")
@@ -511,7 +511,7 @@ func TestBuild_OwnerReference(t *testing.T) {
 }
 
 func TestBuild_EmptyErrors(t *testing.T) {
-	b, err := New(Config{AgentNamespace: "mendabot"})
+	b, err := New(Config{AgentNamespace: "mechanic"})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -532,7 +532,7 @@ func TestBuild_EmptyErrors(t *testing.T) {
 }
 
 func TestBuild_LongDetails(t *testing.T) {
-	b, err := New(Config{AgentNamespace: "mendabot"})
+	b, err := New(Config{AgentNamespace: "mechanic"})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -554,7 +554,7 @@ func TestBuild_LongDetails(t *testing.T) {
 }
 
 func TestBuild_NilRJob(t *testing.T) {
-	b, _ := New(Config{AgentNamespace: "mendabot"})
+	b, _ := New(Config{AgentNamespace: "mechanic"})
 	_, err := b.Build(nil, nil)
 	if err == nil {
 		t.Fatal("expected error for nil rjob, got nil")
@@ -562,7 +562,7 @@ func TestBuild_NilRJob(t *testing.T) {
 }
 
 func TestBuild_EmptyFingerprint(t *testing.T) {
-	b, _ := New(Config{AgentNamespace: "mendabot"})
+	b, _ := New(Config{AgentNamespace: "mechanic"})
 	_, err := b.Build(&v1alpha1.RemediationJob{}, nil)
 	if err == nil {
 		t.Fatal("expected error for empty fingerprint, got nil")
@@ -570,7 +570,7 @@ func TestBuild_EmptyFingerprint(t *testing.T) {
 }
 
 func TestBuild_ShortFingerprint(t *testing.T) {
-	b, _ := New(Config{AgentNamespace: "mendabot"})
+	b, _ := New(Config{AgentNamespace: "mechanic"})
 	_, err := b.Build(&v1alpha1.RemediationJob{
 		Spec: v1alpha1.RemediationJobSpec{Fingerprint: "abc"},
 	}, nil)
@@ -608,7 +608,7 @@ func TestBuild_SecurityContexts(t *testing.T) {
 }
 
 func TestBuild_InitScript_UsesGitHubAppToken(t *testing.T) {
-	b, err := New(Config{AgentNamespace: "mendabot"})
+	b, err := New(Config{AgentNamespace: "mechanic"})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -635,7 +635,7 @@ func TestBuild_InitScript_UsesGitHubAppToken(t *testing.T) {
 }
 
 func TestBuild_InitScript_HasErrorHandling(t *testing.T) {
-	b, err := New(Config{AgentNamespace: "mendabot"})
+	b, err := New(Config{AgentNamespace: "mechanic"})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -680,7 +680,7 @@ func TestBuild_PodSecurityContext(t *testing.T) {
 }
 
 func TestBuild_SingleFinding_NoCorrelatedEnvVar(t *testing.T) {
-	b, err := New(Config{AgentNamespace: "mendabot"})
+	b, err := New(Config{AgentNamespace: "mechanic"})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -698,7 +698,7 @@ func TestBuild_SingleFinding_NoCorrelatedEnvVar(t *testing.T) {
 }
 
 func TestBuild_SingleElementSlice_SetsCorrelatedEnvVar(t *testing.T) {
-	b, err := New(Config{AgentNamespace: "mendabot"})
+	b, err := New(Config{AgentNamespace: "mechanic"})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -716,7 +716,7 @@ func TestBuild_SingleElementSlice_SetsCorrelatedEnvVar(t *testing.T) {
 }
 
 func TestBuild_TwoCorrelatedFindings_EnvVarSet(t *testing.T) {
-	b, err := New(Config{AgentNamespace: "mendabot"})
+	b, err := New(Config{AgentNamespace: "mechanic"})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -753,7 +753,7 @@ func TestBuild_TwoCorrelatedFindings_EnvVarSet(t *testing.T) {
 }
 
 func TestBuild_CorrelatedFindings_AllFieldsEncoded(t *testing.T) {
-	b, err := New(Config{AgentNamespace: "mendabot"})
+	b, err := New(Config{AgentNamespace: "mechanic"})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -818,7 +818,7 @@ func TestBuild_SecretName_ByAgentType(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.agentType), func(t *testing.T) {
-			b, err := New(Config{AgentNamespace: "mendabot", AgentType: tt.agentType})
+			b, err := New(Config{AgentNamespace: "mechanic", AgentType: tt.agentType})
 			if err != nil {
 				t.Fatalf("New: %v", err)
 			}
@@ -901,7 +901,7 @@ func TestBuild_TTL_DefaultIs86400(t *testing.T) {
 // reflected in the Job spec. This test FAILS until Config gets a TTLSeconds
 // field and job.go uses it.
 func TestBuild_TTL_HonorsConfig(t *testing.T) {
-	b, err := New(Config{AgentNamespace: "mendabot", TTLSeconds: 3600})
+	b, err := New(Config{AgentNamespace: "mechanic", TTLSeconds: 3600})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -954,7 +954,7 @@ func TestBuild_AGENT_MODEL_NotInjected(t *testing.T) {
 }
 
 func TestBuild_DefaultAgentType_IsOpenCode(t *testing.T) {
-	b, err := New(Config{AgentNamespace: "mendabot"})
+	b, err := New(Config{AgentNamespace: "mechanic"})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -982,7 +982,7 @@ func TestBuild_DefaultAgentType_IsOpenCode(t *testing.T) {
 }
 
 func TestBuild_FindingSeverity_ValueInjected(t *testing.T) {
-	b, err := New(Config{AgentNamespace: "mendabot"})
+	b, err := New(Config{AgentNamespace: "mechanic"})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -1003,7 +1003,7 @@ func TestBuild_FindingSeverity_ValueInjected(t *testing.T) {
 }
 
 func TestBuild_FindingSeverity_EmptyStringLegacy(t *testing.T) {
-	b, err := New(Config{AgentNamespace: "mendabot"})
+	b, err := New(Config{AgentNamespace: "mechanic"})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -1025,7 +1025,7 @@ func TestBuild_FindingSeverity_EmptyStringLegacy(t *testing.T) {
 
 func buildDryRunJob(t *testing.T) *batchv1.Job {
 	t.Helper()
-	b, err := New(Config{AgentNamespace: "mendabot", DryRun: true})
+	b, err := New(Config{AgentNamespace: "mechanic", DryRun: true})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -1038,10 +1038,10 @@ func buildDryRunJob(t *testing.T) *batchv1.Job {
 
 func TestBuild_DryRun_AnnotationPresent(t *testing.T) {
 	job := buildDryRunJob(t)
-	if got, ok := job.Annotations["mendabot.io/dry-run"]; !ok {
-		t.Error("annotation mendabot.io/dry-run missing")
+	if got, ok := job.Annotations["mechanic.io/dry-run"]; !ok {
+		t.Error("annotation mechanic.io/dry-run missing")
 	} else if got != "true" {
-		t.Errorf("annotation mendabot.io/dry-run = %q, want %q", got, "true")
+		t.Errorf("annotation mechanic.io/dry-run = %q, want %q", got, "true")
 	}
 }
 
@@ -1059,8 +1059,8 @@ func TestBuild_DryRun_EnvVarPresent(t *testing.T) {
 
 func TestBuild_NoDryRun_AnnotationAbsent(t *testing.T) {
 	job := buildJob(t)
-	if _, ok := job.Annotations["mendabot.io/dry-run"]; ok {
-		t.Error("annotation mendabot.io/dry-run must not be present when DryRun=false")
+	if _, ok := job.Annotations["mechanic.io/dry-run"]; ok {
+		t.Error("annotation mechanic.io/dry-run must not be present when DryRun=false")
 	}
 }
 
@@ -1099,8 +1099,8 @@ func TestBuild_DryRun_GateInitContainerPresent(t *testing.T) {
 		t.Fatal("dry-run-gate init container missing when DryRun=true")
 	}
 	// Must write the sentinel file
-	if len(gate.Args) == 0 || !strings.Contains(gate.Args[0], "/mendabot-cfg/dry-run") {
-		t.Errorf("dry-run-gate args do not reference /mendabot-cfg/dry-run: %v", gate.Args)
+	if len(gate.Args) == 0 || !strings.Contains(gate.Args[0], "/mechanic-cfg/dry-run") {
+		t.Errorf("dry-run-gate args do not reference /mechanic-cfg/dry-run: %v", gate.Args)
 	}
 }
 
@@ -1113,28 +1113,28 @@ func TestBuild_NoDryRun_GateInitContainerAbsent(t *testing.T) {
 	}
 }
 
-func TestBuild_DryRun_MendabotCfgVolumePresent(t *testing.T) {
+func TestBuild_DryRun_MechanicCfgVolumePresent(t *testing.T) {
 	job := buildDryRunJob(t)
 	var found bool
 	for _, v := range job.Spec.Template.Spec.Volumes {
-		if v.Name == "mendabot-cfg" {
+		if v.Name == "mechanic-cfg" {
 			found = true
 			if v.EmptyDir == nil {
-				t.Error("mendabot-cfg volume must be an emptyDir")
+				t.Error("mechanic-cfg volume must be an emptyDir")
 			}
 			break
 		}
 	}
 	if !found {
-		t.Error("mendabot-cfg volume missing when DryRun=true")
+		t.Error("mechanic-cfg volume missing when DryRun=true")
 	}
 }
 
-func TestBuild_NoDryRun_MendabotCfgVolumeAbsent(t *testing.T) {
+func TestBuild_NoDryRun_MechanicCfgVolumeAbsent(t *testing.T) {
 	job := buildJob(t)
 	for _, v := range job.Spec.Template.Spec.Volumes {
-		if v.Name == "mendabot-cfg" {
-			t.Error("mendabot-cfg volume must not be present when DryRun=false")
+		if v.Name == "mechanic-cfg" {
+			t.Error("mechanic-cfg volume must not be present when DryRun=false")
 		}
 	}
 }
@@ -1144,19 +1144,19 @@ func TestBuild_DryRun_MainContainerMountReadOnly(t *testing.T) {
 	main := job.Spec.Template.Spec.Containers[0]
 	var mount *corev1.VolumeMount
 	for i := range main.VolumeMounts {
-		if main.VolumeMounts[i].Name == "mendabot-cfg" {
+		if main.VolumeMounts[i].Name == "mechanic-cfg" {
 			mount = &main.VolumeMounts[i]
 			break
 		}
 	}
 	if mount == nil {
-		t.Fatal("mendabot-cfg volume mount missing from main container when DryRun=true")
+		t.Fatal("mechanic-cfg volume mount missing from main container when DryRun=true")
 	}
 	if !mount.ReadOnly {
-		t.Error("mendabot-cfg volume mount must be ReadOnly=true in main container")
+		t.Error("mechanic-cfg volume mount must be ReadOnly=true in main container")
 	}
-	if mount.MountPath != "/mendabot-cfg" {
-		t.Errorf("mendabot-cfg MountPath = %q, want /mendabot-cfg", mount.MountPath)
+	if mount.MountPath != "/mechanic-cfg" {
+		t.Errorf("mechanic-cfg MountPath = %q, want /mechanic-cfg", mount.MountPath)
 	}
 }
 
@@ -1164,8 +1164,8 @@ func TestBuild_NoDryRun_MainContainerMountAbsent(t *testing.T) {
 	job := buildJob(t)
 	main := job.Spec.Template.Spec.Containers[0]
 	for _, m := range main.VolumeMounts {
-		if m.Name == "mendabot-cfg" {
-			t.Error("mendabot-cfg volume mount must not be present when DryRun=false")
+		if m.Name == "mechanic-cfg" {
+			t.Error("mechanic-cfg volume mount must not be present when DryRun=false")
 		}
 	}
 }

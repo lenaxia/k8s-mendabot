@@ -17,7 +17,7 @@ everything it needs to run.
 
 ## Acceptance Criteria
 
-- [ ] Main container named `mendabot-agent`
+- [ ] Main container named `mechanic-agent`
 - [ ] Uses `rjob.Spec.AgentImage`
 - [ ] Mounts `shared-workspace` at `/workspace`
 - [ ] Mounts `prompt-configmap` at `/prompt` read-only

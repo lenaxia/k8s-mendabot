@@ -1,12 +1,12 @@
 # API Reference
 
 ## Packages
-- [remediation.mendabot.io/v1alpha1](#remediationmendabotiov1alpha1)
+- [remediation.mechanic.io/v1alpha1](#remediationmechaniciov1alpha1)
 
 
-## remediation.mendabot.io/v1alpha1
+## remediation.mechanic.io/v1alpha1
 
-Package v1alpha1 contains API types for the remediation.mendabot.io/v1alpha1 API group.
+Package v1alpha1 contains API types for the remediation.mechanic.io/v1alpha1 API group.
 
 
 ### Resource Types
@@ -51,7 +51,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `remediation.mendabot.io/v1alpha1` | | |
+| `apiVersion` _string_ | `remediation.mechanic.io/v1alpha1` | | |
 | `kind` _string_ | `RemediationJob` | | |
 | `spec` _[RemediationJobSpec](#remediationjobspec)_ | Spec is required — omitempty is intentionally absent. |  |  |
 | `status` _[RemediationJobStatus](#remediationjobstatus)_ |  |  |  |
@@ -69,7 +69,7 @@ RemediationJobList contains a list of RemediationJob.
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `apiVersion` _string_ | `remediation.mendabot.io/v1alpha1` | | |
+| `apiVersion` _string_ | `remediation.mechanic.io/v1alpha1` | | |
 | `kind` _string_ | `RemediationJobList` | | |
 | `items` _[RemediationJob](#remediationjob) array_ |  |  |  |
 
@@ -141,7 +141,7 @@ _Appears in:_
 | `prRef` _string_ | PRRef is the GitHub PR URL opened or commented on by the agent.<br />Set by the agent via a status patch before it exits (best-effort). |  |  |
 | `message` _string_ | Message is a human-readable description of the current state,<br />e.g. an error message if Phase is Failed. |  |  |
 | `retryCount` _integer_ | RetryCount is the number of times the owned batch/v1 Job has entered the<br />Failed state. Incremented by RemediationJobReconciler each time the job<br />transitions to PhaseFailed. Read by SourceProviderReconciler to decide<br />whether to re-dispatch or tombstone. |  |  |
-| `correlationGroupID` _string_ | CorrelationGroupID is set when this job is part of a correlated group.<br />Empty when not correlated.<br />Design note: STORY_00 also specified RelatedFindings, CorrelationRole, and<br />CorrelationRule as spec/status fields. The implementation intentionally stores<br />these as labels (mendabot.io/correlation-group-id, mendabot.io/correlation-role)<br />and passes correlated findings as a runtime slice to dispatch() rather than<br />persisting them. The labels are searchable via kubectl and the recovery path<br />(controller.go) reconstructs AllFindings from suppressed peers on restart.<br />CorrelationGroupID here is the only status field needed for recovery. |  |  |
+| `correlationGroupID` _string_ | CorrelationGroupID is set when this job is part of a correlated group.<br />Empty when not correlated.<br />Design note: STORY_00 also specified RelatedFindings, CorrelationRole, and<br />CorrelationRule as spec/status fields. The implementation intentionally stores<br />these as labels (mechanic.io/correlation-group-id, mechanic.io/correlation-role)<br />and passes correlated findings as a runtime slice to dispatch() rather than<br />persisting them. The labels are searchable via kubectl and the recovery path<br />(controller.go) reconstructs AllFindings from suppressed peers on restart.<br />CorrelationGroupID here is the only status field needed for recovery. |  |  |
 | `sinkRef` _[SinkRef](#sinkref)_ | SinkRef identifies the GitHub PR or issue opened by the agent.<br />Empty until the agent writes it after opening the sink. |  | Optional: \{\} <br /> |
 
 

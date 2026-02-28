@@ -8,7 +8,7 @@
 ## 9.1 Secret Placeholder Audit
 
 The project has moved from Kustomize to Helm chart packaging. Secret placeholders are now
-defined in `charts/mendabot/templates/secret-agent-token.yaml` (SA token) and configured
+defined in `charts/mechanic/templates/secret-agent-token.yaml` (SA token) and configured
 via `values.yaml`. No plaintext credential YAML files are present in the chart or `deploy/`
 that would be applied with real values.
 

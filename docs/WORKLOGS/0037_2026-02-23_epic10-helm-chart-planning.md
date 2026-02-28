@@ -8,7 +8,7 @@
 
 ## Objective
 
-Design and document epic10-helm-chart: package mendabot as a Helm chart using fully
+Design and document epic10-helm-chart: package mechanic as a Helm chart using fully
 custom templates (no library dependencies), with a CRD upgrade hook, metrics support,
 and accurate references to the actual Go codebase.
 
@@ -52,7 +52,7 @@ Gaps found and fixed:
 
 | Gap | Fix |
 |-----|-----|
-| Secret default names were `mendabot-github-app` / `mendabot-llm` — wrong | Corrected to `github-app` / `llm-credentials` (matches `job.go` and placeholder files) |
+| Secret default names were `mechanic-github-app` / `mechanic-llm` — wrong | Corrected to `github-app` / `llm-credentials` (matches `job.go` and placeholder files) |
 | LLM Secret key `kube-api-server` was missing entirely | Added to STORY_02 values schema, STORY_10 NOTES.txt example, STORY_12 Quick Start |
 | `SELF_REMEDIATION_ENABLED` env var claimed to exist in STORY_06 — does not | Corrected: no such env var; self-remediation is controlled by `JobProvider` label detection; `selfRemediation.enabled` only gates whether the three config env vars are emitted |
 | epic09 status in backlog README was still "Not Started" | Fixed to "Complete" |
@@ -85,8 +85,8 @@ None — planning session, no code written.
 
 Implementation is ready to begin. Start with `feature/epic10-helm-chart` branch:
 
-1. STORY_01: Create `charts/mendabot/Chart.yaml`, stub `values.yaml`, `templates/`,
-   and copy `deploy/kustomize/crd-remediationjob.yaml` to `charts/mendabot/crds/`
+1. STORY_01: Create `charts/mechanic/Chart.yaml`, stub `values.yaml`, `templates/`,
+   and copy `deploy/kustomize/crd-remediationjob.yaml` to `charts/mechanic/crds/`
 2. STORY_02: Write full `values.yaml` and `templates/_helpers.tpl`
 3. Continue in implementation order: STORY_03 → STORY_10 (mostly parallel)
 4. STORY_11: CI workflow

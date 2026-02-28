@@ -37,7 +37,7 @@
 
 **Status:** Executed (via job spec inspection — pod was Completed)
 
-Live job `mendabot-agent-0cd2345e0966` inspected:
+Live job `mechanic-agent-0cd2345e0966` inspected:
 
 **Init container env vars:**
 ```

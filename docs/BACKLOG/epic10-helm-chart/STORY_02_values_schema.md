@@ -16,34 +16,34 @@ I can understand every configuration option without reading Go source code.
 
 ## Acceptance Criteria
 
-- [ ] `charts/mendabot/values.yaml` contains all keys listed in the values schema
+- [ ] `charts/mechanic/values.yaml` contains all keys listed in the values schema
   below, with inline comments explaining each field
-- [ ] `charts/mendabot/templates/_helpers.tpl` defines:
-  - `mendabot.fullname` — `Release.Name` if it already contains `"mendabot"`,
-    otherwise `Release.Name-mendabot`; truncated to 63 characters
-  - `mendabot.name` — chart name (`mendabot`)
-  - `mendabot.labels` — standard labels: `helm.sh/chart`, `app.kubernetes.io/name`,
+- [ ] `charts/mechanic/templates/_helpers.tpl` defines:
+  - `mechanic.fullname` — `Release.Name` if it already contains `"mechanic"`,
+    otherwise `Release.Name-mechanic`; truncated to 63 characters
+  - `mechanic.name` — chart name (`mechanic`)
+  - `mechanic.labels` — standard labels: `helm.sh/chart`, `app.kubernetes.io/name`,
     `app.kubernetes.io/instance`, `app.kubernetes.io/version`,
     `app.kubernetes.io/managed-by`
-  - `mendabot.selectorLabels` — `app.kubernetes.io/name` + `app.kubernetes.io/instance`
-  - `mendabot.watcherImage` — resolves watcher image tag: `image.tag` if set, else
+  - `mechanic.selectorLabels` — `app.kubernetes.io/name` + `app.kubernetes.io/instance`
+  - `mechanic.watcherImage` — resolves watcher image tag: `image.tag` if set, else
     `.Chart.AppVersion`; produces `image.repository:tag`
-  - `mendabot.agentImage` — same for `agent.image`
-  - `mendabot.watcherSAName` — `mendabot.fullname`-watcher
-  - `mendabot.agentSAName` — `mendabot.fullname`-agent
-- [ ] `helm lint charts/mendabot/` passes after this story
+  - `mechanic.agentImage` — same for `agent.image`
+  - `mechanic.watcherSAName` — `mechanic.fullname`-watcher
+  - `mechanic.agentSAName` — `mechanic.fullname`-agent
+- [ ] `helm lint charts/mechanic/` passes after this story
 
 ---
 
 ## Values Schema
 
 ```yaml
-# mendabot Helm chart values
+# mechanic Helm chart values
 # All fields are optional except gitops.repo and gitops.manifestRoot.
 
 # Watcher image configuration
 image:
-  repository: ghcr.io/lenaxia/mendabot-watcher
+  repository: ghcr.io/lenaxia/mechanic-watcher
   # tag defaults to Chart.appVersion when empty
   tag: ""
   pullPolicy: IfNotPresent
@@ -54,7 +54,7 @@ image:
 # different versions.
 agent:
   image:
-    repository: ghcr.io/lenaxia/mendabot-agent
+    repository: ghcr.io/lenaxia/mechanic-agent
     tag: ""
 
 # GitOps repository configuration (both fields are required)
@@ -83,13 +83,13 @@ watcher:
 # All three env vars have defaults in config.go and are always emitted —
 # there is no on/off switch. To disable self-remediation set maxDepth: 0.
 # Note: self-remediation is triggered automatically by the JobProvider when
-# it detects a failed batch/v1 Job labelled app.kubernetes.io/managed-by=mendabot-watcher.
+# it detects a failed batch/v1 Job labelled app.kubernetes.io/managed-by=mechanic-watcher.
 selfRemediation:
   # Maximum self-remediation chain depth. Set to 0 to disable entirely.
   maxDepth: 2
-  # Upstream repository where mendabot bug-fix PRs are opened.
-  upstreamRepo: lenaxia/k8s-mendabot
-  # Set to true to prevent any PR being opened against the upstream mendabot
+  # Upstream repository where mechanic bug-fix PRs are opened.
+  upstreamRepo: lenaxia/k8s-mechanic
+  # Set to true to prevent any PR being opened against the upstream mechanic
   # repo (PRs go to gitops.repo only).
   disableUpstreamContributions: false
 
@@ -111,7 +111,7 @@ secrets:
 
 # Prompt configuration
 prompt:
-  # Selects a built-in prompt file from charts/mendabot/files/prompts/<name>.txt
+  # Selects a built-in prompt file from charts/mechanic/files/prompts/<name>.txt
   # Available: "default"
   name: default
   # Full prompt content override. When non-empty, takes precedence over prompt.name.
@@ -145,17 +145,17 @@ metrics:
 
 - [ ] Write `values.yaml` with all fields and inline comments
 - [ ] Write `templates/_helpers.tpl` with all named templates
-- [ ] Verify `{{ include "mendabot.watcherImage" . }}` and `agentImage` produce
+- [ ] Verify `{{ include "mechanic.watcherImage" . }}` and `agentImage` produce
   correct `repository:tag` strings for both set and unset tag scenarios
-- [ ] Run `helm lint charts/mendabot/` after adding stub templates
+- [ ] Run `helm lint charts/mechanic/` after adding stub templates
 
 ---
 
 ## Notes
 
-- `mendabot.fullname` truncation is important: Kubernetes resource names are capped
+- `mechanic.fullname` truncation is important: Kubernetes resource names are capped
   at 63 characters. Use `trunc 63 | trimSuffix "-"` as in the standard chart template.
-- The `mendabot.watcherImage` helper must not emit `repository:` (empty tag) when
+- The `mechanic.watcherImage` helper must not emit `repository:` (empty tag) when
   `image.tag` is empty — it must fall back to `.Chart.AppVersion`.
 
 ---
@@ -169,6 +169,6 @@ metrics:
 
 ## Definition of Done
 
-- [ ] `helm lint charts/mendabot/` exits 0
-- [ ] `helm template charts/mendabot/ --set gitops.repo=org/repo --set gitops.manifestRoot=k8s`
+- [ ] `helm lint charts/mechanic/` exits 0
+- [ ] `helm template charts/mechanic/ --set gitops.repo=org/repo --set gitops.manifestRoot=k8s`
   renders without error

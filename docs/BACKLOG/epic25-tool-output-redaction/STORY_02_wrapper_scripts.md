@@ -8,7 +8,7 @@
 
 ## User Story
 
-As a **mendabot operator**, I want every tool that the LLM agent can invoke for cluster
+As a **mechanic operator**, I want every tool that the LLM agent can invoke for cluster
 investigation to have its stdout and stderr passed through `redact` before the output
 is returned to the LLM, so that no credential-bearing output can reach the external LLM
 API regardless of what command the LLM constructs.

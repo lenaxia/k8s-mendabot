@@ -16,15 +16,15 @@ the watcher and agent so the least-privilege RBAC bindings have named subjects.
 
 ## Acceptance Criteria
 
-- [ ] `charts/mendabot/templates/serviceaccount-watcher.yaml` creates a ServiceAccount
-  named `{{ include "mendabot.watcherSAName" . }}` in `{{ .Release.Namespace }}`
-- [ ] `charts/mendabot/templates/serviceaccount-agent.yaml` creates a ServiceAccount
-  named `{{ include "mendabot.agentSAName" . }}` in `{{ .Release.Namespace }}`
-- [ ] Both ServiceAccounts carry standard chart labels via `include "mendabot.labels"`
+- [ ] `charts/mechanic/templates/serviceaccount-watcher.yaml` creates a ServiceAccount
+  named `{{ include "mechanic.watcherSAName" . }}` in `{{ .Release.Namespace }}`
+- [ ] `charts/mechanic/templates/serviceaccount-agent.yaml` creates a ServiceAccount
+  named `{{ include "mechanic.agentSAName" . }}` in `{{ .Release.Namespace }}`
+- [ ] Both ServiceAccounts carry standard chart labels via `include "mechanic.labels"`
 - [ ] Neither ServiceAccount sets `automountServiceAccountToken` — the default (`true`)
   is required because the agent entrypoint reads `/var/run/secrets/kubernetes.io/serviceaccount/ca.crt`
-  as a fallback when the `mendabot-agent-token` Secret is absent. The `agent-token`
-  volume from `mendabot-agent-token` Secret (see STORY_13) provides the primary token;
+  as a fallback when the `mechanic-agent-token` Secret is absent. The `agent-token`
+  volume from `mechanic-agent-token` Secret (see STORY_13) provides the primary token;
   the SA-automounted token provides the CA cert path in all cases.
 - [ ] Rendered SA names match what the Deployment template and RBAC bindings reference
 
@@ -34,7 +34,7 @@ the watcher and agent so the least-privilege RBAC bindings have named subjects.
 
 - [ ] Write `templates/serviceaccount-watcher.yaml`
 - [ ] Write `templates/serviceaccount-agent.yaml`
-- [ ] Verify rendered names match `mendabot.watcherSAName` and `mendabot.agentSAName`
+- [ ] Verify rendered names match `mechanic.watcherSAName` and `mechanic.agentSAName`
   helper output for a sample release name
 
 ---
@@ -52,12 +52,12 @@ the watcher and agent so the least-privilege RBAC bindings have named subjects.
 
 ## Dependencies
 
-**Depends on:** STORY_02 (_helpers.tpl with `mendabot.watcherSAName` / `mendabot.agentSAName`)
+**Depends on:** STORY_02 (_helpers.tpl with `mechanic.watcherSAName` / `mechanic.agentSAName`)
 **Blocks:** STORY_05 (RBAC binding subjects), STORY_06 (Deployment SA reference)
 
 ---
 
 ## Definition of Done
 
-- [ ] `helm lint charts/mendabot/` exits 0
+- [ ] `helm lint charts/mechanic/` exits 0
 - [ ] `helm template ... | grep ServiceAccount` shows both SA resources with correct names

@@ -8,7 +8,7 @@
 
 `SourceProviderReconciler` in `internal/provider/provider.go` already declares an
 `EventRecorder record.EventRecorder` field (line 33) and `main.go` already assigns it
-via `mgr.GetEventRecorderFor("mendabot-watcher")` (line 148). The field is wired but
+via `mgr.GetEventRecorderFor("mechanic-watcher")` (line 148). The field is wired but
 never called: no `r.EventRecorder.Event(...)` calls exist anywhere in `Reconcile`.
 
 This story adds the four missing `Event` calls, one at each decision point in
@@ -17,7 +17,7 @@ This story adds the four missing `Event` calls, one at each decision point in
 ## What is already true (do not re-implement)
 
 - `SourceProviderReconciler.EventRecorder record.EventRecorder` — field exists.
-- `cmd/watcher/main.go:148` — `EventRecorder: mgr.GetEventRecorderFor("mendabot-watcher")` — already present in the loop that constructs each `SourceProviderReconciler`.
+- `cmd/watcher/main.go:148` — `EventRecorder: mgr.GetEventRecorderFor("mechanic-watcher")` — already present in the loop that constructs each `SourceProviderReconciler`.
 
 ## Decision points in Reconcile
 
@@ -29,7 +29,7 @@ the event is emitted on each `rjob` that gets cancelled.
 | Location in provider.go | Reason | Type | Message pattern |
 |---|---|---|---|
 | After `r.Create(ctx, rjob)` succeeds (line 264) | `FindingDetected` | Normal | `Provider <name> detected <Kind>/<name> in namespace <ns>` |
-| Inside the dedup loop when `rjob.Status.Phase != PhaseFailed` returns early (line 196) | `DuplicateFingerprint` | Normal | `Existing RemediationJob mendabot-<fp[:12]> already covers this finding` |
+| Inside the dedup loop when `rjob.Status.Phase != PhaseFailed` returns early (line 196) | `DuplicateFingerprint` | Normal | `Existing RemediationJob mechanic-<fp[:12]> already covers this finding` |
 | After `finding == nil` check (line 122) | `FindingCleared` | Normal | `Finding cleared; no active finding on this object` |
 | After successful `r.Delete(ctx, rjob)` in the source-deleted cancel loop (line 100) | `SourceDeleted` | Normal | `Source object deleted; investigation cancelled` |
 
@@ -108,7 +108,7 @@ The file already imports `"k8s.io/apimachinery/pkg/runtime"` and
 
 ## main.go — no change required
 
-`cmd/watcher/main.go` already wires `EventRecorder: mgr.GetEventRecorderFor("mendabot-watcher")`
+`cmd/watcher/main.go` already wires `EventRecorder: mgr.GetEventRecorderFor("mechanic-watcher")`
 for every `SourceProviderReconciler`. No modification needed.
 
 ## Test approach

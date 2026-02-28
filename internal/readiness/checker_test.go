@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lenaxia/k8s-mendabot/internal/readiness"
+	"github.com/lenaxia/k8s-mechanic/internal/readiness"
 )
 
 // countingChecker counts how many times Check is called and returns a fixed error.

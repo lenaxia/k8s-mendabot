@@ -10,7 +10,7 @@
 ## User Story
 
 As a **cluster operator**, I want to annotate a resource with
-`mendabot.io/priority: "critical"` so that mendabot bypasses the stabilisation window
+`mechanic.io/priority: "critical"` so that mechanic bypasses the stabilisation window
 for that resource and creates a `RemediationJob` immediately on the first reconcile,
 even when `STABILISATION_WINDOW_SECONDS` is configured to a non-zero value.
 
@@ -25,7 +25,7 @@ critical infrastructure — a database primary that has just crashed, a certific
 has just expired — operators need an escape hatch that bypasses the window and triggers
 immediate investigation.
 
-The `mendabot.io/priority: "critical"` annotation provides that escape hatch. It is
+The `mechanic.io/priority: "critical"` annotation provides that escape hatch. It is
 read by `SourceProviderReconciler.Reconcile` from the already-fetched `obj` — no extra
 API call is required.
 
@@ -65,7 +65,7 @@ Insert the following block **immediately before** the `if r.Cfg.StabilisationWin
 check:
 
 ```go
-// Priority bypass: if the resource is annotated mendabot.io/priority=critical,
+// Priority bypass: if the resource is annotated mechanic.io/priority=critical,
 // skip the stabilisation window entirely and proceed directly to dedup + Job creation.
 if obj.GetAnnotations()[domain.AnnotationPriority] == "critical" {
     // fall through — do not enter the stabilisation window block below
@@ -112,7 +112,7 @@ if !priorityCritical && r.Cfg.StabilisationWindow != 0 {
 ```
 
 Either formulation is acceptable. The key invariant is:
-> When `obj.GetAnnotations()["mendabot.io/priority"] == "critical"`, the `firstSeen`
+> When `obj.GetAnnotations()["mechanic.io/priority"] == "critical"`, the `firstSeen`
 > map is **never consulted** and no requeue is issued — the reconcile falls through
 > directly to the dedup + `RemediationJob` creation logic.
 
@@ -128,7 +128,7 @@ again from scratch.
 
 ## Acceptance Criteria
 
-- [ ] When a resource has annotation `mendabot.io/priority: "critical"` and
+- [ ] When a resource has annotation `mechanic.io/priority: "critical"` and
   `r.Cfg.StabilisationWindow > 0`:
   - `r.firstSeen` is **not** consulted (no `Get` or `Set`)
   - `ctrl.Result{RequeueAfter: ...}` is **not** returned
@@ -141,7 +141,7 @@ again from scratch.
 - [ ] `obj.GetAnnotations()` is called on the `client.Object` value fetched by
   `r.Get` — no separate API call is made
 - [ ] `domain.AnnotationPriority` constant (from STORY_01) is used — no bare string
-  literal `"mendabot.io/priority"` in the reconciler code
+  literal `"mechanic.io/priority"` in the reconciler code
 - [ ] New test added to `internal/provider/provider_test.go` (see Test Cases below)
 
 ---
@@ -152,8 +152,8 @@ Add to `internal/provider/provider_test.go`.
 
 | Test Name | Setup | Expected |
 |---|---|---|
-| `PriorityCriticalBypassesWindow` | `StabilisationWindow = 2 * time.Minute`; object has annotation `mendabot.io/priority: "critical"`; `firstSeen` is empty (finding never seen before) | `RemediationJob` created immediately; no requeue; `firstSeen` remains empty |
-| `PriorityCriticalWindowAlreadyZero` | `StabilisationWindow = 0`; object has annotation `mendabot.io/priority: "critical"` | `RemediationJob` created immediately (same as without annotation — fast path unchanged) |
+| `PriorityCriticalBypassesWindow` | `StabilisationWindow = 2 * time.Minute`; object has annotation `mechanic.io/priority: "critical"`; `firstSeen` is empty (finding never seen before) | `RemediationJob` created immediately; no requeue; `firstSeen` remains empty |
+| `PriorityCriticalWindowAlreadyZero` | `StabilisationWindow = 0`; object has annotation `mechanic.io/priority: "critical"` | `RemediationJob` created immediately (same as without annotation — fast path unchanged) |
 | `NoPriorityAnnotationWindowApplies` | `StabilisationWindow = 2 * time.Minute`; no priority annotation; `firstSeen` is empty | `RequeueAfter = 2 * time.Minute`; no `RemediationJob` created (existing behaviour preserved) |
 
 **Test implementation note for `PriorityCriticalBypassesWindow`:**
@@ -195,7 +195,7 @@ pattern.
 ## Definition of Done
 
 - [ ] `SourceProviderReconciler.Reconcile` bypasses the stabilisation window when
-  `mendabot.io/priority: "critical"` is annotated on the resource
+  `mechanic.io/priority: "critical"` is annotated on the resource
 - [ ] All new and existing reconciler tests pass with `-race`
 - [ ] Full test suite `go test -race ./...` passes
 - [ ] `go vet ./...` clean

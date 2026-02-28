@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **mendabot operator**, I want a structured penetration test to have been run against
+As a **mechanic operator**, I want a structured penetration test to have been run against
 the deployed system so that known attack vectors are proven to be mitigated (or documented
 as accepted residual risk) before the system runs against a production cluster.
 
@@ -21,7 +21,7 @@ This story **requires stories 01–05 to be complete**. Running the pentest befo
 engineering controls are in place merely catalogues open issues.
 
 A test environment must be available: a Kubernetes cluster (can be `kind` or `k3s`) with
-mendabot deployed via `kubectl apply -k deploy/kustomize/overlays/security/`.
+mechanic deployed via `kubectl apply -k deploy/kustomize/overlays/security/`.
 
 ---
 
@@ -50,14 +50,14 @@ containers:
 ```
 
 **Test steps:**
-1. Let mendabot detect the pod failure and create a `RemediationJob`
+1. Let mechanic detect the pod failure and create a `RemediationJob`
 2. Read `RemediationJob.Spec.Finding.Errors`:
    ```bash
-   kubectl get remediationjob -n mendabot -o jsonpath='{.items[0].spec.finding.errors}'
+   kubectl get remediationjob -n mechanic -o jsonpath='{.items[0].spec.finding.errors}'
    ```
 3. Read the agent Job's `FINDING_ERRORS` env var:
    ```bash
-   kubectl get job -n mendabot -o jsonpath='{.items[0].spec.template.spec.containers[0].env}'
+   kubectl get job -n mechanic -o jsonpath='{.items[0].spec.template.spec.containers[0].env}'
    ```
 
 **Expected result (PASS):** `s3cr3t` does not appear in either output; replaced with
@@ -114,11 +114,11 @@ the untrusted-data envelope.
 the LLM API.
 
 **Test steps:**
-1. Deploy mendabot with the security overlay
+1. Deploy mechanic with the security overlay
 2. Manually create a `RemediationJob` that will cause an agent Job to run
 3. Within the agent Job, check connectivity to the test endpoint:
    ```bash
-   kubectl exec -n mendabot <agent-job-pod> -- curl --max-time 5 http://<test-endpoint>
+   kubectl exec -n mechanic <agent-job-pod> -- curl --max-time 5 http://<test-endpoint>
    ```
 
 **Expected result (PASS):** Connection times out or is reset; test server receives no
@@ -139,15 +139,15 @@ uses it to mint arbitrary installation tokens.
 **Test steps:**
 1. From within an agent Job pod:
    ```bash
-   kubectl get secret github-app -n mendabot -o yaml
+   kubectl get secret github-app -n mechanic -o yaml
    ```
 2. Check whether `GITHUB_APP_PRIVATE_KEY` is set in the main container environment:
    ```bash
-   kubectl exec -n mendabot <agent-job-pod> -- env | grep GITHUB_APP
+   kubectl exec -n mechanic <agent-job-pod> -- env | grep GITHUB_APP
    ```
 3. Check whether `/secrets/github-app` is mounted in the main container:
    ```bash
-   kubectl exec -n mendabot <agent-job-pod> -- ls /secrets/ 2>&1
+   kubectl exec -n mechanic <agent-job-pod> -- ls /secrets/ 2>&1
    ```
 
 **Expected result (PASS):**
@@ -171,7 +171,7 @@ deliberately not in the main container's `VolumeMounts` (line 167–182).
 namespace not in `AGENT_WATCH_NAMESPACES`.
 
 **Test steps:**
-1. Deploy mendabot with `AGENT_RBAC_SCOPE=namespace` and
+1. Deploy mechanic with `AGENT_RBAC_SCOPE=namespace` and
    `AGENT_WATCH_NAMESPACES=test-ns`
 2. Create a Secret in a different namespace `other-ns`:
    ```bash
@@ -182,7 +182,7 @@ namespace not in `AGENT_WATCH_NAMESPACES`.
    kubectl get secret test-secret -n other-ns
    ```
 
-**Expected result (PASS):** RBAC error — `forbidden: User "system:serviceaccount:mendabot:mendabot-agent-ns" cannot get resource "secrets" in API group "" in the namespace "other-ns"`
+**Expected result (PASS):** RBAC error — `forbidden: User "system:serviceaccount:mechanic:mechanic-agent-ns" cannot get resource "secrets" in API group "" in the namespace "other-ns"`
 
 **Expected result (FAIL):** Secret is returned.
 
@@ -193,13 +193,13 @@ namespace not in `AGENT_WATCH_NAMESPACES`.
 **Attack vector:** N/A — this is a verification test, not an attack.
 
 **Test steps:**
-1. Deploy mendabot with a debug log level (`LOG_LEVEL=debug`)
+1. Deploy mechanic with a debug log level (`LOG_LEVEL=debug`)
 2. Generate each of the following events:
    - A finding that is suppressed by cascade check
    - A finding that creates a `RemediationJob`
    - A `RemediationJob` that dispatches an agent Job
    - An agent Job that succeeds
-3. Collect logs: `kubectl logs -n mendabot deployment/mendabot-watcher --since=5m`
+3. Collect logs: `kubectl logs -n mechanic deployment/mechanic-watcher --since=5m`
 4. Filter for audit lines: `... | jq 'select(.audit == true) | .event' -r | sort | uniq`
 
 **Expected result (PASS):** All expected event names appear in the filtered output.
@@ -218,7 +218,7 @@ After executing all test cases, document the following known residual risks:
 | Regex redaction has false negatives for novel credential formats | Medium | STORY_01 | Accepted — best-effort, documented |
 | NetworkPolicy only effective with CNI support | Medium | STORY_02 | Accepted — operator responsibility to use compatible CNI |
 | Prompt injection cannot be fully prevented | Medium | STORY_05 | Accepted — prompt injection is an unsolved field-wide problem; truncation + envelope + heuristic detection reduce risk |
-| LLM API key readable by any pod in mendabot namespace via env | Low | Secret mount (not env) | Accepted — LLM key is in the `llm-credentials` Secret; agent needs it to function |
+| LLM API key readable by any pod in mechanic namespace via env | Low | Secret mount (not env) | Accepted — LLM key is in the `llm-credentials` Secret; agent needs it to function |
 
 ---
 
@@ -226,7 +226,7 @@ After executing all test cases, document the following known residual risks:
 
 - [ ] Confirm stories 01–05 are complete before starting this story
 - [ ] Set up test cluster (kind or k3s with NetworkPolicy support preferred)
-- [ ] Deploy mendabot via `kubectl apply -k deploy/kustomize/overlays/security/`
+- [ ] Deploy mechanic via `kubectl apply -k deploy/kustomize/overlays/security/`
 - [ ] Execute TC-01 (credential redaction)
 - [ ] Execute TC-02 (prompt injection)
 - [ ] Execute TC-03 (network egress) — skip and document if no CNI

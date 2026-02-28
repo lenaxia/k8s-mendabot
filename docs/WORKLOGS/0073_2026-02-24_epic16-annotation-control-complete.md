@@ -8,7 +8,7 @@
 
 ## Objective
 
-Implement epic16-annotation-control: allow operators to annotate Kubernetes resources with `mendabot.io/enabled`, `mendabot.io/skip-until`, and `mendabot.io/priority` to suppress or fast-track mendabot investigations.
+Implement epic16-annotation-control: allow operators to annotate Kubernetes resources with `mechanic.io/enabled`, `mechanic.io/skip-until`, and `mechanic.io/priority` to suppress or fast-track mechanic investigations.
 
 ---
 
@@ -22,9 +22,9 @@ Implement epic16-annotation-control: allow operators to annotate Kubernetes reso
 ### 2. STORY_01 — Domain annotation constants and skip logic
 
 - New file: `internal/domain/annotations.go`
-  - `AnnotationEnabled = "mendabot.io/enabled"`
-  - `AnnotationSkipUntil = "mendabot.io/skip-until"`
-  - `AnnotationPriority = "mendabot.io/priority"`
+  - `AnnotationEnabled = "mechanic.io/enabled"`
+  - `AnnotationSkipUntil = "mechanic.io/skip-until"`
+  - `AnnotationPriority = "mechanic.io/priority"`
   - `ShouldSkip(annotations map[string]string, now time.Time) bool`
 - New file: `internal/domain/annotations_test.go` — 8 table-driven cases (7 original + nil-map gap fix)
 - TDD: tests written and confirmed failing before implementation
@@ -46,7 +46,7 @@ Implement epic16-annotation-control: allow operators to annotate Kubernetes reso
 
 **Gap 1 (Major):** `AnnotationEnabled_False` tests in all 6 providers used healthy objects. Fixed by replacing with unhealthy objects that would produce findings without the annotation.
 
-**Gap 2 (Major):** No end-to-end integration test wiring a real native provider through the reconciler with an annotated object. Fixed by adding `TestAnnotationGate_EnabledFalse_NoRemediationJob` to `internal/provider/provider_test.go` using a real `podProvider` with a CrashLoopBackOff pod annotated `mendabot.io/enabled: "false"`.
+**Gap 2 (Major):** No end-to-end integration test wiring a real native provider through the reconciler with an annotated object. Fixed by adding `TestAnnotationGate_EnabledFalse_NoRemediationJob` to `internal/provider/provider_test.go` using a real `podProvider` with a CrashLoopBackOff pod annotated `mechanic.io/enabled: "false"`.
 
 **Gap 3 (Minor):** Native provider test files used raw string literals for annotation keys. Fixed by replacing with `domain.AnnotationEnabled` and `domain.AnnotationSkipUntil` constants throughout.
 
@@ -74,18 +74,18 @@ None.
 
 ```
 go test -timeout 60s -race ./...
-ok  github.com/lenaxia/k8s-mendabot/api/v1alpha1
-ok  github.com/lenaxia/k8s-mendabot/cmd/watcher
-ok  github.com/lenaxia/k8s-mendabot/internal/config
-ok  github.com/lenaxia/k8s-mendabot/internal/controller
-ok  github.com/lenaxia/k8s-mendabot/internal/domain
-ok  github.com/lenaxia/k8s-mendabot/internal/jobbuilder
-ok  github.com/lenaxia/k8s-mendabot/internal/logging
-ok  github.com/lenaxia/k8s-mendabot/internal/provider
-ok  github.com/lenaxia/k8s-mendabot/internal/provider/native
-ok  github.com/lenaxia/k8s-mendabot/internal/readiness
-ok  github.com/lenaxia/k8s-mendabot/internal/readiness/llm
-ok  github.com/lenaxia/k8s-mendabot/internal/readiness/sink
+ok  github.com/lenaxia/k8s-mechanic/api/v1alpha1
+ok  github.com/lenaxia/k8s-mechanic/cmd/watcher
+ok  github.com/lenaxia/k8s-mechanic/internal/config
+ok  github.com/lenaxia/k8s-mechanic/internal/controller
+ok  github.com/lenaxia/k8s-mechanic/internal/domain
+ok  github.com/lenaxia/k8s-mechanic/internal/jobbuilder
+ok  github.com/lenaxia/k8s-mechanic/internal/logging
+ok  github.com/lenaxia/k8s-mechanic/internal/provider
+ok  github.com/lenaxia/k8s-mechanic/internal/provider/native
+ok  github.com/lenaxia/k8s-mechanic/internal/readiness
+ok  github.com/lenaxia/k8s-mechanic/internal/readiness/llm
+ok  github.com/lenaxia/k8s-mechanic/internal/readiness/sink
 ```
 
 12/12 packages pass. Race detector clean.

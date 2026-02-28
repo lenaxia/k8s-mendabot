@@ -18,21 +18,21 @@ contract violations, and anything that could silently break at runtime.
 ### Validation Findings (11 gaps total)
 
 #### GAP-1 (Major) — CRD YAML schema forward-declared deferred-epic fields
-- **Files:** `charts/mendabot/crds/remediationjob.yaml`, `deploy/kustomize/crd-remediationjob.yaml`
+- **Files:** `charts/mechanic/crds/remediationjob.yaml`, `deploy/kustomize/crd-remediationjob.yaml`
 - **Fix:** Removed `isSelfRemediation`, `chainDepth` (from spec), `correlationGroupID` (from status), and `Suppressed` (from phase enum) — these fields belong to deferred epics 11/13 and have no Go backing types.
 - `testdata/crds/remediationjob_crd.yaml` was already clean; no change needed there.
 
 #### GAP-2 (Major) — Helm chart injected 7 env vars not parsed by the binary
-- **Files:** `charts/mendabot/templates/deployment-watcher.yaml`, `charts/mendabot/values.yaml`
+- **Files:** `charts/mechanic/templates/deployment-watcher.yaml`, `charts/mechanic/values.yaml`
 - **Fix:** Removed the entire `selfRemediation:` values block (7 knobs: maxDepth, cooldownSeconds, upstreamRepo, disableUpstreamContributions, disableCascadeCheck, cascadeNamespaceThreshold, cascadeNodeCacheTTLSeconds) and their corresponding env var injections. These are from the deferred cascade-prevention feature; the binary silently ignored them.
 
 #### GAP-3 (Major) — AgentWatchNamespaces parsed but never used to scope informer cache
 - **File:** `cmd/watcher/main.go`
 - **Fix:** Refactored `ctrl.NewManager` to build `ctrl.Options` in a local var; when `cfg.AgentWatchNamespaces` is non-empty, set `opts.Cache = cache.Options{DefaultNamespaces: ...}` to restrict controller-runtime informer to those namespaces. The namespace RBAC boundary is now actually enforced.
 
-#### GAP-4 (Major) — JobProvider had no self-exclusion for mendabot-agent-* jobs
+#### GAP-4 (Major) — JobProvider had no self-exclusion for mechanic-agent-* jobs
 - **File:** `internal/provider/native/job.go`
-- **Fix:** Added early-return guard in `ExtractFinding`: `if job.Labels["app.kubernetes.io/managed-by"] == "mendabot-watcher" { return nil, nil }`. Removed now-unused `cfg config.Config` field and `config` import from the struct. Updated call site in `main.go`. Added test `TestJobProvider_ExtractFinding_ExcludesMendabotManagedJobs`.
+- **Fix:** Added early-return guard in `ExtractFinding`: `if job.Labels["app.kubernetes.io/managed-by"] == "mechanic-watcher" { return nil, nil }`. Removed now-unused `cfg config.Config` field and `config` import from the struct. Updated call site in `main.go`. Added test `TestJobProvider_ExtractFinding_ExcludesMechanicManagedJobs`.
 
 #### GAP-5 (Minor) — `SinkConfig` type was dead code
 - **File:** `internal/domain/provider.go`
@@ -63,7 +63,7 @@ contract violations, and anything that could silently break at runtime.
 - **Fix:** Added `TestRemediationJobReconciler_PhaseFailed_ZeroMaxRetries_UsesDefault` — creates rjob with MaxRetries=0, RetryCount=2; asserts phase reaches PermanentlyFailed (proving fallback to 3 works).
 
 #### GAP-11 (Minor) — LLM_PROVIDER, MAX_INVESTIGATION_RETRIES, INJECTION_DETECTION_ACTION, AGENT_RBAC_SCOPE absent from Helm chart
-- **Files:** `charts/mendabot/values.yaml`, `charts/mendabot/templates/deployment-watcher.yaml`
+- **Files:** `charts/mechanic/values.yaml`, `charts/mechanic/templates/deployment-watcher.yaml`
 - **Fix:** Added the four missing env vars to the watcher section of values.yaml (with correct defaults) and their injections in the deployment template.
 
 ---
@@ -88,7 +88,7 @@ None.
 go build ./...                   — clean
 go test -timeout 60s -race ./... — 12/12 packages PASS
 go vet ./...                     — clean
-helm lint charts/mendabot        — 0 chart(s) failed
+helm lint charts/mechanic        — 0 chart(s) failed
 ```
 
 ---
@@ -108,10 +108,10 @@ All implemented epics (epic00–epic17) are now validated clean. Resume implemen
 
 ## Files Modified
 
-- `charts/mendabot/crds/remediationjob.yaml`
+- `charts/mechanic/crds/remediationjob.yaml`
 - `deploy/kustomize/crd-remediationjob.yaml`
-- `charts/mendabot/templates/deployment-watcher.yaml`
-- `charts/mendabot/values.yaml`
+- `charts/mechanic/templates/deployment-watcher.yaml`
+- `charts/mechanic/values.yaml`
 - `cmd/watcher/main.go`
 - `internal/provider/native/job.go`
 - `internal/provider/native/job_test.go`

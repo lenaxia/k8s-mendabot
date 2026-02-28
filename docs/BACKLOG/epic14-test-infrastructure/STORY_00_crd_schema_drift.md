@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **mendabot developer**, I want `testdata/crds/remediationjob_crd.yaml` to
+As a **mechanic developer**, I want `testdata/crds/remediationjob_crd.yaml` to
 accurately reflect all fields in `RemediationJobStatus` and `RemediationJobSpec`, so
 that integration tests using envtest observe the same field values that the code writes,
 and new fields are not silently stripped by the API server's schema validator.

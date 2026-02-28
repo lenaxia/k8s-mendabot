@@ -65,12 +65,12 @@ Registered in TC01, TC02, TC03, TC04 (both namespaces), TC05, TC02b.
 
 Added pre-test stale-job delete + `waitForGone` to all five deterministic-name tests in
 `integration_test.go`:
-- `TestRemediationJobReconciler_CreatesJob` → `mendabot-agent-aaaa0000bbbb`
-- `TestRemediationJobReconciler_SyncsStatus_Running` → `mendabot-agent-bbbb1111cccc`
-- `TestRemediationJobReconciler_SyncsStatus_Succeeded` → `mendabot-agent-cccc2222dddd`
-- `TestRemediationJobReconciler_SyncsStatus_Failed` → `mendabot-agent-dddd3333eeee`
+- `TestRemediationJobReconciler_CreatesJob` → `mechanic-agent-aaaa0000bbbb`
+- `TestRemediationJobReconciler_SyncsStatus_Running` → `mechanic-agent-bbbb1111cccc`
+- `TestRemediationJobReconciler_SyncsStatus_Succeeded` → `mechanic-agent-cccc2222dddd`
+- `TestRemediationJobReconciler_SyncsStatus_Failed` → `mechanic-agent-dddd3333eeee`
 - `TestRemediationJobReconciler_MaxConcurrentJobs_Requeues` → `active-job-concurrent`
-- `TestRemediationJobReconciler_OwnerReference` → `mendabot-agent-ffff5555aaaa`
+- `TestRemediationJobReconciler_OwnerReference` → `mechanic-agent-ffff5555aaaa`
 
 Also added `waitForGone` helper to poll until a named object is fully removed from the
 API server (handles Jobs remaining in terminating state after `Delete`).

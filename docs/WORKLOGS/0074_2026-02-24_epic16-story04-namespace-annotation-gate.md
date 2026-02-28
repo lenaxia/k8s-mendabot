@@ -10,7 +10,7 @@
 
 Implement STORY_04 of epic16-annotation-control: add a namespace-level annotation gate in
 `SourceProviderReconciler.Reconcile` so that annotating a `Namespace` object with
-`mendabot.io/enabled: "false"` or `mendabot.io/skip-until: <date>` suppresses all findings
+`mechanic.io/enabled: "false"` or `mechanic.io/skip-until: <date>` suppresses all findings
 from resources in that namespace.
 
 ---
@@ -22,7 +22,7 @@ from resources in that namespace.
 Added to `internal/provider/provider_test.go`:
 
 - `TestNSAnnotation_NoAnnotation_Proceeds` — Namespace exists, no annotations → RemediationJob created
-- `TestNSAnnotation_EnabledFalse_Suppressed` — Namespace annotated `mendabot.io/enabled: "false"` → no RemediationJob
+- `TestNSAnnotation_EnabledFalse_Suppressed` — Namespace annotated `mechanic.io/enabled: "false"` → no RemediationJob
 - `TestNSAnnotation_SkipUntilFuture_Suppressed` — Namespace annotated with future skip-until date → no RemediationJob
 - `TestNSAnnotation_SkipUntilPast_Proceeds` — Namespace annotated with past skip-until date → RemediationJob created
 - `TestNSAnnotation_NamespaceNotFound_Proceeds` — No Namespace object in client → RemediationJob created (NotFound = no annotation)

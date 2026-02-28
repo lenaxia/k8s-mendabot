@@ -62,7 +62,7 @@ Jobs. This is the highest reliability risk in the current implementation.
 
 ### CRD Schema Updates (STORY_05)
 - Two files to update: `testdata/crds/remediationjob_crd.yaml` (98 lines today) and
-  `charts/mendabot/crds/remediationjob.yaml` (105 lines today, has extra fields
+  `charts/mechanic/crds/remediationjob.yaml` (105 lines today, has extra fields
   `isSelfRemediation`, `chainDepth`, `correlationGroupID`, `Suppressed` phase — preserve).
 - `deploy/kustomize/crd-remediationjob.yaml` must be read first to determine if it is a
   standalone copy or a reference.
@@ -112,6 +112,6 @@ STORY_04 depends on STORY_01, STORY_02, and STORY_03.
 - [ ] Audit log emits `job.permanently_failed` and `remediationjob.permanently_failed_suppressed`
 - [ ] `config.Config` gains `MaxInvestigationRetries int32`; `FromEnv` parses `MAX_INVESTIGATION_RETRIES` with default 3
 - [ ] `testdata/crds/remediationjob_crd.yaml` updated with new fields
-- [ ] `charts/mendabot/crds/remediationjob.yaml` updated with new fields
+- [ ] `charts/mechanic/crds/remediationjob.yaml` updated with new fields
 - [ ] All unit and integration tests pass with `-race`
 - [ ] Worklog written

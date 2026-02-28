@@ -48,7 +48,7 @@ Code review: `deploy/overlays/security/role-agent-ns.yaml` reviewed. The namespa
 Code review evidence:
 
 ```yaml
-# ClusterRole mendabot-agent
+# ClusterRole mechanic-agent
 verbs: ["get", "list", "watch"]
 ```
 
@@ -75,7 +75,7 @@ Code review evidence (from phase02_architecture.md §2.2):
 | Check | Expected | Actual | Pass? |
 |-------|----------|--------|-------|
 | Watcher cannot read Secrets | no | no (by code review — Secrets not listed in watcher ClusterRole) | PASS |
-| Watcher cannot delete RemediationJobs outside mendabot ns | no | not live-tested — `delete` is on CRD which exists in mendabot ns only | SKIPPED |
+| Watcher cannot delete RemediationJobs outside mechanic ns | no | not live-tested — `delete` is on CRD which exists in mechanic ns only | SKIPPED |
 
 ---
 

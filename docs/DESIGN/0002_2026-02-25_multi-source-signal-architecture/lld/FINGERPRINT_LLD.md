@@ -155,28 +155,28 @@ form. This ensures fingerprints match across sources for the same resource.
 ### 3.1 Labels (indexed, for fast K8s queries)
 
 ```
-mendabot.io/resource-fingerprint:   <fp[:12]>     # NEW: resource-level, cross-source
-mendabot.io/source-priority:        "90"           # NEW: cross-source priority comparison
-remediation.mendabot.io/fingerprint: <fp[:12]>    # RETAINED: backward compat
+mechanic.io/resource-fingerprint:   <fp[:12]>     # NEW: resource-level, cross-source
+mechanic.io/source-priority:        "90"           # NEW: cross-source priority comparison
+remediation.mechanic.io/fingerprint: <fp[:12]>    # RETAINED: backward compat
 ```
 
 ### 3.2 Annotations
 
 ```
-mendabot.io/resource-fingerprint-full: <64-char sha256>   # NEW: exact resource match
-mendabot.io/source-type:               "alertmanager"      # NEW: human-readable source
-mendabot.io/error-summary:             "KubeDeployment..."  # NEW: quick human inspection
-mendabot.io/pending-alert:             <JSON Finding>       # NEW: see PENDING ALERT LLD
+mechanic.io/resource-fingerprint-full: <64-char sha256>   # NEW: exact resource match
+mechanic.io/source-type:               "alertmanager"      # NEW: human-readable source
+mechanic.io/error-summary:             "KubeDeployment..."  # NEW: quick human inspection
+mechanic.io/pending-alert:             <JSON Finding>       # NEW: see PENDING ALERT LLD
 ```
 
 ### 3.3 RemediationJob Name
 
-Unchanged: `"mendabot-" + fp[:12]`
+Unchanged: `"mechanic-" + fp[:12]`
 
 With the v2 fingerprint, the name is now stable for a given resource (same resource =
 same first 12 chars of fingerprint = same RJ name suffix). This is an improvement: a
 `RemediationJob` for `Deployment/my-app` in `default` will always be named
-`mendabot-<consistent-12-chars>` regardless of source or error text.
+`mechanic-<consistent-12-chars>` regardless of source or error text.
 
 ---
 
@@ -187,27 +187,27 @@ same first 12 chars of fingerprint = same RJ name suffix). This is an improvemen
 Both the v1 (`Spec.Fingerprint`) and v2 (`Spec.ResourceFingerprint`) fields are relevant
 during the migration window. The dedup query must handle three cases:
 
-1. **New RJ created by v2** — has both `mendabot.io/resource-fingerprint` label and
-   `mendabot.io/resource-fingerprint-full` annotation, and `Spec.ResourceFingerprint`.
-2. **Old RJ created by v1** — has only `remediation.mendabot.io/fingerprint` label and
+1. **New RJ created by v2** — has both `mechanic.io/resource-fingerprint` label and
+   `mechanic.io/resource-fingerprint-full` annotation, and `Spec.ResourceFingerprint`.
+2. **Old RJ created by v1** — has only `remediation.mechanic.io/fingerprint` label and
    `Spec.Fingerprint` (includes error texts).
 
-The dedup check queries on `mendabot.io/resource-fingerprint` (new label) rather than
-the v1 `remediation.mendabot.io/fingerprint` label. Both labels are set on every RJ during
+The dedup check queries on `mechanic.io/resource-fingerprint` (new label) rather than
+the v1 `remediation.mechanic.io/fingerprint` label. Both labels are set on every RJ during
 the transition period.
 
 **IMPORTANT — `SourceProviderReconciler` (`internal/provider/provider.go`) must also be
 updated as part of this change.** The current dedup query at `provider.go:252-261` uses only
-`remediation.mendabot.io/fingerprint`. After v2, it must be updated to:
+`remediation.mechanic.io/fingerprint`. After v2, it must be updated to:
 
-1. Use `mendabot.io/resource-fingerprint` label for the primary query (v2 dedup).
+1. Use `mechanic.io/resource-fingerprint` label for the primary query (v2 dedup).
 2. Include `Spec.ResourceFingerprint` and all new labels/annotations when building RJs
    at `provider.go:292-327`. Specifically add:
-   - Label `mendabot.io/resource-fingerprint`: `rfp[:12]`
-   - Label `mendabot.io/source-priority`: `strconv.Itoa(cfg.NativeProviderPriority)`
-   - Annotation `mendabot.io/resource-fingerprint-full`: `rfp`
+   - Label `mechanic.io/resource-fingerprint`: `rfp[:12]`
+   - Label `mechanic.io/source-priority`: `strconv.Itoa(cfg.NativeProviderPriority)`
+   - Annotation `mechanic.io/resource-fingerprint-full`: `rfp`
    - `Spec.ResourceFingerprint`: `rfp`
-3. Retain the existing `remediation.mendabot.io/fingerprint` label and `Spec.Fingerprint`
+3. Retain the existing `remediation.mechanic.io/fingerprint` label and `Spec.Fingerprint`
    set to the v1 fingerprint value (via `FindingFingerprintV1`) for backward compat.
 
 Without these changes, native-sourced RJs will not carry the v2 labels and the
@@ -224,7 +224,7 @@ rfp, err := domain.FindingFingerprint(finding)
 var rjList v1alpha1.RemediationJobList
 if err := r.List(ctx, &rjList,
     client.InNamespace(r.Cfg.AgentNamespace),
-    client.MatchingLabels{"mendabot.io/resource-fingerprint": rfp[:12]},
+    client.MatchingLabels{"mechanic.io/resource-fingerprint": rfp[:12]},
 ); err != nil {
     return ctrl.Result{}, err
 }
@@ -232,7 +232,7 @@ if err := r.List(ctx, &rjList,
 // Step 3: exact match on full resource fingerprint annotation
 for i := range rjList.Items {
     rj := &rjList.Items[i]
-    fullRFP := rj.Annotations["mendabot.io/resource-fingerprint-full"]
+    fullRFP := rj.Annotations["mechanic.io/resource-fingerprint-full"]
     if fullRFP != rfp {
         continue
     }
@@ -252,7 +252,7 @@ for i := range rjList.Items {
     case v1alpha1.PhaseSucceeded:
         // Prior investigation completed. The resource is still or again unhealthy.
         // Delete the succeeded RJ before creating a new one. With v2 resource-level
-        // fingerprinting, the replacement RJ has the SAME name ("mendabot-" + rfp[:12]).
+        // fingerprinting, the replacement RJ has the SAME name ("mechanic-" + rfp[:12]).
         // If the old RJ is not deleted first, r.Create returns AlreadyExists and the
         // new investigation is silently never started. In v1, error texts were part of
         // the fingerprint, so a new error state produced a different name and this was
@@ -290,7 +290,7 @@ v1fp, _ := domain.FindingFingerprintV1(finding) // legacy function retained duri
 var v1RJList v1alpha1.RemediationJobList
 if err := r.List(ctx, &v1RJList,
     client.InNamespace(r.Cfg.AgentNamespace),
-    client.MatchingLabels{"remediation.mendabot.io/fingerprint": v1fp[:12]},
+    client.MatchingLabels{"remediation.mechanic.io/fingerprint": v1fp[:12]},
 ); err != nil {
     // Treat a List error as "no v1 RJs found" — a transient API error here
     // is not worth blocking the finding. Worst case: we create a duplicate RJ
@@ -365,9 +365,9 @@ func (r *SourceProviderReconciler) buildRemediationJob(
 
 ## 6. Migration from v1
 
-The v1 fingerprint field (`spec.fingerprint` and `remediation.mendabot.io/fingerprint`
+The v1 fingerprint field (`spec.fingerprint` and `remediation.mechanic.io/fingerprint`
 label) is **retained unchanged** during migration. Existing `RemediationJob` objects
-created by v1 will not have the new `mendabot.io/resource-fingerprint` label or annotation.
+created by v1 will not have the new `mechanic.io/resource-fingerprint` label or annotation.
 
 **Migration strategy:**
 
@@ -377,9 +377,9 @@ created by v1 will not have the new `mendabot.io/resource-fingerprint` label or 
 2. For every new RJ created by v2, set **both**:
    - `Spec.Fingerprint` = v1 fingerprint (for backward compat with existing tooling/tests)
    - `Spec.ResourceFingerprint` = v2 resource fingerprint (for cross-source dedup)
-   - Label `remediation.mendabot.io/fingerprint` = `Spec.Fingerprint[:12]` (v1 label, retained)
-   - Label `mendabot.io/resource-fingerprint` = `Spec.ResourceFingerprint[:12]` (v2 label)
-   - Annotation `mendabot.io/resource-fingerprint-full` = `Spec.ResourceFingerprint`
+   - Label `remediation.mechanic.io/fingerprint` = `Spec.Fingerprint[:12]` (v1 label, retained)
+   - Label `mechanic.io/resource-fingerprint` = `Spec.ResourceFingerprint[:12]` (v2 label)
+   - Annotation `mechanic.io/resource-fingerprint-full` = `Spec.ResourceFingerprint`
 
 3. The v2 dedup query checks v2 labels first (§4.1). If no v2 RJ is found, it falls back to
    a v1 label query using `FindingFingerprintV1`. This prevents creating a duplicate RJ for

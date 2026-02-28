@@ -3,7 +3,7 @@
 **Version:** 1.0
 **Date:** 2026-02-23
 
-This document defines the repeatable security review process for mendabot. Follow
+This document defines the repeatable security review process for mechanic. Follow
 every phase in order. Do not skip phases. Document every finding — no matter how
 minor — in the report.
 
@@ -183,7 +183,7 @@ Manually trace every path that untrusted data can travel. For each path, verify:
 
 For every RBAC resource in `deploy/kustomize/` and `deploy/overlays/security/`:
 
-**ClusterRole: mendabot-agent**
+**ClusterRole: mechanic-agent**
 
 ```bash
 cat deploy/kustomize/clusterrole-agent.yaml
@@ -197,7 +197,7 @@ Questions to answer:
   supplement the ClusterRole? (It must replace — not supplement — to be effective.)
 - Is the namespace-scoped Role bound to the correct ServiceAccount?
 
-**ClusterRole: mendabot-watcher**
+**ClusterRole: mechanic-watcher**
 
 ```bash
 cat deploy/kustomize/clusterrole-watcher.yaml
@@ -208,9 +208,9 @@ Questions to answer:
   this scoped to the watcher's own namespace in the Role instead?
 - Does the watcher need `delete` on RemediationJobs? What is the threat if a compromised
   watcher deletes all RemediationJobs?
-- Does the watcher have any write access outside the `mendabot` namespace?
+- Does the watcher have any write access outside the `mechanic` namespace?
 
-**Role: mendabot-agent (namespace-scoped)**
+**Role: mechanic-agent (namespace-scoped)**
 
 ```bash
 cat deploy/kustomize/role-agent.yaml
@@ -389,13 +389,13 @@ kubectl create namespace injection-test
 ```bash
 # Create a RemediationJob with injected errors
 kubectl apply -f - <<EOF
-apiVersion: remediation.mendabot.io/v1alpha1
+apiVersion: remediation.mechanic.io/v1alpha1
 kind: RemediationJob
 metadata:
   name: injection-test-$(date +%s)
-  namespace: mendabot
+  namespace: mechanic
   labels:
-    remediation.mendabot.io/fingerprint: "test-injection-00000001"
+    remediation.mechanic.io/fingerprint: "test-injection-00000001"
 spec:
   fingerprint: "test-injection-000000000000000000000000000000000000000000000000"
   sourceType: "test"
@@ -409,9 +409,9 @@ spec:
 EOF
 
 # Observe the agent Job that is created
-kubectl get jobs -n mendabot -w
+kubectl get jobs -n mechanic -w
 # Check the agent logs for the prompt content and the LLM response
-kubectl logs -n mendabot <agent-job-pod> --follow
+kubectl logs -n mechanic <agent-job-pod> --follow
 ```
 
 **Expected:** Agent logs show the injected text was treated as data. No `kubectl get secret`
@@ -430,10 +430,10 @@ kubectl run injection-pod -n injection-test \
 
 # Wait for PodProvider to detect the failure (stabilisation window)
 # Observe RemediationJob creation
-kubectl get remediationjobs -n mendabot -w
+kubectl get remediationjobs -n mechanic -w
 
 # Check that Finding.Errors was redacted/truncated before storage
-kubectl get remediationjob -n mendabot -o jsonpath='{.items[?(@.spec.finding.namespace=="injection-test")].spec.finding.errors}'
+kubectl get remediationjob -n mechanic -o jsonpath='{.items[?(@.spec.finding.namespace=="injection-test")].spec.finding.errors}'
 ```
 
 ---
@@ -445,20 +445,20 @@ kubectl get remediationjob -n mendabot -o jsonpath='{.items[?(@.spec.finding.nam
 ### 4.1 Default cluster scope — Secret read test
 
 ```bash
-# Create a test secret in a non-mendabot namespace
+# Create a test secret in a non-mechanic namespace
 kubectl create secret generic rbac-test-secret \
   --from-literal=key=supersecretvalue \
   -n default
 
 # Impersonate the agent ServiceAccount and attempt to read it
 kubectl auth can-i get secret/rbac-test-secret -n default \
-  --as=system:serviceaccount:mendabot:mendabot-agent
+  --as=system:serviceaccount:mechanic:mechanic-agent
 
 # Expected: yes (default cluster scope — this is the accepted risk)
 
 # Verify the actual read works
 kubectl get secret rbac-test-secret -n default \
-  --as=system:serviceaccount:mendabot:mendabot-agent -o yaml
+  --as=system:serviceaccount:mechanic:mechanic-agent -o yaml
 ```
 
 **Record:** Confirm that the Secret IS readable. This is expected under default scope.
@@ -467,16 +467,16 @@ The finding is the fact that it is readable — record as accepted residual risk
 ### 4.2 Namespace scope — Secret read restriction test
 
 ```bash
-# Deploy mendabot with AGENT_RBAC_SCOPE=namespace, AGENT_WATCH_NAMESPACES=default
+# Deploy mechanic with AGENT_RBAC_SCOPE=namespace, AGENT_WATCH_NAMESPACES=default
 # (Or test by impersonating the namespace-scoped SA)
 
 kubectl auth can-i get secret/rbac-test-secret -n production \
-  --as=system:serviceaccount:mendabot:mendabot-agent-ns
+  --as=system:serviceaccount:mechanic:mechanic-agent-ns
 
 # Expected: no — forbidden
 
 kubectl auth can-i get secret/rbac-test-secret -n default \
-  --as=system:serviceaccount:mendabot:mendabot-agent-ns
+  --as=system:serviceaccount:mechanic:mechanic-agent-ns
 
 # Expected: yes — allowed (default is in AGENT_WATCH_NAMESPACES)
 ```
@@ -486,21 +486,21 @@ kubectl auth can-i get secret/rbac-test-secret -n default \
 ```bash
 # Confirm the agent cannot create pods, deployments, or other resources
 kubectl auth can-i create pod -n default \
-  --as=system:serviceaccount:mendabot:mendabot-agent
+  --as=system:serviceaccount:mechanic:mechanic-agent
 # Expected: no
 
 kubectl auth can-i create deployment -n default \
-  --as=system:serviceaccount:mendabot:mendabot-agent
+  --as=system:serviceaccount:mechanic:mechanic-agent
 # Expected: no
 
 # Confirm the agent CANNOT exec into pods
 kubectl auth can-i create pods/exec -n default \
-  --as=system:serviceaccount:mendabot:mendabot-agent
+  --as=system:serviceaccount:mechanic:mechanic-agent
 # Expected: no
 
 # Confirm the agent CANNOT access nodes/proxy (cluster API escalation path)
 kubectl auth can-i get nodes/proxy \
-  --as=system:serviceaccount:mendabot:mendabot-agent
+  --as=system:serviceaccount:mechanic:mechanic-agent
 # Expected: no
 ```
 
@@ -509,13 +509,13 @@ kubectl auth can-i get nodes/proxy \
 ```bash
 # Confirm the watcher cannot read Secrets (only the agent can)
 kubectl auth can-i get secret -n default \
-  --as=system:serviceaccount:mendabot:mendabot-watcher
+  --as=system:serviceaccount:mechanic:mechanic-watcher
 # Expected: no — watcher should NOT have secret read
 
 # Confirm the watcher cannot delete RemediationJobs in arbitrary namespaces
 kubectl auth can-i delete remediationjob -n kube-system \
-  --as=system:serviceaccount:mendabot:mendabot-watcher
-# Expected: no — remediationjobs only exist in mendabot namespace but check anyway
+  --as=system:serviceaccount:mechanic:mechanic-watcher
+# Expected: no — remediationjobs only exist in mechanic namespace but check anyway
 ```
 
 ---
@@ -541,32 +541,32 @@ If no NetworkPolicy-aware CNI is found: document as SKIPPED with reason.
 ```bash
 kubectl apply -k deploy/overlays/security/ --dry-run=client
 kubectl apply -k deploy/overlays/security/
-kubectl get networkpolicies -n mendabot
+kubectl get networkpolicies -n mechanic
 ```
 
 ### 5.3 Egress restriction test
 
 ```bash
 # Get a running agent Job pod (trigger a test RemediationJob if needed)
-AGENT_POD=$(kubectl get pod -n mendabot -l app.kubernetes.io/managed-by=mendabot-watcher \
+AGENT_POD=$(kubectl get pod -n mechanic -l app.kubernetes.io/managed-by=mechanic-watcher \
   -o jsonpath='{.items[0].metadata.name}')
 
 # Test 1: DNS resolution (should succeed)
-kubectl exec -n mendabot "$AGENT_POD" -- nslookup github.com
+kubectl exec -n mechanic "$AGENT_POD" -- nslookup github.com
 # Expected: resolves successfully
 
 # Test 2: GitHub API (should succeed)
-kubectl exec -n mendabot "$AGENT_POD" -- \
+kubectl exec -n mechanic "$AGENT_POD" -- \
   curl -sS --max-time 10 https://api.github.com/zen
 # Expected: returns a GitHub quote
 
 # Test 3: Arbitrary external endpoint (should fail/timeout)
-kubectl exec -n mendabot "$AGENT_POD" -- \
+kubectl exec -n mechanic "$AGENT_POD" -- \
   curl -sS --max-time 5 https://example.com
 # Expected: connection times out or is reset
 
 # Test 4: Internal cluster service (should succeed — k8s API)
-kubectl exec -n mendabot "$AGENT_POD" -- \
+kubectl exec -n mechanic "$AGENT_POD" -- \
   curl -sS --max-time 5 -k https://kubernetes.default.svc.cluster.local/api
 # Expected: returns API server version (authenticated via SA token)
 
@@ -576,7 +576,7 @@ kubectl run test-server -n default --image=hashicorp/http-echo -- -text=hello
 kubectl expose pod test-server -n default --port=5678
 
 TEST_SERVER_IP=$(kubectl get svc test-server -n default -o jsonpath='{.spec.clusterIP}')
-kubectl exec -n mendabot "$AGENT_POD" -- \
+kubectl exec -n mechanic "$AGENT_POD" -- \
   curl -sS --max-time 5 "http://$TEST_SERVER_IP:5678"
 # Expected: connection times out (NetworkPolicy should block non-API-server cluster traffic)
 ```
@@ -592,7 +592,7 @@ kubectl exec -n mendabot "$AGENT_POD" -- \
 ```bash
 # Verify init container has the key; main container does not
 grep -A 30 'InitContainers' internal/jobbuilder/job.go | grep -A 5 'VolumeMounts'
-grep -A 80 '"mendabot-agent"' internal/jobbuilder/job.go | grep -A 10 'VolumeMounts'
+grep -A 80 '"mechanic-agent"' internal/jobbuilder/job.go | grep -A 10 'VolumeMounts'
 
 # Verify env vars are init-only
 grep -n 'GITHUB_APP' internal/jobbuilder/job.go
@@ -602,19 +602,19 @@ grep -n 'GITHUB_APP' internal/jobbuilder/job.go
 ### 6.2 Live verification (requires running agent Job)
 
 ```bash
-AGENT_POD=$(kubectl get pod -n mendabot -l app.kubernetes.io/managed-by=mendabot-watcher \
+AGENT_POD=$(kubectl get pod -n mechanic -l app.kubernetes.io/managed-by=mechanic-watcher \
   -o jsonpath='{.items[0].metadata.name}')
 
 # Check main container env — should NOT contain GITHUB_APP_*
-kubectl exec -n mendabot "$AGENT_POD" -c mendabot-agent -- env | grep GITHUB
+kubectl exec -n mechanic "$AGENT_POD" -c mechanic-agent -- env | grep GITHUB
 # Expected: only GITHUB_TOKEN (already authenticated via gh auth login) — NOT GITHUB_APP_PRIVATE_KEY
 
 # Check main container mounts — should NOT contain /secrets/github-app
-kubectl exec -n mendabot "$AGENT_POD" -c mendabot-agent -- ls /secrets/ 2>&1
+kubectl exec -n mechanic "$AGENT_POD" -c mechanic-agent -- ls /secrets/ 2>&1
 # Expected: ls: cannot access '/secrets/': No such file or directory (or empty)
 
 # Verify the token file exists but key does not
-kubectl exec -n mendabot "$AGENT_POD" -c mendabot-agent -- ls /workspace/
+kubectl exec -n mechanic "$AGENT_POD" -c mechanic-agent -- ls /workspace/
 # Expected: github-token and repo/ — NOT the private key itself
 ```
 
@@ -635,12 +635,12 @@ kubectl exec -n mendabot "$AGENT_POD" -c mendabot-agent -- ls /workspace/
 # 5. Let a job succeed or fail
 
 # Collect logs and filter for audit events
-kubectl logs -n mendabot deployment/mendabot-watcher --since=10m \
+kubectl logs -n mechanic deployment/mechanic-watcher --since=10m \
   | jq 'select(.audit == true) | {event: .event, ts: .ts}' 2>/dev/null \
   | sort | uniq
 
 # Alternatively, if structured JSON logs are not enabled:
-kubectl logs -n mendabot deployment/mendabot-watcher --since=10m \
+kubectl logs -n mechanic deployment/mechanic-watcher --since=10m \
   | grep '"audit":true'
 ```
 
@@ -721,8 +721,8 @@ grep 'FROM' docker/Dockerfile.watcher
 
 ```bash
 # Scan the built images with Trivy (requires images to be built locally or pulled)
-docker build -f docker/Dockerfile.agent -t mendabot-agent:review-scan . 2>&1 | tail -5
-trivy image --severity HIGH,CRITICAL mendabot-agent:review-scan
+docker build -f docker/Dockerfile.agent -t mechanic-agent:review-scan . 2>&1 | tail -5
+trivy image --severity HIGH,CRITICAL mechanic-agent:review-scan
 ```
 
 ---

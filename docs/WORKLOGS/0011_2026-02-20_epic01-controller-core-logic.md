@@ -68,7 +68,7 @@ Covered entirely by `ExtractFinding`'s `len(result.Spec.Error) == 0` early retur
 - Used fake client (`sigs.k8s.io/controller-runtime/pkg/client/fake`) for all unit tests — no envtest.
 - NotFound handler iterates all RemediationJobs in AgentNamespace and deletes those matching
   the source ref with phase Pending, Dispatched, or empty string.
-- Label filtering `remediation.mendabot.io/fingerprint=fp[:12]` for dedup lookup, then full
+- Label filtering `remediation.mechanic.io/fingerprint=fp[:12]` for dedup lookup, then full
   fingerprint comparison to handle label prefix collisions.
 
 ### 4. STORY_04 — `RemediationJobReconciler.Reconcile()`
@@ -81,7 +81,7 @@ Covered entirely by `ExtractFinding`'s `len(result.Spec.Error) == 0` early retur
    `NotFound_ReturnsNil`, `Pending_CreatesJob`, `MaxConcurrent_Requeues`,
    `JobExists_SyncsStatus`, `BuildError_ReturnsError`, `Succeeded_TTLNotDue_Requeues`,
    `Failed_ReturnsNil`, `OwnerRef`.
-2. Added `app.kubernetes.io/managed-by: mendabot-watcher` label to `defaultFakeJob` in
+2. Added `app.kubernetes.io/managed-by: mechanic-watcher` label to `defaultFakeJob` in
    `fakes_test.go` (required for active-job counting in step 4 of the reconcile loop).
 3. Confirmed tests failed (panics from stub Reconcile).
 4. Implemented `RemediationJobReconciler.Reconcile()`, `syncPhaseFromJob()`, and

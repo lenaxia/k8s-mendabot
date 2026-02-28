@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **mendabot developer**, I want `ChainDepth` carried from a Finding through
+As a **mechanic developer**, I want `ChainDepth` carried from a Finding through
 to the `RemediationJobSpec` and the CRD testdata, so that all downstream
 stories have a stable, typed field to read and write.
 

@@ -36,7 +36,7 @@ kubectl apply -k deploy/overlays/security/ --dry-run=client
 
 ```bash
 kubectl apply -k deploy/overlays/security/
-kubectl get networkpolicies -n mendabot
+kubectl get networkpolicies -n mechanic
 ```
 ```
 <!-- paste output -->
@@ -48,7 +48,7 @@ kubectl get networkpolicies -n mendabot
 
 **Agent pod used:**
 ```bash
-AGENT_POD=$(kubectl get pod -n mendabot -l app.kubernetes.io/managed-by=mendabot-watcher \
+AGENT_POD=$(kubectl get pod -n mechanic -l app.kubernetes.io/managed-by=mechanic-watcher \
   -o jsonpath='{.items[0].metadata.name}')
 echo $AGENT_POD
 ```
@@ -61,7 +61,7 @@ echo $AGENT_POD
 **Status:** Executed / SKIPPED
 
 ```bash
-kubectl exec -n mendabot "$AGENT_POD" -- nslookup github.com
+kubectl exec -n mechanic "$AGENT_POD" -- nslookup github.com
 ```
 ```
 <!-- paste output -->
@@ -76,7 +76,7 @@ kubectl exec -n mendabot "$AGENT_POD" -- nslookup github.com
 **Status:** Executed / SKIPPED
 
 ```bash
-kubectl exec -n mendabot "$AGENT_POD" -- \
+kubectl exec -n mechanic "$AGENT_POD" -- \
   curl -sS --max-time 10 https://api.github.com/zen
 ```
 ```
@@ -92,7 +92,7 @@ kubectl exec -n mendabot "$AGENT_POD" -- \
 **Status:** Executed / SKIPPED
 
 ```bash
-kubectl exec -n mendabot "$AGENT_POD" -- \
+kubectl exec -n mechanic "$AGENT_POD" -- \
   curl -sS --max-time 5 https://example.com
 ```
 ```
@@ -108,7 +108,7 @@ kubectl exec -n mendabot "$AGENT_POD" -- \
 **Status:** Executed / SKIPPED
 
 ```bash
-kubectl exec -n mendabot "$AGENT_POD" -- \
+kubectl exec -n mechanic "$AGENT_POD" -- \
   curl -sS --max-time 5 -k https://kubernetes.default.svc.cluster.local/api
 ```
 ```
@@ -128,7 +128,7 @@ kubectl exec -n mendabot "$AGENT_POD" -- \
 kubectl run test-server -n default --image=hashicorp/http-echo -- -text=hello
 kubectl expose pod test-server -n default --port=5678
 TEST_SERVER_IP=$(kubectl get svc test-server -n default -o jsonpath='{.spec.clusterIP}')
-kubectl exec -n mendabot "$AGENT_POD" -- \
+kubectl exec -n mechanic "$AGENT_POD" -- \
   curl -sS --max-time 5 "http://$TEST_SERVER_IP:5678"
 ```
 ```

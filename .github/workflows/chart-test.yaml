@@ -20,12 +20,12 @@ jobs:
 
       - name: Lint chart (strict)
         run: |
-          helm lint charts/mendabot/ --strict \
+          helm lint charts/mechanic/ --strict \
             --set gitops.repo=org/repo \
             --set gitops.manifestRoot=kubernetes
 
       - name: Template render check
         run: |
-          helm template mendabot charts/mendabot/ \
+          helm template mechanic charts/mechanic/ \
             --set gitops.repo=org/repo \
             --set gitops.manifestRoot=kubernetes

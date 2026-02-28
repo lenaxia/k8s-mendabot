@@ -1,7 +1,7 @@
 # .gitleaks.toml — gitleaks configuration
 # Docs: https://github.com/gitleaks/gitleaks
 
-title = "k8s-mendabot gitleaks config"
+title = "k8s-mechanic gitleaks config"
 
 [extend]
 # Use the default ruleset as a base

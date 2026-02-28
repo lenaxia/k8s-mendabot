@@ -5,10 +5,10 @@
 
 ## Purpose
 
-Allow operators to annotate individual Kubernetes resources to suppress mendabot
-investigations permanently (`mendabot.io/enabled: "false"`), for a time window
-(`mendabot.io/skip-until: "YYYY-MM-DD"`), or to bypass the stabilisation window
-for critical resources (`mendabot.io/priority: "critical"`).
+Allow operators to annotate individual Kubernetes resources to suppress mechanic
+investigations permanently (`mechanic.io/enabled: "false"`), for a time window
+(`mechanic.io/skip-until: "YYYY-MM-DD"`), or to bypass the stabilisation window
+for critical resources (`mechanic.io/priority: "critical"`).
 
 Without this, operators have no per-resource escape hatch. A canary pod that crashes
 by design, a load-test Job, or a resource under active manual investigation will
@@ -47,7 +47,7 @@ continuously trigger new `RemediationJob` objects that have to be manually delet
   priorityCritical := obj.GetAnnotations()[domain.AnnotationPriority] == "critical"
   if !priorityCritical && r.Cfg.StabilisationWindow != 0 { ... }
   ```
-- Key invariant: when `mendabot.io/priority: "critical"`, `firstSeen` map is **never
+- Key invariant: when `mechanic.io/priority: "critical"`, `firstSeen` map is **never
   consulted** and no requeue is issued.
 - `firstSeen.Clear()` calls on the not-found/nil-finding paths are unchanged.
 - `domain.AnnotationPriority` constant must be used — no bare string literals.
@@ -84,11 +84,11 @@ STORY_02, STORY_03, and STORY_04 are independent once STORY_01 is complete.
 
 - [x] Annotation keys defined as typed constants in `internal/domain/annotations.go`
 - [x] `ShouldSkip` helper implemented with correct `skip-until` boundary semantics (inclusive, midnight UTC)
-- [x] `ExtractFinding` in each provider returns `(nil, nil)` when `mendabot.io/enabled: "false"` is set
-- [x] `ExtractFinding` in each provider returns `(nil, nil)` when `mendabot.io/skip-until` is set to a future date
-- [x] `SourceProviderReconciler` bypasses stabilisation window when `mendabot.io/priority: "critical"` is set
+- [x] `ExtractFinding` in each provider returns `(nil, nil)` when `mechanic.io/enabled: "false"` is set
+- [x] `ExtractFinding` in each provider returns `(nil, nil)` when `mechanic.io/skip-until` is set to a future date
+- [x] `SourceProviderReconciler` bypasses stabilisation window when `mechanic.io/priority: "critical"` is set
 - [x] `firstSeen` map is never consulted for priority-critical resources
-- [x] `SourceProviderReconciler` skips findings when the `Namespace` object is annotated `mendabot.io/enabled: "false"` or `mendabot.io/skip-until` (future date)
+- [x] `SourceProviderReconciler` skips findings when the `Namespace` object is annotated `mechanic.io/enabled: "false"` or `mechanic.io/skip-until` (future date)
 - [x] Cluster-scoped resources (Nodes, `finding.Namespace == ""`) are unconditionally exempt from namespace gate
 - [x] All unit tests pass with `-race`
 - [x] Worklog written

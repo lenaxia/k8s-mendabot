@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **cluster operator**, I want the mendabot reconciler to skip findings from
+As a **cluster operator**, I want the mechanic reconciler to skip findings from
 namespaces that are outside my configured allowlist (`WATCH_NAMESPACES`) or inside my
 denylist (`EXCLUDE_NAMESPACES`), so that high-volume system namespace noise never
 reaches the `RemediationJob` creation path.

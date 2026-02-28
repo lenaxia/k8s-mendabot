@@ -79,8 +79,8 @@ grep 'FROM' docker/Dockerfile.agent docker/Dockerfile.watcher
 **Status:** Executed / SKIPPED — reason: ______
 
 ```bash
-docker build -f docker/Dockerfile.agent -t mendabot-agent:review-scan . 2>&1 | tail -5
-trivy image --severity HIGH,CRITICAL mendabot-agent:review-scan
+docker build -f docker/Dockerfile.agent -t mechanic-agent:review-scan . 2>&1 | tail -5
+trivy image --severity HIGH,CRITICAL mechanic-agent:review-scan
 ```
 ```
 <!-- paste output, or reference raw/trivy-agent.txt -->
@@ -91,8 +91,8 @@ trivy image --severity HIGH,CRITICAL mendabot-agent:review-scan
 **Status:** Executed / SKIPPED — reason: ______
 
 ```bash
-docker build -f docker/Dockerfile.watcher -t mendabot-watcher:review-scan . 2>&1 | tail -5
-trivy image --severity HIGH,CRITICAL mendabot-watcher:review-scan
+docker build -f docker/Dockerfile.watcher -t mechanic-watcher:review-scan . 2>&1 | tail -5
+trivy image --severity HIGH,CRITICAL mechanic-watcher:review-scan
 ```
 ```
 <!-- paste output, or reference raw/trivy-watcher.txt -->

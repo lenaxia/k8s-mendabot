@@ -50,7 +50,7 @@ jobs:
 
       - name: Update Chart.yaml
         run: |
-          CHART="charts/mendabot/Chart.yaml"
+          CHART="charts/mechanic/Chart.yaml"
           TAG="${{ steps.version.outputs.tag }}"
           CV="${{ steps.version.outputs.chart_version }}"
 
@@ -68,7 +68,7 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add charts/mendabot/Chart.yaml
+          git add charts/mechanic/Chart.yaml
           git diff --cached --exit-code && echo "No changes to commit." && exit 0
 
           git commit -m "chore(chart): bump chart version to ${TAG} [skip ci]"

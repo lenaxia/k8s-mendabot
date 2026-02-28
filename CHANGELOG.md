@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to k8s-mendabot are documented here.
+All notable changes to k8s-mechanic are documented here.
 
 This project follows [Semantic Versioning](https://semver.org). The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
@@ -72,7 +72,7 @@ Remediated from the 2026-02-24 pentest report:
 - **P-004 (HIGH)** — Agent `ClusterRole` wildcard `resources: ["*"]` implicitly
   granted `nodes/proxy` access (kubelet metrics, log directory listing).
   Replaced with four explicit rules scoped to `core`, `apps`, `batch`, and
-  `remediation.mendabot.io` API groups. `nodes/proxy`, `pods/exec`, and all
+  `remediation.mechanic.io` API groups. `nodes/proxy`, `pods/exec`, and all
   other dangerous subresources are excluded by omission.
 - **P-008 (MEDIUM)** — `domain.DetectInjection` was not called in the
   `RemediationJobController` dispatch path, allowing a directly-created
@@ -89,7 +89,7 @@ Remediated from the 2026-02-24 pentest report:
   for short values. Added `(?i)(x-api-key\s*[=:]\s*)\S+` pattern.
 - **2026-02-24-001 (MEDIUM)** — Prompt injection envelope
   (`=== BEGIN/END FINDING ERRORS ===`) and HARD RULE 8 were missing from
-  `charts/mendabot/files/prompts/core.txt` (regression of epic12 STORY_05).
+  `charts/mechanic/files/prompts/core.txt` (regression of epic12 STORY_05).
   Restored both the envelope delimiters and the HARD RULE.
 - **2026-02-24-002 (MEDIUM)** — Watcher `ClusterRole` granted unnecessary
   cluster-wide `secrets` read. Removed `"secrets"` from `ClusterRole`;
@@ -147,13 +147,13 @@ before dispatch. The classification is propagated through the full pipeline.
 
 ### Added — Namespace-level annotation gate (epic16 STORY_04)
 
-Annotating a `Namespace` object with `mendabot.io/enabled=false` or
-`mendabot.io/skip-until=YYYY-MM-DD` now suppresses all findings from every
+Annotating a `Namespace` object with `mechanic.io/enabled=false` or
+`mechanic.io/skip-until=YYYY-MM-DD` now suppresses all findings from every
 resource in that namespace, regardless of the resource's own annotations.
 
 ### Added — Namespace filtering (epic15)
 
-Two new env vars (Helm values) allow operators to scope what mendabot watches:
+Two new env vars (Helm values) allow operators to scope what mechanic watches:
 
 - `WATCH_NAMESPACES` / `watcher.watchNamespaces`: comma-separated allowlist.
   Empty = watch all namespaces (default).
@@ -179,14 +179,14 @@ Two new env vars (Helm values) allow operators to scope what mendabot watches:
 
 ### Added — Per-resource annotation control (epic16)
 
-Three annotations gate mendabot's behaviour on any watched resource or
+Three annotations gate mechanic's behaviour on any watched resource or
 Namespace:
 
 | Annotation | Value | Effect |
 |---|---|---|
-| `mendabot.io/enabled` | `"false"` | Suppress all findings from this resource |
-| `mendabot.io/skip-until` | `"YYYY-MM-DD"` | Suppress until end-of-day UTC on this date |
-| `mendabot.io/priority` | `"critical"` | Bypass stabilisation window; dispatch immediately |
+| `mechanic.io/enabled` | `"false"` | Suppress all findings from this resource |
+| `mechanic.io/skip-until` | `"YYYY-MM-DD"` | Suppress until end-of-day UTC on this date |
+| `mechanic.io/priority` | `"critical"` | Bypass stabilisation window; dispatch immediately |
 
 Malformed `skip-until` dates are silently ignored (no suppression) to prevent
 typos from permanently disabling investigations.
@@ -300,9 +300,9 @@ watcher health observability. Enable with `metrics.enabled: true` and
 
 ### Added — Helm chart (epic10)
 
-Full Helm chart at `charts/mendabot/` replacing the Kustomize-only deployment.
+Full Helm chart at `charts/mechanic/` replacing the Kustomize-only deployment.
 
-- `helm install mendabot charts/mendabot/ --set gitops.repo=org/repo --set gitops.manifestRoot=kubernetes`
+- `helm install mechanic charts/mechanic/ --set gitops.repo=org/repo --set gitops.manifestRoot=kubernetes`
 - 13 templates: namespace, service accounts, RBAC (ClusterRole, ClusterRoleBinding,
   Role, RoleBinding for both watcher and agent), watcher Deployment, prompt
   ConfigMap (core + agent), CRD install/upgrade hook.
@@ -313,7 +313,7 @@ Full Helm chart at `charts/mendabot/` replacing the Kustomize-only deployment.
 
 ### Added — Cascade prevention (epic11)
 
-Prevents mendabot from triggering infinite self-remediation loops.
+Prevents mechanic from triggering infinite self-remediation loops.
 
 - **Circuit breaker:** ConfigMap-backed persistent state; cooldown period via
   `SELF_REMEDIATION_COOLDOWN_SECONDS` (default: 5 minutes). Zero cooldown
@@ -334,7 +334,7 @@ A single `AGENT_TYPE` env var (`opencode` or `claude`) controls which AI agent
 binary the watcher injects into agent Jobs. Zero-maintenance for new providers.
 
 - Per-agent Secrets: `llm-credentials-opencode`, `llm-credentials-claude`.
-  Single key `provider-config` (opaque JSON blob) — mendabot never interprets
+  Single key `provider-config` (opaque JSON blob) — mechanic never interprets
   LLM provider details.
 - Split prompt ConfigMaps: `agent-prompt-core` (shared investigation
   instructions) + `agent-prompt-<agentType>` (agent-specific preamble).
@@ -368,7 +368,7 @@ cluster reads to the namespaces specified in `watcher.agentWatchNamespaces`.
 ### Added — Native Kubernetes provider (epic09)
 
 Replaced the k8sgpt operator dependency with direct Kubernetes API watchers.
-mendabot no longer requires k8sgpt-operator to be installed.
+mechanic no longer requires k8sgpt-operator to be installed.
 
 **Six native providers:** `PodProvider`, `DeploymentProvider`,
 `StatefulSetProvider`, `PVCProvider`, `NodeProvider`, `JobProvider`.
@@ -438,19 +438,19 @@ Foundation release. All core epics (00 through 06) implemented via strict TDD.
 
 ---
 
-[Unreleased]: https://github.com/lenaxia/k8s-mendabot/compare/v0.3.12...HEAD
-[v0.3.12]: https://github.com/lenaxia/k8s-mendabot/compare/v0.3.11...v0.3.12
-[v0.3.11]: https://github.com/lenaxia/k8s-mendabot/compare/v0.3.10...v0.3.11
-[v0.3.10]: https://github.com/lenaxia/k8s-mendabot/compare/v0.3.9...v0.3.10
-[v0.3.9]: https://github.com/lenaxia/k8s-mendabot/compare/v0.3.8...v0.3.9
-[v0.3.8]: https://github.com/lenaxia/k8s-mendabot/compare/v0.3.7...v0.3.8
-[v0.3.7]: https://github.com/lenaxia/k8s-mendabot/compare/v0.3.6...v0.3.7
-[v0.3.6]: https://github.com/lenaxia/k8s-mendabot/compare/v0.3.5...v0.3.6
-[v0.3.5]: https://github.com/lenaxia/k8s-mendabot/compare/v0.3.4...v0.3.5
-[v0.3.4]: https://github.com/lenaxia/k8s-mendabot/compare/v0.3.3...v0.3.4
-[v0.3.3]: https://github.com/lenaxia/k8s-mendabot/compare/v0.3.2...v0.3.3
-[v0.3.2]: https://github.com/lenaxia/k8s-mendabot/compare/v0.3.1...v0.3.2
-[v0.3.1]: https://github.com/lenaxia/k8s-mendabot/compare/v0.3.0...v0.3.1
-[v0.3.0]: https://github.com/lenaxia/k8s-mendabot/compare/v0.2.15...v0.3.0
-[v0.2.x]: https://github.com/lenaxia/k8s-mendabot/compare/v0.1.9...v0.2.15
-[v0.1.x]: https://github.com/lenaxia/k8s-mendabot/releases/tag/v0.1.2
+[Unreleased]: https://github.com/lenaxia/k8s-mechanic/compare/v0.3.12...HEAD
+[v0.3.12]: https://github.com/lenaxia/k8s-mechanic/compare/v0.3.11...v0.3.12
+[v0.3.11]: https://github.com/lenaxia/k8s-mechanic/compare/v0.3.10...v0.3.11
+[v0.3.10]: https://github.com/lenaxia/k8s-mechanic/compare/v0.3.9...v0.3.10
+[v0.3.9]: https://github.com/lenaxia/k8s-mechanic/compare/v0.3.8...v0.3.9
+[v0.3.8]: https://github.com/lenaxia/k8s-mechanic/compare/v0.3.7...v0.3.8
+[v0.3.7]: https://github.com/lenaxia/k8s-mechanic/compare/v0.3.6...v0.3.7
+[v0.3.6]: https://github.com/lenaxia/k8s-mechanic/compare/v0.3.5...v0.3.6
+[v0.3.5]: https://github.com/lenaxia/k8s-mechanic/compare/v0.3.4...v0.3.5
+[v0.3.4]: https://github.com/lenaxia/k8s-mechanic/compare/v0.3.3...v0.3.4
+[v0.3.3]: https://github.com/lenaxia/k8s-mechanic/compare/v0.3.2...v0.3.3
+[v0.3.2]: https://github.com/lenaxia/k8s-mechanic/compare/v0.3.1...v0.3.2
+[v0.3.1]: https://github.com/lenaxia/k8s-mechanic/compare/v0.3.0...v0.3.1
+[v0.3.0]: https://github.com/lenaxia/k8s-mechanic/compare/v0.2.15...v0.3.0
+[v0.2.x]: https://github.com/lenaxia/k8s-mechanic/compare/v0.1.9...v0.2.15
+[v0.1.x]: https://github.com/lenaxia/k8s-mechanic/releases/tag/v0.1.2

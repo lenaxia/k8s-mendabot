@@ -25,19 +25,19 @@ internals.
 ### 2.1 Group, Version, Kind
 
 ```
-group:    mendabot.io
+group:    mechanic.io
 version:  v1alpha1
 kind:     AlertSource
 plural:   alertsources
 scope:    Namespaced   (must be in the same namespace as the watcher)
 ```
 
-**Important:** `AlertSource` lives under `mendabot.io`, which is a **different API group**
-from `RemediationJob` (`remediation.mendabot.io`). Both groups must be registered separately
+**Important:** `AlertSource` lives under `mechanic.io`, which is a **different API group**
+from `RemediationJob` (`remediation.mechanic.io`). Both groups must be registered separately
 in the controller-runtime scheme at startup. Add to `main.go`:
 
 ```go
-// Register mendabot.io/v1alpha1 (AlertSource) — separate from remediation.mendabot.io
+// Register mechanic.io/v1alpha1 (AlertSource) — separate from remediation.mechanic.io
 if err := v1alpha1.AddAlertSourceToScheme(scheme); err != nil {
     logger.Fatal("failed to add alertsource scheme", zap.Error(err))
 }
@@ -48,7 +48,7 @@ if err := v1alpha1.AddAlertSourceToScheme(scheme); err != nil {
 ```go
 // api/v1alpha1/alertsource_types.go
 var alertSourceGroupVersion = schema.GroupVersion{
-    Group:   "mendabot.io",
+    Group:   "mechanic.io",
     Version: "v1alpha1",
 }
 

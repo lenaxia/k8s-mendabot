@@ -65,9 +65,9 @@ can occur in tests. The `enum` constraint is not needed for correctness and adds
 Validation of the severity value at write time is handled by `ParseSeverity` in the
 reconciler before the object is created.
 
-### charts/mendabot/crds/remediationjob.yaml
+### charts/mechanic/crds/remediationjob.yaml
 
-The Helm chart packages its own CRD at `charts/mendabot/crds/remediationjob.yaml`. This
+The Helm chart packages its own CRD at `charts/mechanic/crds/remediationjob.yaml`. This
 file must receive the **same change** as `testdata/crds/remediationjob_crd.yaml`. Locate
 the `spec.properties` block and add:
 
@@ -82,7 +82,7 @@ severity:
 
 - [ ] `RemediationJobSpec` has a `Severity string` field with `json:"severity,omitempty"`
 - [ ] `testdata/crds/remediationjob_crd.yaml` (repo root) has `severity: {type: string}` under spec properties — no enum constraint
-- [ ] `charts/mendabot/crds/remediationjob.yaml` has the same `severity: {type: string}` addition
+- [ ] `charts/mechanic/crds/remediationjob.yaml` has the same `severity: {type: string}` addition
 - [ ] `DeepCopyInto` requires no change (all fields in `RemediationJobSpec` are value types; shallow struct copy is sufficient)
 - [ ] Existing unit tests and envtest integration tests all pass without modification
 
@@ -92,7 +92,7 @@ severity:
 
 - [ ] Add `Severity string` to `RemediationJobSpec` in `api/v1alpha1/remediationjob_types.go`
 - [ ] Add `severity: {type: string}` to `testdata/crds/remediationjob_crd.yaml` under `spec.properties`
-- [ ] Add `severity: {type: string}` to `charts/mendabot/crds/remediationjob.yaml` under `spec.properties`
+- [ ] Add `severity: {type: string}` to `charts/mechanic/crds/remediationjob.yaml` under `spec.properties`
 - [ ] Run `go build ./...` — must be clean
 - [ ] Run `go test -race -timeout 30s ./...` — all tests must pass
 

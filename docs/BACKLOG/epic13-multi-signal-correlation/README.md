@@ -3,7 +3,7 @@
 ## Purpose
 
 When multiple findings originate from the same root cause — a PVC failing and its
-dependent pod crashing, or three pods all evicted from the same failing node — mendabot
+dependent pod crashing, or three pods all evicted from the same failing node — mechanic
 today dispatches one independent `RemediationJob` per finding. Each agent is blind to
 the others. The result is contradictory PRs, wasted LLM budget, and operator confusion.
 
@@ -50,14 +50,14 @@ agent Job that investigates the full group context.
       `PhaseDispatched` or `PhaseRunning`: the non-primary immediately suppresses itself
       using the primary's `CorrelationGroupID` (v0.3.24 bug fix — previously looped forever
       at 5s intervals and eventually solo-dispatched)
-- [x] All jobs in a correlation group receive `mendabot.io/correlation-group-id` and
-      `mendabot.io/correlation-role` labels
+- [x] All jobs in a correlation group receive `mechanic.io/correlation-group-id` and
+      `mechanic.io/correlation-role` labels
 - [x] Non-primary jobs are transitioned to `Suppressed` phase (either by the primary's
       reconcile call, or by self-suppression when the primary is already dispatched)
 - [x] `JobBuilder.Build()` accepts a `[]v1alpha1.FindingSpec` slice and injects
       `FINDING_CORRELATED_FINDINGS` as a JSON-encoded env var when the slice has > 1 entry
 - [x] `JobBuilder.Build()` injects `FINDING_CORRELATION_GROUP_ID` when the primary
-      `RemediationJob` carries a `mendabot.io/correlation-group-id` label at dispatch time
+      `RemediationJob` carries a `mechanic.io/correlation-group-id` label at dispatch time
 - [x] `go test -timeout 30s -race ./...` passes with correlation tests
 - [x] `DISABLE_CORRELATION=true` env var disables the window and all correlation rules,
       reverting to current dispatch-immediately behaviour
@@ -222,10 +222,10 @@ returns early for any phase that is not `Failed` or `PermanentlyFailed`, which i
 | `internal/config/config_test.go` | Config parsing tests for new fields |
 | `internal/domain/provider.go` | Add `NodeName string` to `Finding` struct |
 | `internal/provider/native/pod.go` | Populate `NodeName` from `pod.Spec.NodeName` |
-| `internal/provider/provider.go` | Write `mendabot.io/node-name` annotation on `RemediationJob` when `finding.NodeName != ""` |
-| `charts/mendabot/files/prompts/core.txt` | Add `=== CORRELATED GROUP ===` section and HARD RULE 11 |
-| `charts/mendabot/templates/deployment-watcher.yaml` | Add three correlation env vars as Helm-controlled values |
-| `charts/mendabot/values.yaml` | Add `correlationWindowSeconds`, `disableCorrelation`, `multiPodThreshold` under `watcher:` |
+| `internal/provider/provider.go` | Write `mechanic.io/node-name` annotation on `RemediationJob` when `finding.NodeName != ""` |
+| `charts/mechanic/files/prompts/core.txt` | Add `=== CORRELATED GROUP ===` section and HARD RULE 11 |
+| `charts/mechanic/templates/deployment-watcher.yaml` | Add three correlation env vars as Helm-controlled values |
+| `charts/mechanic/values.yaml` | Add `correlationWindowSeconds`, `disableCorrelation`, `multiPodThreshold` under `watcher:` |
 | `testdata/crds/remediationjob_crd.yaml` | Add `Suppressed` to `status.phase` enum; add `correlationGroupID` field |
 
 ### Story execution order
@@ -247,7 +247,7 @@ STORY_00 (domain types) ─┬──> STORY_01 (rules)   ──┐
 - [x] All unit tests pass: `go test -timeout 30s -race ./...`
 - [x] `go build ./...` succeeds
 - [x] `go vet ./...` clean
-- [x] `helm template mendabot charts/mendabot | kubectl apply --dry-run=client -f -` passes
+- [x] `helm template mechanic charts/mechanic | kubectl apply --dry-run=client -f -` passes
 - [x] `DISABLE_CORRELATION=true` reverts to pre-epic dispatch behaviour (verified by test)
 - [x] Worklog entry created in `docs/WORKLOGS/`
 

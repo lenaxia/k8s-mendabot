@@ -30,11 +30,11 @@ finds a stale job immediately via the label-based `waitFor` poll. That job's
 non-deterministically.
 
 The five affected tests:
-- `TestRemediationJobReconciler_CreatesJob` (job `mendabot-agent-aaaa0000bbbb`)
-- `TestRemediationJobReconciler_SyncsStatus_Running` (job `mendabot-agent-bbbb1111cccc`)
-- `TestRemediationJobReconciler_SyncsStatus_Succeeded` (job `mendabot-agent-cccc2222dddd`)
-- `TestRemediationJobReconciler_SyncsStatus_Failed` (job `mendabot-agent-dddd3333eeee`)
-- `TestRemediationJobReconciler_OwnerReference` (job `mendabot-agent-ffff5555aaaa`)
+- `TestRemediationJobReconciler_CreatesJob` (job `mechanic-agent-aaaa0000bbbb`)
+- `TestRemediationJobReconciler_SyncsStatus_Running` (job `mechanic-agent-bbbb1111cccc`)
+- `TestRemediationJobReconciler_SyncsStatus_Succeeded` (job `mechanic-agent-cccc2222dddd`)
+- `TestRemediationJobReconciler_SyncsStatus_Failed` (job `mechanic-agent-dddd3333eeee`)
+- `TestRemediationJobReconciler_OwnerReference` (job `mechanic-agent-ffff5555aaaa`)
 
 **Why these keep recurring:** There is no written rule requiring testdata CRD updates
 when types change, and no pre-test cleanup convention for envtest tests that create

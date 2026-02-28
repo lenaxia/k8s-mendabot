@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **mendabot operator**, I want the Helm chart to render agent-type-aware ConfigMaps
+As a **mechanic operator**, I want the Helm chart to render agent-type-aware ConfigMaps
 and inject `AGENT_TYPE` into the watcher Deployment, so that a single `values.yaml`
 field controls which agent runner is used end-to-end.
 
@@ -30,25 +30,25 @@ the prompt into a shared core and an agent-specific supplement.
 - [ ] `values.yaml` replaces `prompt.name` / `prompt.override` with:
   - `prompt.coreOverride` — full override for the core prompt
   - `prompt.agentOverride` — full override for the agent supplement
-- [ ] `charts/mendabot/templates/configmap-prompt.yaml` renders **two** ConfigMaps:
+- [ ] `charts/mechanic/templates/configmap-prompt.yaml` renders **two** ConfigMaps:
   - `agent-prompt-core` — contains key `core.txt`
   - `agent-prompt-{{ .Values.agentType }}` — contains key `agent.txt`
-- [ ] `charts/mendabot/files/prompts/core.txt` — current `default.txt` content
+- [ ] `charts/mechanic/files/prompts/core.txt` — current `default.txt` content
       (minus OpenCode-specific preamble)
-- [ ] `charts/mendabot/files/prompts/opencode.txt` — short agent-specific preamble
+- [ ] `charts/mechanic/files/prompts/opencode.txt` — short agent-specific preamble
       (available tools, opencode-specific notes)
-- [ ] `charts/mendabot/files/prompts/claude.txt` — empty/stub
-- [ ] `charts/mendabot/files/prompts/default.txt` — deleted (breaking change)
-- [ ] `charts/mendabot/templates/deployment-watcher.yaml` gains:
+- [ ] `charts/mechanic/files/prompts/claude.txt` — empty/stub
+- [ ] `charts/mechanic/files/prompts/default.txt` — deleted (breaking change)
+- [ ] `charts/mechanic/templates/deployment-watcher.yaml` gains:
   ```yaml
   - name: AGENT_TYPE
     value: {{ .Values.agentType | quote }}
   ```
-- [ ] `charts/mendabot/templates/NOTES.txt` documents:
+- [ ] `charts/mechanic/templates/NOTES.txt` documents:
   - Secret renamed from `llm-credentials` to `llm-credentials-opencode`
   - New secret key structure (`provider-config`, `model`, `kube-api-server`)
   - Migration command
-- [ ] `helm lint charts/mendabot` passes with required values set
+- [ ] `helm lint charts/mechanic` passes with required values set
 
 ---
 
@@ -64,7 +64,7 @@ metadata:
   name: agent-prompt-core
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "mendabot.labels" . | nindent 4 }}
+    {{- include "mechanic.labels" . | nindent 4 }}
 data:
   core.txt: |
     {{- if .Values.prompt.coreOverride }}
@@ -83,7 +83,7 @@ metadata:
   name: agent-prompt-{{ .Values.agentType }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "mendabot.labels" . | nindent 4 }}
+    {{- include "mechanic.labels" . | nindent 4 }}
 data:
   agent.txt: |
     {{- if .Values.prompt.agentOverride }}
@@ -112,7 +112,7 @@ metadata:
   name: agent-prompt-{{ .Values.agentType }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "mendabot.labels" . | nindent 4 }}
+    {{- include "mechanic.labels" . | nindent 4 }}
 data:
   core.txt: |
     {{- if .Values.prompt.coreOverride }}
@@ -150,4 +150,4 @@ Depends on STORY_02 and STORY_03.
 - [ ] ConfigMap template renders correctly for all agent types
 - [ ] Deployment injects `AGENT_TYPE`
 - [ ] NOTES.txt updated with migration instructions
-- [ ] `helm lint charts/mendabot` passes
+- [ ] `helm lint charts/mechanic` passes

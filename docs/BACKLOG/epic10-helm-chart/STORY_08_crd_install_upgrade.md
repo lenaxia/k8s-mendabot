@@ -21,7 +21,7 @@ Helm has a deliberate design limitation: it installs CRDs from the `crds/` direc
 on `helm install` but **never modifies them on `helm upgrade`**, even if the CRD YAML
 has changed. This is to prevent accidental schema changes to production data.
 
-For mendabot this is a real problem: as `RemediationJob` evolves (new fields, new
+For mechanic this is a real problem: as `RemediationJob` evolves (new fields, new
 status conditions), operators on older versions would miss schema updates silently.
 
 The solution is a `pre-upgrade` hook Job that runs `kubectl apply` against the CRD
@@ -33,7 +33,7 @@ schema is always current before the new watcher version starts reconciling.
 ## Acceptance Criteria
 
 **Fresh install path (`helm install`):**
-- [ ] `charts/mendabot/crds/remediationjob.yaml` installs the CRD automatically
+- [ ] `charts/mechanic/crds/remediationjob.yaml` installs the CRD automatically
   via Helm's native `crds/` mechanism (no template needed for this)
 
 **Upgrade path (`helm upgrade`):**
@@ -67,7 +67,7 @@ The Job spec:
 
 ## Tasks
 
-- [ ] Verify `charts/mendabot/crds/remediationjob.yaml` exists (from STORY_01)
+- [ ] Verify `charts/mechanic/crds/remediationjob.yaml` exists (from STORY_01)
 - [ ] Write `templates/configmap-crd-hook.yaml` — uses `.Files.Get "crds/remediationjob.yaml"`
   to embed the CRD in the ConfigMap data
 - [ ] Write `templates/serviceaccount-crd-hook.yaml`
@@ -88,7 +88,7 @@ The Job spec:
   but since `crds/` already handles that case idempotently, a second `kubectl apply`
   is harmless.
 - Hook weight `-5` runs these resources before any other pre-upgrade hooks.
-- The hook SA/ClusterRole names should be `{{ include "mendabot.fullname" . }}-crd-upgrader`
+- The hook SA/ClusterRole names should be `{{ include "mechanic.fullname" . }}-crd-upgrader`
   to avoid collision with the main watcher/agent RBAC.
 - **Image**: use `registry.k8s.io/kubectl:v1.28.16` — this is the official upstream
   kubectl image from the Kubernetes project registry, not a third-party vendor image.
@@ -106,7 +106,7 @@ The Job spec:
 
 ## Definition of Done
 
-- [ ] `helm lint charts/mendabot/` exits 0
+- [ ] `helm lint charts/mechanic/` exits 0
 - [ ] `helm template ... | grep "helm.sh/hook"` shows all 5 hook resources
 - [ ] Hook Job spec includes the ConfigMap volume at `/crds/`
 - [ ] `hook-delete-policy` is correct on all 5 resources

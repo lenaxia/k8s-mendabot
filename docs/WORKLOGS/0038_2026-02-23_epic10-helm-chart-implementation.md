@@ -9,7 +9,7 @@
 
 ## Objective
 
-Implement the `charts/mendabot/` Helm chart designed and planned in worklog 0036.
+Implement the `charts/mechanic/` Helm chart designed and planned in worklog 0036.
 Implement all 13 stories in dependency order. Validate with `helm lint --strict` and
 `helm template` dry-run before closing.
 
@@ -23,26 +23,26 @@ Implement all 13 stories in dependency order. Validate with `helm lint --strict`
 
 ### STORY_01: Chart scaffold
 
-- Created `charts/mendabot/` directory structure:
+- Created `charts/mechanic/` directory structure:
   `templates/`, `crds/`, `files/prompts/`
-- Wrote `charts/mendabot/Chart.yaml` with `apiVersion: v2`, `name: mendabot`,
+- Wrote `charts/mechanic/Chart.yaml` with `apiVersion: v2`, `name: mechanic`,
   `version: 0.1.0`, `appVersion: v0.3.0`, `kubeVersion: >=1.28.0-0`
-- Copied `deploy/kustomize/crd-remediationjob.yaml` to `charts/mendabot/crds/remediationjob.yaml`
+- Copied `deploy/kustomize/crd-remediationjob.yaml` to `charts/mechanic/crds/remediationjob.yaml`
   (byte-for-byte identical)
 
 ### STORY_02: values.yaml + _helpers.tpl
 
-- Wrote `charts/mendabot/values.yaml` with all keys from the approved schema,
+- Wrote `charts/mechanic/values.yaml` with all keys from the approved schema,
   inline comments, and correct defaults
-- Wrote `charts/mendabot/templates/_helpers.tpl` with named templates:
-  - `mendabot.name` — `"mendabot"`
-  - `mendabot.fullname` — release-name dedup, trunc 63
-  - `mendabot.labels` — 5-label standard set
-  - `mendabot.selectorLabels` — stable 2-label subset
-  - `mendabot.watcherSAName` — `<fullname>-watcher`
-  - `mendabot.agentSAName` — `<fullname>-agent`
-  - `mendabot.watcherImage` — falls back to `Chart.AppVersion`
-  - `mendabot.agentImage` — falls back to `Chart.AppVersion`
+- Wrote `charts/mechanic/templates/_helpers.tpl` with named templates:
+  - `mechanic.name` — `"mechanic"`
+  - `mechanic.fullname` — release-name dedup, trunc 63
+  - `mechanic.labels` — 5-label standard set
+  - `mechanic.selectorLabels` — stable 2-label subset
+  - `mechanic.watcherSAName` — `<fullname>-watcher`
+  - `mechanic.agentSAName` — `<fullname>-agent`
+  - `mechanic.watcherImage` — falls back to `Chart.AppVersion`
+  - `mechanic.agentImage` — falls back to `Chart.AppVersion`
 
 ### STORY_03: Namespace template
 
@@ -81,7 +81,7 @@ All 8 gated by `{{- if .Values.rbac.create }}`
 ### STORY_07: Prompt ConfigMap + files
 
 - Extracted prompt verbatim from `deploy/kustomize/configmap-prompt.yaml` into
-  `charts/mendabot/files/prompts/default.txt`
+  `charts/mechanic/files/prompts/default.txt`
 - `templates/configmap-prompt.yaml` — uses `.Files.Get` with `fail` guard for missing
   prompt files; `prompt.override` takes precedence when set
 
@@ -124,24 +124,24 @@ delete-policy `before-hook-creation,hook-succeeded`):
 
 - `templates/secret-agent-token.yaml` — type `kubernetes.io/service-account-token`,
   annotation `kubernetes.io/service-account.name: <agentSAName>`, name
-  `mendabot-agent-token` (hardcoded to match `job.go`)
+  `mechanic-agent-token` (hardcoded to match `job.go`)
 
 ---
 
 ## Validation Results
 
 ```
-helm lint charts/mendabot/ --strict
+helm lint charts/mechanic/ --strict
 → 1 chart(s) linted, 0 chart(s) failed
    INFO: icon is recommended (cosmetic; no chart icon URL yet)
    WARN: gitops.repo/manifestRoot required — expected; required guard works correctly
 ```
 
 ```
-helm template mendabot charts/mendabot/ \
+helm template mechanic charts/mechanic/ \
   --set gitops.repo=org/repo \
   --set gitops.manifestRoot=kubernetes \
-  --namespace mendabot
+  --namespace mechanic
 → 20 resources rendered without error
 ```
 
@@ -164,7 +164,7 @@ Spot checks passed:
 ## File Layout Created
 
 ```
-charts/mendabot/
+charts/mechanic/
 ├── Chart.yaml
 ├── values.yaml
 ├── crds/
@@ -218,11 +218,11 @@ silently prunes unknown fields from `type: object` items. Every `metav1.Conditio
 status patch. The conditions list would always appear empty in etcd.
 
 **Fix:** Added `x-kubernetes-preserve-unknown-fields: true` to `status.conditions.items`
-in both `deploy/kustomize/crd-remediationjob.yaml` and `charts/mendabot/crds/remediationjob.yaml`.
+in both `deploy/kustomize/crd-remediationjob.yaml` and `charts/mechanic/crds/remediationjob.yaml`.
 
 ### CHECK-3 — Dead config in `values.yaml` (`secrets.githubApp.name`, `secrets.llm.name`)
 
-**File:** `charts/mendabot/values.yaml`, `charts/mendabot/templates/NOTES.txt`
+**File:** `charts/mechanic/values.yaml`, `charts/mechanic/templates/NOTES.txt`
 
 The `secrets.githubApp.name` and `secrets.llm.name` keys were declared and documented
 but never referenced in any template. `job.go` hardcodes `"github-app"` and
@@ -236,7 +236,7 @@ the now-removed `.Values.secrets.*` references.
 
 ### CHECK-5a — `events` write missing from watcher ClusterRole
 
-**File:** `charts/mendabot/templates/clusterrole-watcher.yaml`
+**File:** `charts/mechanic/templates/clusterrole-watcher.yaml`
 
 The watcher ClusterRole only granted `get/list/watch` on `events`. controller-runtime
 emits Kubernetes Events on reconciliation errors via the EventRecorder. Without
@@ -247,7 +247,7 @@ while keeping the other core resources at read-only.
 
 ### CHECK-5b — `coordination.k8s.io/leases` missing from watcher ClusterRole
 
-**File:** `charts/mendabot/templates/clusterrole-watcher.yaml`
+**File:** `charts/mechanic/templates/clusterrole-watcher.yaml`
 
 controller-runtime's Manager uses `coordination.k8s.io/leases` for leader election by
 default in recent versions. The watcher ClusterRole had no rule for leases. The controller
@@ -257,7 +257,7 @@ would fail to start with a permission-denied error if leader election is active.
 
 ### CHECK-7d — `kubectl apply` fails on read-only root filesystem
 
-**File:** `charts/mendabot/templates/job-crd-upgrade.yaml`
+**File:** `charts/mechanic/templates/job-crd-upgrade.yaml`
 
 The CRD hook Job had `readOnlyRootFilesystem: true` but no writable directory for
 `kubectl`'s cache files (written to `$HOME/.kube/cache`). With no writable mount,
@@ -291,7 +291,7 @@ cluster-scoped roles are not.
 
 ### CHECK-12c — `appVersion` stale at `v0.3.0`
 
-**File:** `charts/mendabot/Chart.yaml`
+**File:** `charts/mechanic/Chart.yaml`
 
 `appVersion` was `v0.3.0`. The latest git tag is `v0.3.2`. When `image.tag` is empty
 (the default), the chart resolves to `appVersion` — meaning default deployments would
@@ -304,7 +304,7 @@ pin to an image two patch versions behind.
 ## Validation Results (Session 3)
 
 ```
-helm lint charts/mendabot/ --strict \
+helm lint charts/mechanic/ --strict \
   --set gitops.repo=org/repo \
   --set gitops.manifestRoot=kubernetes
 → 1 chart(s) linted, 0 chart(s) failed   (INFO: icon is recommended — cosmetic)
@@ -324,7 +324,7 @@ A skeptical deep-dive review identified four issues fixed in the same session:
 
 ### CRITICAL-1 — CRD schema missing self-remediation fields
 
-**File:** `charts/mendabot/crds/remediationjob.yaml`
+**File:** `charts/mechanic/crds/remediationjob.yaml`
 
 The chart's CRD copy was missing `isSelfRemediation`, `chainDepth`, and `targetRepoOverride`
 from its openAPIV3Schema. These fields are present in the canonical
@@ -333,12 +333,12 @@ structural schemas prune unknown fields silently — agent Jobs would always see
 `IS_SELF_REMEDIATION=false` and `CHAIN_DEPTH=0`, breaking the cascade prevention logic
 added in v0.3.0.
 
-**Fix:** Added all three fields to `charts/mendabot/crds/remediationjob.yaml` under
+**Fix:** Added all three fields to `charts/mechanic/crds/remediationjob.yaml` under
 `spec.properties`, matching the canonical file exactly.
 
 ### CRITICAL-2 — `secrets.*.name` values are documentation-only
 
-**File:** `charts/mendabot/values.yaml`
+**File:** `charts/mechanic/values.yaml`
 
 The `secrets.githubApp.name` and `secrets.llm.name` keys gave false confidence that
 renaming the Secrets would work. `internal/controller/job.go` hardcodes `"github-app"`
@@ -363,7 +363,7 @@ guarantees infra is applied before the Job runs.
 
 ### HIGH-2 — Hardcoded ConfigMap name gap undocumented
 
-**File:** `charts/mendabot/templates/configmap-prompt.yaml`
+**File:** `charts/mechanic/templates/configmap-prompt.yaml`
 
 The ConfigMap is named `opencode-prompt` because `job.go` mounts it by that exact name.
 This was not documented — a user with two Helm releases in the same namespace would get
@@ -379,7 +379,7 @@ a silent collision. Added a prominent comment.
   Chart Releaser Action setup (future epic).
 - **No `helm test` hook** — a connectivity test pod would strengthen CI.
   `helm/chart-testing` (ct) can be added when OCI publishing is configured.
-- **Kustomize gap still exists** — `mendabot-agent-token` Secret is still absent
+- **Kustomize gap still exists** — `mechanic-agent-token` Secret is still absent
   from `deploy/kustomize/`. Fix is out of scope for this epic but documented in
   STORY_13.
 
@@ -391,4 +391,4 @@ a silent collision. Added a prominent comment.
 2. Open PR against `main`
 3. Verify CI (`Chart Lint` workflow) passes on the PR
 4. Merge after review
-5. Tag `charts/mendabot-0.1.0` (or configure Chart Releaser Action for automation)
+5. Tag `charts/mechanic-0.1.0` (or configure Chart Releaser Action for automation)

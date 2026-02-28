@@ -8,7 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 
-	"github.com/lenaxia/k8s-mendabot/api/v1alpha1"
+	"github.com/lenaxia/k8s-mechanic/api/v1alpha1"
 )
 
 func buildScheme(t *testing.T) *runtime.Scheme {
@@ -29,7 +29,7 @@ func buildScheme(t *testing.T) *runtime.Scheme {
 func TestScheme_ContainsRemediationJobKinds(t *testing.T) {
 	s := buildScheme(t)
 	gvk := schema.GroupVersionKind{
-		Group:   "remediation.mendabot.io",
+		Group:   "remediation.mechanic.io",
 		Version: "v1alpha1",
 		Kind:    "RemediationJob",
 	}
@@ -37,7 +37,7 @@ func TestScheme_ContainsRemediationJobKinds(t *testing.T) {
 		t.Errorf("scheme does not recognise %v", gvk)
 	}
 	gvkList := schema.GroupVersionKind{
-		Group:   "remediation.mendabot.io",
+		Group:   "remediation.mechanic.io",
 		Version: "v1alpha1",
 		Kind:    "RemediationJobList",
 	}

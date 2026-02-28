@@ -106,7 +106,7 @@ The init container already injects the three GitHub App secret vars. Add two mor
 (the common case for GitHub App users), Kubernetes sets the env var to an empty string
 rather than failing the pod with `CreateContainerConfigError`.
 
-### Helm chart (`charts/mendabot/values.yaml`)
+### Helm chart (`charts/mechanic/values.yaml`)
 
 Add optional PAT secret configuration under `gitops:`:
 
@@ -123,7 +123,7 @@ gitops:
   gitTokenSecretName: ""
 ```
 
-**`charts/mendabot/templates/deployment-watcher.yaml`** — the init container template
+**`charts/mechanic/templates/deployment-watcher.yaml`** — the init container template
 must conditionally inject the `GITOPS_GIT_TOKEN` env var only when
 `gitops.gitTokenSecretName` is non-empty. This avoids a `CreateContainerConfigError`
 when the secret does not exist:
@@ -164,8 +164,8 @@ expected failure mode (operator has not configured any auth).
 |------|--------|
 | `internal/jobbuilder/job.go` | Update `initScript`; add `GITOPS_GIT_HOST` + optional `GITOPS_GIT_TOKEN` to init container env |
 | `internal/jobbuilder/job_test.go` | Add test cases: PAT branch, GitHub App branch, `GITOPS_GIT_HOST` substitution |
-| `charts/mendabot/values.yaml` | Add `gitops.gitTokenSecretName` (empty default) |
-| `charts/mendabot/templates/deployment-watcher.yaml` | Inject `GITOPS_GIT_HOST`; document PAT secret option |
+| `charts/mechanic/values.yaml` | Add `gitops.gitTokenSecretName` (empty default) |
+| `charts/mechanic/templates/deployment-watcher.yaml` | Inject `GITOPS_GIT_HOST`; document PAT secret option |
 
 No Go changes beyond `job.go` — this is a script-text and env-injection change only.
 
@@ -204,8 +204,8 @@ init container `Args[0]` (the bash `-c` argument) contains the expected strings.
 - [ ] TDD: write failing test cases in `job_test.go` for new init script behaviour
 - [ ] Update `initScript` constant in `job.go`
 - [ ] Add `GITOPS_GIT_HOST` and optional `GITOPS_GIT_TOKEN` to init container env in `Build()`
-- [ ] Update `charts/mendabot/values.yaml`
-- [ ] Update `charts/mendabot/templates/deployment-watcher.yaml`
+- [ ] Update `charts/mechanic/values.yaml`
+- [ ] Update `charts/mechanic/templates/deployment-watcher.yaml`
 - [ ] Run `go test -timeout 30s -race ./...` — all pass
 - [ ] Run `go build ./...` — clean
 

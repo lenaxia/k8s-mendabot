@@ -63,7 +63,7 @@ Both Dockerfiles pin base images to digests, not just tags. Go builder uses 1.25
 **Trivy scan:** SKIPPED — local Docker build not executed. CI Trivy scan runs on every tag push.
 
 **`.trivyignore` review:**
-8 CVE suppressions present for third-party tool binaries (helm, kubectl, kustomize, stern, flux, talosctl, sops, yq) that have not yet been released with Go 1.25.7. Suppressions have expiry `2026-06-01` and are documented with reasoning. No suppressions for code owned by mendabot.
+8 CVE suppressions present for third-party tool binaries (helm, kubectl, kustomize, stern, flux, talosctl, sops, yq) that have not yet been released with Go 1.25.7. Suppressions have expiry `2026-06-01` and are documented with reasoning. No suppressions for code owned by mechanic.
 
 ---
 

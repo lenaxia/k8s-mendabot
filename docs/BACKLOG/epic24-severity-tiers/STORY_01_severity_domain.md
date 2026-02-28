@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **mendabot developer**, I want a strongly-typed `Severity` domain type with ordered
+As a **mechanic developer**, I want a strongly-typed `Severity` domain type with ordered
 constants so that all components can compare, store, and filter finding severity without
 using bare strings or arbitrary integer magic numbers.
 

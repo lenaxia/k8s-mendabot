@@ -209,7 +209,7 @@ high / medium / low — and why.
 Any caveats, follow-up items, or things a human reviewer should check.
 
 ---
-*Opened automatically by mendabot*
+*Opened automatically by mechanic*
 
 === HARD RULES ===
 

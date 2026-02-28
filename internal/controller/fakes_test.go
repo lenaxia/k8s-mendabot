@@ -8,8 +8,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
-	domain "github.com/lenaxia/k8s-mendabot/internal/domain"
+	v1alpha1 "github.com/lenaxia/k8s-mechanic/api/v1alpha1"
+	domain "github.com/lenaxia/k8s-mechanic/internal/domain"
 )
 
 type fakeJobBuilderCall struct {
@@ -33,22 +33,22 @@ var _ domain.JobBuilder = (*fakeJobBuilder)(nil)
 func ptr[T any](v T) *T { return &v }
 
 func defaultFakeJob(rjob *v1alpha1.RemediationJob) *batchv1.Job {
-	name := "mendabot-agent-" + rjob.Spec.Fingerprint[:12]
+	name := "mechanic-agent-" + rjob.Spec.Fingerprint[:12]
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: rjob.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					APIVersion: "remediation.mendabot.io/v1alpha1",
+					APIVersion: "remediation.mechanic.io/v1alpha1",
 					Kind:       "RemediationJob",
 					Name:       rjob.Name,
 					UID:        rjob.UID,
 				},
 			},
 			Labels: map[string]string{
-				"remediation.mendabot.io/remediation-job": rjob.Name,
-				"app.kubernetes.io/managed-by":            "mendabot-watcher",
+				"remediation.mechanic.io/remediation-job": rjob.Name,
+				"app.kubernetes.io/managed-by":            "mechanic-watcher",
 			},
 		},
 		Spec: batchv1.JobSpec{
@@ -124,7 +124,7 @@ func TestDefaultFakeJob_NamePattern(t *testing.T) {
 
 	job := defaultFakeJob(rjob)
 
-	want := "mendabot-agent-abcdefghijkl"
+	want := "mechanic-agent-abcdefghijkl"
 	if job.Name != want {
 		t.Errorf("got name %q, want %q", job.Name, want)
 	}
@@ -144,7 +144,7 @@ func TestDefaultFakeJob_OwnerRef(t *testing.T) {
 		got   string
 		want  string
 	}{
-		{"APIVersion", ref.APIVersion, "remediation.mendabot.io/v1alpha1"},
+		{"APIVersion", ref.APIVersion, "remediation.mechanic.io/v1alpha1"},
 		{"Kind", ref.Kind, "RemediationJob"},
 		{"Name", ref.Name, "my-rjob"},
 		{"UID", string(ref.UID), "test-uid-42"},
@@ -176,7 +176,7 @@ func TestDefaultFakeJob_Label(t *testing.T) {
 
 	job := defaultFakeJob(rjob)
 
-	const key = "remediation.mendabot.io/remediation-job"
+	const key = "remediation.mechanic.io/remediation-job"
 	got, ok := job.Labels[key]
 	if !ok {
 		t.Fatalf("expected label %q to be set", key)

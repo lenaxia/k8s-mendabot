@@ -1,11 +1,11 @@
-# k8s-mendabot
+# k8s-mechanic
 
-k8s-mendabot is a Kubernetes controller that watches your cluster for failures,
+k8s-mechanic is a Kubernetes controller that watches your cluster for failures,
 investigates them automatically, and opens pull requests on your GitOps repository
 with proposed fixes — all without leaving your cluster.
 
 When a Pod is crash-looping, a Deployment is degraded, or a Node goes NotReady,
-mendabot spawns an in-cluster [OpenCode](https://opencode.ai) agent that inspects
+mechanic spawns an in-cluster [OpenCode](https://opencode.ai) agent that inspects
 the live cluster, locates the relevant manifests in your GitOps repo, determines the
 root cause, and opens a PR. You review and merge. No external operators, no
 external databases, no persistent services outside your cluster.
@@ -96,7 +96,7 @@ read to the namespaces you specify.
 lines with `audit: true`, queryable from any log aggregation system (Loki,
 Elasticsearch, Datadog) for post-incident forensics.
 
-**[Trivy CVE scanning](https://github.com/lenaxia/k8s-mendabot/actions)** — both `mendabot-watcher` and `mendabot-agent` images are scanned on every release with [Trivy](https://trivy.dev) (`CRITICAL` and `HIGH`, ignore-unfixed). The build fails if any fixable vulnerability is detected. Unfixable CVEs in upstream pre-built binaries (tools not yet released with the required Go version) are tracked in [`.trivyignore`](.trivyignore) with mandatory expiry dates for re-evaluation.
+**[Trivy CVE scanning](https://github.com/lenaxia/k8s-mechanic/actions)** — both `mechanic-watcher` and `mechanic-agent` images are scanned on every release with [Trivy](https://trivy.dev) (`CRITICAL` and `HIGH`, ignore-unfixed). The build fails if any fixable vulnerability is detected. Unfixable CVEs in upstream pre-built binaries (tools not yet released with the required Go version) are tracked in [`.trivyignore`](.trivyignore) with mandatory expiry dates for re-evaluation.
 
 **[Short-lived GitHub credentials](docs/WORKLOGS/0014_2026-02-20_epic03-agent-image-complete.md)** — the agent never holds a long-lived PAT. A GitHub
 App installation token (1-hour TTL) is exchanged in the init container and never
@@ -122,7 +122,7 @@ exposed to the main agent container.
 ### 1. Create required Secrets
 
 ```sh
-kubectl create namespace mendabot
+kubectl create namespace mechanic
 ```
 
 #### github-app
@@ -134,7 +134,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: github-app
-  namespace: mendabot
+  namespace: mechanic
 stringData:
   app-id: "2917483"             # numeric ID from https://github.com/settings/apps/<your-app-name>
   installation-id: "12345678"   # numeric ID from the installation URL (see below)
@@ -170,7 +170,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: llm-credentials-opencode
-  namespace: mendabot
+  namespace: mechanic
 stringData:
   provider-config: |
     {
@@ -196,7 +196,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: llm-credentials-opencode
-  namespace: mendabot
+  namespace: mechanic
 stringData:
   provider-config: |
     {
@@ -241,8 +241,8 @@ provider directory in the OpenCode docs:
 ### 2. Install with Helm
 
 ```sh
-helm install mendabot charts/mendabot/ \
-  --namespace mendabot \
+helm install mechanic charts/mechanic/ \
+  --namespace mechanic \
   --set gitops.repo=myorg/my-gitops-repo \
   --set gitops.manifestRoot=kubernetes
 ```
@@ -250,10 +250,10 @@ helm install mendabot charts/mendabot/ \
 ### 3. Verify
 
 ```sh
-kubectl get deployment -n mendabot
-kubectl get rjob -n mendabot
+kubectl get deployment -n mechanic
+kubectl get rjob -n mechanic
 # Show lifecycle events for a specific RemediationJob:
-kubectl describe rjob <name> -n mendabot
+kubectl describe rjob <name> -n mechanic
 ```
 
 ## Configuration
@@ -264,10 +264,10 @@ All `values.yaml` keys and their defaults:
 
 | Key | Default | Description |
 |---|---|---|
-| `image.repository` | `ghcr.io/lenaxia/mendabot-watcher` | Watcher image repository |
+| `image.repository` | `ghcr.io/lenaxia/mechanic-watcher` | Watcher image repository |
 | `image.tag` | `""` (uses `Chart.appVersion`) | Watcher image tag |
 | `image.pullPolicy` | `IfNotPresent` | Image pull policy |
-| `agent.image.repository` | `ghcr.io/lenaxia/mendabot-agent` | Agent image repository |
+| `agent.image.repository` | `ghcr.io/lenaxia/mechanic-agent` | Agent image repository |
 | `agent.image.tag` | `""` (uses `Chart.appVersion`) | Agent image tag |
 | `gitops.repo` | **required** | GitOps repository in `org/repo` format |
 | `gitops.manifestRoot` | **required** | Path within repo to manifests root |
@@ -318,14 +318,14 @@ The watcher validates configuration at startup with clear error messages.
 ```mermaid
 %%{init: {'flowchart': {'curve': 'linear'}}}%%
 flowchart TD
-    subgraph watcher["mendabot-watcher — Deployment"]
+    subgraph watcher["mechanic-watcher — Deployment"]
         SPR["SourceProviderReconcilers<br/>one per resource type<br/>─────────────────────<br/>watches Pods, Deployments,<br/>StatefulSets, PVCs, Nodes, Jobs<br/>extracts findings<br/>deduplicates by fingerprint"]
         RJR["RemediationJobReconciler<br/>─────────────────────<br/>watches RemediationJob CRDs<br/>enforces MAX_CONCURRENT_JOBS<br/>syncs Job status back"]
     end
 
     RJ["RemediationJob CRDs<br/>rjob<br/>─────────────────────<br/>durable dedup state<br/>survives restarts"]
 
-    AJ["mendabot-agent Job<br/>one per finding<br/>─────────────────────<br/>init: git clone repo<br/>main: opencode run<br/>  kubectl read-only<br/>  gh pr create"]
+    AJ["mechanic-agent Job<br/>one per finding<br/>─────────────────────<br/>init: git clone repo<br/>main: opencode run<br/>  kubectl read-only<br/>  gh pr create"]
 
     GH["GitOps repository<br/>GitHub"]
 
@@ -354,14 +354,14 @@ and follows a structured investigation:
 Every unique finding is tracked by a `RemediationJob` object (`rjob`).
 
 ```bash
-kubectl get rjob -n mendabot
+kubectl get rjob -n mechanic
 ```
 
 ```
 NAME                          PHASE       KIND         PARENT                  JOB                                   AGE
-mendabot-a3f9c2b14d8e         Succeeded   Pod          Deployment/my-app       mendabot-agent-a3f9c2b14d8e           8m
-mendabot-7bc1d3e90f21         Dispatched  Deployment   Deployment/api-server   mendabot-agent-7bc1d3e90f21           2m
-mendabot-f4e2a1c85b67         Failed      Node         Node/worker-03                                                1h
+mechanic-a3f9c2b14d8e         Succeeded   Pod          Deployment/my-app       mechanic-agent-a3f9c2b14d8e           8m
+mechanic-7bc1d3e90f21         Dispatched  Deployment   Deployment/api-server   mechanic-agent-7bc1d3e90f21           2m
+mechanic-f4e2a1c85b67         Failed      Node         Node/worker-03                                                1h
 ```
 
 #### RemediationJob lifecycle
@@ -396,37 +396,37 @@ stateDiagram-v2
 
 ### Per-resource annotation control
 
-Three annotations gate mendabot's behaviour on any watched resource (Pod, Deployment,
+Three annotations gate mechanic's behaviour on any watched resource (Pod, Deployment,
 StatefulSet, PVC, Node, Job) or on an entire Namespace:
 
 | Annotation | Value | Effect |
 |---|---|---|
-| `mendabot.io/enabled` | `"false"` | Permanently suppress all findings from this resource |
-| `mendabot.io/skip-until` | `"YYYY-MM-DD"` | Suppress findings until end-of-day UTC on this date |
-| `mendabot.io/priority` | `"critical"` | Bypass the stabilisation window — dispatch immediately |
+| `mechanic.io/enabled` | `"false"` | Permanently suppress all findings from this resource |
+| `mechanic.io/skip-until` | `"YYYY-MM-DD"` | Suppress findings until end-of-day UTC on this date |
+| `mechanic.io/priority` | `"critical"` | Bypass the stabilisation window — dispatch immediately |
 
 **Examples:**
 
 ```sh
 # Disable investigations on a deployment permanently
-kubectl annotate deployment my-app mendabot.io/enabled=false
+kubectl annotate deployment my-app mechanic.io/enabled=false
 
 # Silence a noisy node until after a maintenance window
-kubectl annotate node worker-03 mendabot.io/skip-until=2026-03-15
+kubectl annotate node worker-03 mechanic.io/skip-until=2026-03-15
 
 # Dispatch immediately on a critical deployment (no stabilisation window)
-kubectl annotate deployment api-server mendabot.io/priority=critical
+kubectl annotate deployment api-server mechanic.io/priority=critical
 ```
 
 **Namespace-level gate:** Annotating the `Namespace` object itself applies to all resources
 in that namespace. This suppresses every finding regardless of the resource's own annotations:
 
 ```sh
-# Disable all mendabot activity in the kube-system namespace
-kubectl annotate namespace kube-system mendabot.io/enabled=false
+# Disable all mechanic activity in the kube-system namespace
+kubectl annotate namespace kube-system mechanic.io/enabled=false
 
 # Suppress all findings in staging until a date
-kubectl annotate namespace staging mendabot.io/skip-until=2026-04-01
+kubectl annotate namespace staging mechanic.io/skip-until=2026-04-01
 ```
 
 The `skip-until` date is inclusive: findings are suppressed until midnight UTC at the
@@ -436,8 +436,8 @@ start of the day *after* the specified date.
 
 | Component | Description |
 |---|---|
-| `mendabot-watcher` | Go controller (controller-runtime) that watches Kubernetes resources, manages `RemediationJob` CRDs, and creates agent Jobs |
-| `mendabot-agent` | Docker image containing opencode + kubectl + helm + flux + gh and supporting investigation tools |
+| `mechanic-watcher` | Go controller (controller-runtime) that watches Kubernetes resources, manages `RemediationJob` CRDs, and creates agent Jobs |
+| `mechanic-agent` | Docker image containing opencode + kubectl + helm + flux + gh and supporting investigation tools |
 
 ### Agent image tools
 
@@ -471,7 +471,7 @@ Features under active development or planned:
 | Reliability | `PermanentlyFailed` phase — retry cap with dead-letter tombstone | Shipped |
 | Reliability | GitHub App token expiry fast-fail guard | Planned |
 | Accuracy | Namespace-scoped provider filtering (`WATCH_NAMESPACES`, `EXCLUDE_NAMESPACES`) | Shipped |
-| Accuracy | Per-resource opt-out annotations (`mendabot.io/enabled`, `mendabot.io/skip-until`, `mendabot.io/priority`) | Shipped |
+| Accuracy | Per-resource opt-out annotations (`mechanic.io/enabled`, `mechanic.io/skip-until`, `mechanic.io/priority`) | Shipped |
 | Accuracy | Multi-signal correlation (related findings grouped into one investigation) | Planned |
 | Accuracy | Mandatory pre-PR manifest validation | Planned |
 | Impact | PR auto-close when finding resolves | Evaluated |
@@ -534,7 +534,7 @@ To bypass in an emergency: `git commit --no-verify`
 
 ## Community
 
-- **GitHub Discussions** — [github.com/lenaxia/k8s-mendabot/discussions](https://github.com/lenaxia/k8s-mendabot/discussions)
+- **GitHub Discussions** — [github.com/lenaxia/k8s-mechanic/discussions](https://github.com/lenaxia/k8s-mechanic/discussions)
   — questions, ideas, architecture discussions, and show-and-tell
 - **GitHub Issues** — bugs and feature requests
 
@@ -576,7 +576,7 @@ This project follows structured SDLC practices throughout:
   with explicit story breakdowns, acceptance criteria, and value/complexity ratings before
   implementation begins.
 - **Security-reviewed** — [Epic 12](docs/BACKLOG/epic12-security-review/README.md) ran a
-  structured security audit against mendabot's full attack surface: secret redaction,
+  structured security audit against mechanic's full attack surface: secret redaction,
   prompt injection detection, network policy, RBAC scoping, structured audit logging, and
   a formal penetration test plan with documented findings. All HIGH/CRITICAL findings were
   remediated before the epic was closed.

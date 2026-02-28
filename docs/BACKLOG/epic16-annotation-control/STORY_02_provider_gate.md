@@ -10,8 +10,8 @@
 ## User Story
 
 As a **cluster operator**, I want to annotate a Pod, Deployment, StatefulSet, Job, Node,
-or PVC with `mendabot.io/enabled: "false"` or `mendabot.io/skip-until: "YYYY-MM-DD"` so
-that mendabot's `ExtractFinding` returns `(nil, nil)` for that resource and no
+or PVC with `mechanic.io/enabled: "false"` or `mechanic.io/skip-until: "YYYY-MM-DD"` so
+that mechanic's `ExtractFinding` returns `(nil, nil)` for that resource and no
 `RemediationJob` is ever created for it during the suppression period.
 
 ---
@@ -241,8 +241,8 @@ For every provider (pod, deployment, statefulset, job, node, pvc):
 
 | Test Name | Object setup | Expected |
 |---|---|---|
-| `AnnotationEnabled_False` | Healthy-looking object with annotation `mendabot.io/enabled: "false"` | `(nil, nil)` |
-| `AnnotationSkipUntilFuture` | Failing object with annotation `mendabot.io/skip-until: "2099-12-31"` | `(nil, nil)` |
+| `AnnotationEnabled_False` | Healthy-looking object with annotation `mechanic.io/enabled: "false"` | `(nil, nil)` |
+| `AnnotationSkipUntilFuture` | Failing object with annotation `mechanic.io/skip-until: "2099-12-31"` | `(nil, nil)` |
 
 **Node-specific note:** Nodes are cluster-scoped (no namespace). The test object is a
 `*corev1.Node` with `ObjectMeta.Annotations` set directly — no namespace required.
