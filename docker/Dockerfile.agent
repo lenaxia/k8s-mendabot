@@ -201,6 +201,12 @@ COPY --chmod=755 docker/scripts/redact-wrappers/git         /usr/local/bin/git
 # Non-root user
 RUN useradd -u 1000 -m -s /bin/bash agent
 
+# Pre-create the dry-run sentinel directory so the agent user can write to it
+# without needing root. In production Kubernetes mounts an emptyDir here before
+# the container starts (kubelet creates the mountpoint as root); this RUN
+# replicates that invariant for local testing and the wrapper-test harness.
+RUN mkdir -p /mechanic-cfg && chown agent:agent /mechanic-cfg && chmod 755 /mechanic-cfg
+
 # Git identity for commits made by the agent
 # Use a GitHub noreply address format: <app-id>+<slug>@users.noreply.github.com
 ENV GIT_AUTHOR_NAME="mechanic-agent"

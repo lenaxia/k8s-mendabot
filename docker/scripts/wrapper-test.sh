@@ -142,7 +142,7 @@ fi
 
 # git wrapper: verify sentinel file layer blocks even when DRY_RUN is unset
 printf 'Checking git wrapper blocks via sentinel file when DRY_RUN is unset ... '
-block_rc=$(docker run --rm --user root --entrypoint /bin/sh "$IMAGE" -c \
+block_rc=$(docker run --rm --entrypoint /bin/sh "$IMAGE" -c \
     'mkdir -p /mechanic-cfg && echo -n true > /mechanic-cfg/dry-run \
      && unset DRY_RUN \
      && git push 2>&1; echo "exit:$?"') || true
@@ -171,7 +171,7 @@ fi
 
 # gh wrapper: verify sentinel file layer blocks even when DRY_RUN is unset
 printf 'Checking gh wrapper blocks via sentinel file when DRY_RUN is unset ... '
-block_gh_rc=$(docker run --rm --user root --entrypoint /bin/sh "$IMAGE" -c \
+block_gh_rc=$(docker run --rm --entrypoint /bin/sh "$IMAGE" -c \
     'mkdir -p /mechanic-cfg && echo -n true > /mechanic-cfg/dry-run \
      && unset DRY_RUN \
      && /usr/local/bin/gh pr create 2>&1; echo "exit:$?"') || true
