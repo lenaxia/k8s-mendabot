@@ -21,7 +21,7 @@ labels: enhancement
 
 ## Context
 
-<!-- How are you using mendabot today?
+<!-- How are you using mechanic today?
      Which providers, which agentType, cluster size, namespace count, etc.
      This helps prioritise features that affect the most common deployments. -->
 

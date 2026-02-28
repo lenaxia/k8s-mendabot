@@ -39,25 +39,25 @@ The `jobbuilder.Config` is constructed in `main.go` from the `config.Config`. To
 dry-run flag through, `jobbuilder.Config` must gain a `DryRun bool` field as the fourth
 field, which is populated from `config.Config.DryRun` at construction time.
 
-The main container is named `"mendabot-agent"`. Its `Env` slice is built inline and
+The main container is named `"mechanic-agent"`. Its `Env` slice is built inline and
 currently ends with `AGENT_TYPE`. The env var `DRY_RUN=true` must be appended to the main
 container's `Env` slice — and only when `b.cfg.DryRun == true`. The init container
 (`git-token-clone`) must **not** receive `DRY_RUN`.
 
-The annotation key is `mendabot.io/dry-run` with value `"true"`. It is added to the Job's
+The annotation key is `mechanic.io/dry-run` with value `"true"`. It is added to the Job's
 `ObjectMeta.Annotations` map. The existing annotations (lines 244–247 of `job.go`) are:
 
 ```go
 Annotations: map[string]string{
-    "remediation.mendabot.io/fingerprint-full": rjob.Spec.Fingerprint,
-    "remediation.mendabot.io/finding-parent":   rjob.Spec.Finding.ParentObject,
+    "remediation.mechanic.io/fingerprint-full": rjob.Spec.Fingerprint,
+    "remediation.mechanic.io/finding-parent":   rjob.Spec.Finding.ParentObject,
 },
 ```
 
 When `b.cfg.DryRun == true`, a third entry is added:
 
 ```go
-"mendabot.io/dry-run": "true",
+"mechanic.io/dry-run": "true",
 ```
 
 ---
@@ -68,7 +68,7 @@ When `b.cfg.DryRun == true`, a third entry is added:
 |------|--------------|--------|
 | `internal/jobbuilder/job.go` | `type Config struct { AgentNamespace string; AgentType config.AgentType; TTLSeconds int32 }` | add `DryRun bool` as fourth field |
 | `internal/jobbuilder/job.go` | `mainContainer.Env` slice ends at `{Name: "AGENT_TYPE", Value: ...}` | append `DRY_RUN=true` conditionally after slice definition |
-| `internal/jobbuilder/job.go` | `Annotations` map literal (lines 244–247) | add `"mendabot.io/dry-run": "true"` entry conditionally |
+| `internal/jobbuilder/job.go` | `Annotations` map literal (lines 244–247) | add `"mechanic.io/dry-run": "true"` entry conditionally |
 | `internal/jobbuilder/job_test.go` | — | add five new test functions |
 | `cmd/watcher/main.go` | construction of `jobbuilder.Config{}` | add `DryRun: cfg.DryRun` |
 
@@ -78,10 +78,10 @@ When `b.cfg.DryRun == true`, a third entry is added:
 
 - [x] `jobbuilder.Config` gains `DryRun bool`
 - [x] When `b.cfg.DryRun == true`:
-  - `job.Annotations["mendabot.io/dry-run"] == "true"`
-  - The main container (`"mendabot-agent"`) has an env var `DRY_RUN` with value `"true"`
+  - `job.Annotations["mechanic.io/dry-run"] == "true"`
+  - The main container (`"mechanic-agent"`) has an env var `DRY_RUN` with value `"true"`
 - [x] When `b.cfg.DryRun == false` (the default):
-  - `job.Annotations` does **not** contain key `"mendabot.io/dry-run"`
+  - `job.Annotations` does **not** contain key `"mechanic.io/dry-run"`
   - The main container does **not** have a `DRY_RUN` env var
 - [x] The init container (`"git-token-clone"`) never has a `DRY_RUN` env var,
   regardless of the flag
@@ -121,11 +121,11 @@ conditionally add the third:
 
 ```go
 annotations := map[string]string{
-    "remediation.mendabot.io/fingerprint-full": rjob.Spec.Fingerprint,
-    "remediation.mendabot.io/finding-parent":   rjob.Spec.Finding.ParentObject,
+    "remediation.mechanic.io/fingerprint-full": rjob.Spec.Fingerprint,
+    "remediation.mechanic.io/finding-parent":   rjob.Spec.Finding.ParentObject,
 }
 if b.cfg.DryRun {
-    annotations["mendabot.io/dry-run"] = "true"
+    annotations["mechanic.io/dry-run"] = "true"
 }
 ```
 
@@ -154,7 +154,7 @@ for the non-dry-run baseline; create a separate `buildDryRunJob` helper for dry-
 ```go
 func buildDryRunJob(t *testing.T) *batchv1.Job {
     t.Helper()
-    b, err := New(Config{AgentNamespace: "mendabot", DryRun: true})
+    b, err := New(Config{AgentNamespace: "mechanic", DryRun: true})
     if err != nil {
         t.Fatalf("New: %v", err)
     }
@@ -168,9 +168,9 @@ func buildDryRunJob(t *testing.T) *batchv1.Job {
 
 | Test Name | Builder config | Assertion |
 |-----------|---------------|-----------|
-| `TestBuild_DryRun_AnnotationPresent` | `DryRun: true` | `job.Annotations["mendabot.io/dry-run"] == "true"` |
+| `TestBuild_DryRun_AnnotationPresent` | `DryRun: true` | `job.Annotations["mechanic.io/dry-run"] == "true"` |
 | `TestBuild_DryRun_EnvVarPresent` | `DryRun: true` | main container has `DRY_RUN=true` |
-| `TestBuild_NoDryRun_AnnotationAbsent` | `DryRun: false` (default) | `job.Annotations` does not contain `"mendabot.io/dry-run"` |
+| `TestBuild_NoDryRun_AnnotationAbsent` | `DryRun: false` (default) | `job.Annotations` does not contain `"mechanic.io/dry-run"` |
 | `TestBuild_NoDryRun_EnvVarAbsent` | `DryRun: false` (default) | main container has no `DRY_RUN` env var |
 | `TestBuild_DryRun_InitContainerNoEnvVar` | `DryRun: true` | init container `"git-token-clone"` has no `DRY_RUN` env var |
 
@@ -179,10 +179,10 @@ Example test implementations:
 ```go
 func TestBuild_DryRun_AnnotationPresent(t *testing.T) {
     job := buildDryRunJob(t)
-    if got, ok := job.Annotations["mendabot.io/dry-run"]; !ok {
-        t.Error("annotation mendabot.io/dry-run missing")
+    if got, ok := job.Annotations["mechanic.io/dry-run"]; !ok {
+        t.Error("annotation mechanic.io/dry-run missing")
     } else if got != "true" {
-        t.Errorf("annotation mendabot.io/dry-run = %q, want %q", got, "true")
+        t.Errorf("annotation mechanic.io/dry-run = %q, want %q", got, "true")
     }
 }
 
@@ -200,8 +200,8 @@ func TestBuild_DryRun_EnvVarPresent(t *testing.T) {
 
 func TestBuild_NoDryRun_AnnotationAbsent(t *testing.T) {
     job := buildJob(t) // DryRun: false (default)
-    if _, ok := job.Annotations["mendabot.io/dry-run"]; ok {
-        t.Error("annotation mendabot.io/dry-run must not be present when DryRun=false")
+    if _, ok := job.Annotations["mechanic.io/dry-run"]; ok {
+        t.Error("annotation mechanic.io/dry-run must not be present when DryRun=false")
     }
 }
 
@@ -246,7 +246,7 @@ func TestBuild_DryRun_InitContainerNoEnvVar(t *testing.T) {
 ## Dependencies
 
 **Depends on:** STORY_01 (config — `cfg.DryRun` field must exist before `main.go` can pass it)
-**Blocks:** STORY_04 (reconciler reads the `mendabot.io/dry-run` annotation to detect dry-run Jobs)
+**Blocks:** STORY_04 (reconciler reads the `mechanic.io/dry-run` annotation to detect dry-run Jobs)
 
 ---
 

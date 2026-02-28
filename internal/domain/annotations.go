@@ -3,17 +3,17 @@ package domain
 import "time"
 
 const (
-	AnnotationEnabled   = "mendabot.io/enabled"
-	AnnotationSkipUntil = "mendabot.io/skip-until"
-	AnnotationPriority  = "mendabot.io/priority"
+	AnnotationEnabled   = "mechanic.io/enabled"
+	AnnotationSkipUntil = "mechanic.io/skip-until"
+	AnnotationPriority  = "mechanic.io/priority"
 )
 
 // ShouldSkip reports whether ExtractFinding should return (nil, nil) for the
-// resource that owns annotations, based on the mendabot.io control annotations.
+// resource that owns annotations, based on the mechanic.io control annotations.
 //
 // Rules (evaluated in order):
-//  1. If annotations["mendabot.io/enabled"] == "false"  → skip (return true).
-//  2. If annotations["mendabot.io/skip-until"] is set:
+//  1. If annotations["mechanic.io/enabled"] == "false"  → skip (return true).
+//  2. If annotations["mechanic.io/skip-until"] is set:
 //     - Parse the value as "2006-01-02" in UTC.
 //     - If parsing fails: do NOT skip (treat as absent).
 //     - If now is before the end of the skip-until day (i.e. before midnight

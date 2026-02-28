@@ -5,7 +5,7 @@
 ## Problem Statement
 
 The `jobProvider` (`internal/provider/native/job.go`) currently silences all
-`batch/v1` Jobs whose `app.kubernetes.io/managed-by: mendabot-watcher` label
+`batch/v1` Jobs whose `app.kubernetes.io/managed-by: mechanic-watcher` label
 is set, returning `(nil, nil)` unconditionally. This guard prevents an infinite
 cascade where a failed agent job spawns another agent job which also fails.
 
@@ -16,7 +16,7 @@ self-remediation attempts before backing off.
 
 ## Goal
 
-Allow the watcher to investigate a failing mendabot agent job **up to a
+Allow the watcher to investigate a failing mechanic agent job **up to a
 configurable depth limit** (`SELF_REMEDIATION_MAX_DEPTH`), then stop
 permanently. A per-namespace cooldown (`SELF_REMEDIATION_COOLDOWN_SECONDS`)
 prevents burst behaviour.
@@ -44,7 +44,7 @@ No upstream repository routing. All PRs always target `GITOPS_REPO`.
 | # | File | Title | Status | Priority | Effort |
 |---|------|-------|--------|----------|--------|
 | 1 | [STORY_01_schema_foundations.md](STORY_01_schema_foundations.md) | Schema foundations: ChainDepth in Finding and RemediationJobSpec | Complete | Critical | 1h |
-| 2 | [STORY_02_job_provider_detection.md](STORY_02_job_provider_detection.md) | jobProvider: detect mendabot agent jobs and compute chain depth | Complete | Critical | 2h |
+| 2 | [STORY_02_job_provider_detection.md](STORY_02_job_provider_detection.md) | jobProvider: detect mechanic agent jobs and compute chain depth | Complete | Critical | 2h |
 | 3 | [STORY_03_reconciler_wiring.md](STORY_03_reconciler_wiring.md) | SourceProviderReconciler: depth gate, circuit breaker wiring, main.go | Complete | Critical | 3h |
 | 4 | [STORY_04_circuit_breaker.md](STORY_04_circuit_breaker.md) | Circuit breaker: in-memory cooldown | Complete | High | 1h |
 
@@ -53,7 +53,7 @@ No upstream repository routing. All PRs always target `GITOPS_REPO`.
 ### Data flow
 
 ```
-batch/v1 Job (failed, managed-by=mendabot-watcher)
+batch/v1 Job (failed, managed-by=mechanic-watcher)
   │
   ▼
 jobProvider.ExtractFinding()           [STORY_02]
@@ -77,7 +77,7 @@ RemediationJob → batch/v1 Job → agent
 ### Self-remediation depth
 
 - Depth `0` means the finding is NOT a self-remediation (normal path).
-- Depth `1` means the failed job is a mendabot agent job (first level).
+- Depth `1` means the failed job is a mechanic agent job (first level).
 - Depth `N` means a chain of N nested self-remediations.
 - When `SELF_REMEDIATION_MAX_DEPTH=2`, depths 1 and 2 are allowed; depth 3
   is blocked.
@@ -93,7 +93,7 @@ code was removed entirely, there is nothing to be backward-compatible with.
 
 ### Circuit breaker
 
-A ConfigMap named `mendabot-circuit-breaker` in `AgentNamespace` stores the
+A ConfigMap named `mechanic-circuit-breaker` in `AgentNamespace` stores the
 RFC3339 timestamp of the last permitted self-remediation. If another
 self-remediation arrives within `SELF_REMEDIATION_COOLDOWN_SECONDS`, it is
 held with `RequeueAfter`. Zero cooldown disables the circuit breaker.
@@ -136,7 +136,7 @@ Both variables are optional. Safe defaults are applied when absent.
 - [x] `domain.Finding.ChainDepth int` field exists
 - [x] `FindingSpec.ChainDepth int32` field exists in `RemediationJobSpec`
 - [x] `RemediationJob` CRD testdata YAML updated
-- [x] `jobProvider.ExtractFinding` returns non-nil for failed mendabot agent
+- [x] `jobProvider.ExtractFinding` returns non-nil for failed mechanic agent
       jobs with correct `ChainDepth`
 - [x] `SourceProviderReconciler.Reconcile` enforces max-depth and calls
       circuit breaker for self-remediations

@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **mendabot developer**, I want `JobBuilder.Build()` to accept a slice of correlated
+As a **mechanic developer**, I want `JobBuilder.Build()` to accept a slice of correlated
 findings and inject them as a `FINDING_CORRELATED_FINDINGS` env var, so that the agent
 Job for a correlated group receives the full group context rather than a single finding.
 
@@ -50,7 +50,7 @@ The following work was applied during a prior (incomplete) implementation attemp
       a JSON-encoded array (already done)
 - [x] When `len(correlatedFindings) == 0`, `FINDING_CORRELATED_FINDINGS` is not set
       (already done)
-- [x] When the primary `RemediationJob` carries a `mendabot.io/correlation-group-id` label,
+- [x] When the primary `RemediationJob` carries a `mechanic.io/correlation-group-id` label,
       `FINDING_CORRELATION_GROUP_ID` is injected as an env var with that value
 - [x] When the primary does NOT carry that label, `FINDING_CORRELATION_GROUP_ID` is not set
 - [x] `internal/jobbuilder/job_test.go` covers:

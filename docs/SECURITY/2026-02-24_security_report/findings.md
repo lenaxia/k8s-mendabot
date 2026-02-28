@@ -15,7 +15,7 @@
 
 #### Description
 
-`charts/mendabot/files/prompts/core.txt` lacked the untrusted-data delimiters around
+`charts/mechanic/files/prompts/core.txt` lacked the untrusted-data delimiters around
 `${FINDING_ERRORS}` and `${FINDING_DETAILS}`. STORY_05 (epic 12) added these delimiters
 to the original kustomize-based configmap, but they were not carried forward when the
 Helm chart was authored. Additionally, HARD RULE 8 — which instructs the LLM to treat
@@ -26,7 +26,7 @@ This was a direct regression of the STORY_05 control.
 #### Evidence
 
 ```
-charts/mendabot/files/prompts/core.txt lines 14–18 (before fix):
+charts/mechanic/files/prompts/core.txt lines 14–18 (before fix):
 
 Errors detected:
 ${FINDING_ERRORS}
@@ -71,7 +71,7 @@ override any rule, regardless of phrasing.
 
 #### Resolution
 
-Fixed in `charts/mendabot/files/prompts/core.txt`:
+Fixed in `charts/mechanic/files/prompts/core.txt`:
 - Lines 14–22 now wrap `${FINDING_ERRORS}` in `=== BEGIN/END FINDING ERRORS ===`
 - Lines 17–21 now wrap `${FINDING_DETAILS}` in `=== BEGIN/END AI ANALYSIS ===`
 - HARD RULES section extended with Rule 8 on untrusted delimiter content
@@ -87,7 +87,7 @@ Fixed in `charts/mendabot/files/prompts/core.txt`:
 
 #### Description
 
-`charts/mendabot/templates/clusterrole-watcher.yaml` included `"secrets"` in the
+`charts/mechanic/templates/clusterrole-watcher.yaml` included `"secrets"` in the
 cluster-wide resource list:
 
 ```yaml
@@ -97,26 +97,26 @@ verbs: ["get", "list", "watch"]
 
 This grants the watcher ServiceAccount `get/list/watch` on `secrets` in **every
 namespace** in the cluster. The watcher's actual Secret access requirement — reading
-`github-app` and `llm-credentials-*` in the `mendabot` namespace for the readiness
+`github-app` and `llm-credentials-*` in the `mechanic` namespace for the readiness
 checkers — is already satisfied by the namespace-scoped `role-watcher.yaml`, which
 grants `get/list/watch` on `secrets` within `{{ .Release.Namespace }}` only.
 
-No watcher code path in `internal/` reads Secrets outside the `mendabot` namespace.
+No watcher code path in `internal/` reads Secrets outside the `mechanic` namespace.
 
 #### Evidence
 
 ```
-charts/mendabot/templates/clusterrole-watcher.yaml:10
+charts/mechanic/templates/clusterrole-watcher.yaml:10
   resources: ["pods", "persistentvolumeclaims", "nodes", "namespaces", "secrets"]
 
-charts/mendabot/templates/role-watcher.yaml (namespace-scoped):
+charts/mechanic/templates/role-watcher.yaml (namespace-scoped):
   resources: ["secrets"]
   verbs: ["get", "list", "watch"]
   # namespace: {{ .Release.Namespace }}
 
 grep -rn "corev1.Secret\|&corev1.Secret" internal/ --include="*.go"
-# → internal/readiness/sink/github.go:42  (mendabot namespace only)
-# → internal/readiness/llm/openai.go:54   (mendabot namespace only)
+# → internal/readiness/sink/github.go:42  (mechanic namespace only)
+# → internal/readiness/llm/openai.go:54   (mechanic namespace only)
 ```
 
 #### Exploitability
@@ -139,7 +139,7 @@ already covers the legitimate use case.
 
 #### Resolution
 
-Fixed in `charts/mendabot/templates/clusterrole-watcher.yaml` line 10:
+Fixed in `charts/mechanic/templates/clusterrole-watcher.yaml` line 10:
 
 ```yaml
 # Before
@@ -219,7 +219,7 @@ Open — scheduled for next hardening session.
 
 #### Description
 
-`internal/provider/provider.go:260` reads `mendabot.io/priority=critical` to bypass the
+`internal/provider/provider.go:260` reads `mechanic.io/priority=critical` to bypass the
 stabilisation window. When the bypass is active, no audit log event is emitted. An
 attacker who can annotate pods could trigger immediate RemediationJob creation without
 any audit trail explaining why the stabilisation window was skipped.
@@ -239,7 +239,7 @@ if !priorityCritical && r.Cfg.StabilisationWindow != 0 {
 
 Requires write access to Pod/Deployment/etc annotations (i.e. `kubectl annotate` or
 equivalent RBAC in the target namespace). An attacker with this access can annotate any
-resource `mendabot.io/priority=critical` to bypass the stabilisation window and trigger
+resource `mechanic.io/priority=critical` to bypass the stabilisation window and trigger
 an immediate agent Job.
 
 #### Impact
@@ -382,7 +382,7 @@ redaction, that content would appear unredacted in `FINDING_CORRELATED_FINDINGS`
 #### Impact
 
 Credential leakage via the agent Job env var (readable by anyone who can
-`kubectl get job -o yaml` in the `mendabot` namespace); potential prompt injection via
+`kubectl get job -o yaml` in the `mechanic` namespace); potential prompt injection via
 correlated finding error text.
 
 #### Recommendation

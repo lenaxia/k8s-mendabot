@@ -6,7 +6,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/lenaxia/k8s-mendabot/api/v1alpha1"
+	"github.com/lenaxia/k8s-mechanic/api/v1alpha1"
 )
 
 // --- Phase constant tests ---
@@ -73,8 +73,8 @@ func newTestRemediationJob() *v1alpha1.RemediationJob {
 	now := metav1.NewTime(time.Now())
 	return &v1alpha1.RemediationJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-abc123def456",
-			Namespace: "mendabot",
+			Name:      "mechanic-abc123def456",
+			Namespace: "mechanic",
 		},
 		Spec: v1alpha1.RemediationJobSpec{
 			Fingerprint: "abc123def456abc123def456abc123def456abc123def456abc123def456abc1",
@@ -95,7 +95,7 @@ func newTestRemediationJob() *v1alpha1.RemediationJob {
 			GitOpsRepo:         "org/repo",
 			GitOpsManifestRoot: "kubernetes",
 			AgentImage:         "ghcr.io/org/agent:latest",
-			AgentSA:            "mendabot-agent",
+			AgentSA:            "mechanic-agent",
 		},
 		Status: v1alpha1.RemediationJobStatus{
 			Phase:        v1alpha1.PhasePending,
@@ -246,12 +246,12 @@ func TestAddToScheme_RegistersRemediationJobTypes(t *testing.T) {
 	}
 	found := false
 	for _, gvk := range gvks {
-		if gvk.Group == "remediation.mendabot.io" && gvk.Version == "v1alpha1" && gvk.Kind == "RemediationJob" {
+		if gvk.Group == "remediation.mechanic.io" && gvk.Version == "v1alpha1" && gvk.Kind == "RemediationJob" {
 			found = true
 		}
 	}
 	if !found {
-		t.Errorf("RemediationJob not registered under remediation.mendabot.io/v1alpha1, got %v", gvks)
+		t.Errorf("RemediationJob not registered under remediation.mechanic.io/v1alpha1, got %v", gvks)
 	}
 
 	gvks2, _, err := scheme.ObjectKinds(&v1alpha1.RemediationJobList{})
@@ -260,12 +260,12 @@ func TestAddToScheme_RegistersRemediationJobTypes(t *testing.T) {
 	}
 	found2 := false
 	for _, gvk := range gvks2 {
-		if gvk.Group == "remediation.mendabot.io" && gvk.Kind == "RemediationJobList" {
+		if gvk.Group == "remediation.mechanic.io" && gvk.Kind == "RemediationJobList" {
 			found2 = true
 		}
 	}
 	if !found2 {
-		t.Errorf("RemediationJobList not registered under remediation.mendabot.io/v1alpha1, got %v", gvks2)
+		t.Errorf("RemediationJobList not registered under remediation.mechanic.io/v1alpha1, got %v", gvks2)
 	}
 }
 
@@ -345,22 +345,22 @@ func TestRemediationJobStatus_RetryCountField(t *testing.T) {
 }
 
 // TestNewScheme_RegistersRemediationGroupVersion verifies that NewScheme registers
-// RemediationJob under remediation.mendabot.io/v1alpha1.
+// RemediationJob under remediation.mechanic.io/v1alpha1.
 func TestNewScheme_RegistersRemediationGroupVersion(t *testing.T) {
 	scheme := v1alpha1.NewScheme()
 
-	// Verify RemediationJob is registered under remediation.mendabot.io/v1alpha1.
+	// Verify RemediationJob is registered under remediation.mechanic.io/v1alpha1.
 	rjobGVKs, _, err := scheme.ObjectKinds(&v1alpha1.RemediationJob{})
 	if err != nil {
 		t.Fatalf("RemediationJob not registered in full scheme: %v", err)
 	}
 	rjobFound := false
 	for _, gvk := range rjobGVKs {
-		if gvk.Group == "remediation.mendabot.io" && gvk.Version == "v1alpha1" {
+		if gvk.Group == "remediation.mechanic.io" && gvk.Version == "v1alpha1" {
 			rjobFound = true
 		}
 	}
 	if !rjobFound {
-		t.Errorf("RemediationJob not registered under remediation.mendabot.io/v1alpha1, got %v", rjobGVKs)
+		t.Errorf("RemediationJob not registered under remediation.mechanic.io/v1alpha1, got %v", rjobGVKs)
 	}
 }

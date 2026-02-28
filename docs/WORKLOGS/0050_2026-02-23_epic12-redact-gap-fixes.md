@@ -65,27 +65,27 @@ None.
 ```
 # Before implementation — 6 failures confirmed:
 go test -timeout 30s -race ./internal/domain/...
-FAIL github.com/lenaxia/k8s-mendabot/internal/domain
+FAIL github.com/lenaxia/k8s-mechanic/internal/domain
 
 # After implementation — all pass:
 go test -timeout 30s -race ./internal/domain/...
-ok  github.com/lenaxia/k8s-mendabot/internal/domain
+ok  github.com/lenaxia/k8s-mechanic/internal/domain
 
 # Full suite — no regressions:
 go test -timeout 30s -race ./...
-ok  github.com/lenaxia/k8s-mendabot/api/v1alpha1
-ok  github.com/lenaxia/k8s-mendabot/cmd/watcher
-ok  github.com/lenaxia/k8s-mendabot/internal
-ok  github.com/lenaxia/k8s-mendabot/internal/cascade
-ok  github.com/lenaxia/k8s-mendabot/internal/circuitbreaker
-ok  github.com/lenaxia/k8s-mendabot/internal/config
-ok  github.com/lenaxia/k8s-mendabot/internal/controller
-ok  github.com/lenaxia/k8s-mendabot/internal/domain
-ok  github.com/lenaxia/k8s-mendabot/internal/jobbuilder
-ok  github.com/lenaxia/k8s-mendabot/internal/logging
-ok  github.com/lenaxia/k8s-mendabot/internal/metrics
-ok  github.com/lenaxia/k8s-mendabot/internal/provider
-ok  github.com/lenaxia/k8s-mendabot/internal/provider/native
+ok  github.com/lenaxia/k8s-mechanic/api/v1alpha1
+ok  github.com/lenaxia/k8s-mechanic/cmd/watcher
+ok  github.com/lenaxia/k8s-mechanic/internal
+ok  github.com/lenaxia/k8s-mechanic/internal/cascade
+ok  github.com/lenaxia/k8s-mechanic/internal/circuitbreaker
+ok  github.com/lenaxia/k8s-mechanic/internal/config
+ok  github.com/lenaxia/k8s-mechanic/internal/controller
+ok  github.com/lenaxia/k8s-mechanic/internal/domain
+ok  github.com/lenaxia/k8s-mechanic/internal/jobbuilder
+ok  github.com/lenaxia/k8s-mechanic/internal/logging
+ok  github.com/lenaxia/k8s-mechanic/internal/metrics
+ok  github.com/lenaxia/k8s-mechanic/internal/provider
+ok  github.com/lenaxia/k8s-mechanic/internal/provider/native
 ```
 
 ---

@@ -3,7 +3,7 @@ package domain_test
 import (
 	"testing"
 
-	"github.com/lenaxia/k8s-mendabot/internal/domain"
+	"github.com/lenaxia/k8s-mechanic/internal/domain"
 )
 
 func TestRedactSecrets(t *testing.T) {

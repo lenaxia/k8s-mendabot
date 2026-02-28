@@ -1,22 +1,22 @@
 # Support
 
-This document describes how to get help with k8s-mendabot.
+This document describes how to get help with k8s-mechanic.
 
 ## How to Get Help
 
 ### Questions and Discussion
 
 For questions, ideas, architecture discussions, and show-and-tell, use
-[GitHub Discussions](https://github.com/lenaxia/k8s-mendabot/discussions).
+[GitHub Discussions](https://github.com/lenaxia/k8s-mechanic/discussions).
 
 This is the preferred channel for:
 - "How do I configure X?"
-- "Does k8s-mendabot support Y?"
+- "Does k8s-mechanic support Y?"
 - "I'm thinking about contributing Z — does this fit the project?"
 
 ### Bug Reports and Feature Requests
 
-Open a [GitHub Issue](https://github.com/lenaxia/k8s-mendabot/issues) for:
+Open a [GitHub Issue](https://github.com/lenaxia/k8s-mechanic/issues) for:
 - Confirmed bugs (include steps to reproduce, expected vs. actual behaviour,
   cluster version, Helm chart version, and relevant log output)
 - Feature requests (describe the problem you're trying to solve, not just the
@@ -35,7 +35,7 @@ within 5 business days.
 ## Community
 
 - **CNCF Slack** — find us in `#kubernetes` or `#gitops` on
-  [CNCF Slack](https://slack.cncf.io/) and mention k8s-mendabot
+  [CNCF Slack](https://slack.cncf.io/) and mention k8s-mechanic
 - **GitHub Discussions** — async, async-friendly, no account besides GitHub
   required
 
@@ -44,6 +44,6 @@ within 5 business days.
 Commercial support is not currently available. The project is maintained by
 volunteers on a best-effort basis.
 
-If your organization depends on k8s-mendabot and would like to contribute
+If your organization depends on k8s-mechanic and would like to contribute
 resources (engineering time, infrastructure, or funding), open a GitHub issue
 labelled `governance` to discuss co-maintainership or sponsorship options.

@@ -8,7 +8,7 @@
 
 ## Objective
 
-Implement every Kubernetes manifest needed to deploy mendabot-watcher and mendabot-agent
+Implement every Kubernetes manifest needed to deploy mechanic-watcher and mechanic-agent
 per `docs/DESIGN/lld/DEPLOY_LLD.md`: namespace, CRD, ServiceAccounts, RBAC, Secrets
 (placeholders), ConfigMap (placeholder), Deployment, Kustomization, Flux example.
 
@@ -20,7 +20,7 @@ per `docs/DESIGN/lld/DEPLOY_LLD.md`: namespace, CRD, ServiceAccounts, RBAC, Secr
 
 | File | Description |
 |------|-------------|
-| `namespace.yaml` | `mendabot` Namespace |
+| `namespace.yaml` | `mechanic` Namespace |
 | `crd-remediationjob.yaml` | RemediationJob CRD — full OpenAPI v3 schema with CEL immutability rules and phase enum |
 | `serviceaccount-watcher.yaml` | SA for watcher controller |
 | `serviceaccount-agent.yaml` | SA for agent Jobs |
@@ -42,7 +42,7 @@ per `docs/DESIGN/lld/DEPLOY_LLD.md`: namespace, CRD, ServiceAccounts, RBAC, Secr
 
 | File | Description |
 |------|-------------|
-| `ks.yaml` | Flux `Kustomization` v1 example — references `k8s-mendabot` GitRepository, depends on `k8sgpt-operator` |
+| `ks.yaml` | Flux `Kustomization` v1 example — references `k8s-mechanic` GitRepository, depends on `k8sgpt-operator` |
 
 ---
 

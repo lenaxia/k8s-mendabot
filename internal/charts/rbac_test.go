@@ -33,7 +33,7 @@ type rbacManifest struct {
 	Rules []policyRule `yaml:"rules"`
 }
 
-// chartsDir returns the absolute path to charts/mendabot/templates relative to
+// chartsDir returns the absolute path to charts/mechanic/templates relative to
 // this test file, regardless of where `go test` is invoked from.
 func chartsDir(t *testing.T) string {
 	t.Helper()
@@ -44,7 +44,7 @@ func chartsDir(t *testing.T) string {
 	// file = .../internal/charts/rbac_test.go
 	// repo root = three levels up
 	root := filepath.Join(filepath.Dir(file), "..", "..")
-	return filepath.Join(root, "charts", "mendabot", "templates")
+	return filepath.Join(root, "charts", "mechanic", "templates")
 }
 
 // helmLineRE matches lines that are pure Helm template directives, e.g.:
@@ -56,7 +56,7 @@ var helmLineRE = regexp.MustCompile(`(?m)^\s*\{\{[^}]*\}\}\s*$`)
 
 // helmInlineRE matches Helm expressions embedded within a YAML value, e.g.:
 //
-//	name: {{ include "mendabot.fullname" . }}-agent
+//	name: {{ include "mechanic.fullname" . }}-agent
 //	namespace: {{ .Release.Namespace }}
 var helmInlineRE = regexp.MustCompile(`\{\{[^}]*\}\}`)
 
@@ -136,7 +136,7 @@ func TestAgentClusterRole_CanPatchRemediationJobStatus(t *testing.T) {
 	m := loadRBAC(t, path)
 
 	const (
-		group    = "remediation.mendabot.io"
+		group    = "remediation.mechanic.io"
 		resource = "remediationjobs/status"
 	)
 
@@ -158,7 +158,7 @@ func TestAgentClusterRole_CanGetRemediationJobStatus(t *testing.T) {
 	path := filepath.Join(chartsDir(t), "clusterrole-agent.yaml")
 	m := loadRBAC(t, path)
 
-	if !hasRule(m, "remediation.mendabot.io", "remediationjobs/status", "get") {
+	if !hasRule(m, "remediation.mechanic.io", "remediationjobs/status", "get") {
 		t.Errorf("%s: ClusterRole is missing \"get\" on remediationjobs/status", path)
 	}
 }
@@ -171,7 +171,7 @@ func TestAgentClusterRole_CanListWatchRemediationJobs(t *testing.T) {
 	m := loadRBAC(t, path)
 
 	for _, verb := range []string{"get", "list", "watch"} {
-		if !hasRule(m, "remediation.mendabot.io", "remediationjobs", verb) {
+		if !hasRule(m, "remediation.mechanic.io", "remediationjobs", verb) {
 			t.Errorf("%s: ClusterRole is missing %q on remediationjobs", path, verb)
 		}
 	}
@@ -184,7 +184,7 @@ func TestAgentNamespaceRole_CanPatchRemediationJobStatus(t *testing.T) {
 	path := filepath.Join(chartsDir(t), "role-agent.yaml")
 	m := loadRBAC(t, path)
 
-	if !hasRule(m, "remediation.mendabot.io", "remediationjobs/status", "patch") {
+	if !hasRule(m, "remediation.mechanic.io", "remediationjobs/status", "patch") {
 		t.Errorf(
 			"%s: namespace-scoped Role is missing \"patch\" on remediationjobs/status",
 			path,
@@ -198,7 +198,7 @@ func TestAgentNamespaceRole_CanGetRemediationJobStatus(t *testing.T) {
 	path := filepath.Join(chartsDir(t), "role-agent.yaml")
 	m := loadRBAC(t, path)
 
-	if !hasRule(m, "remediation.mendabot.io", "remediationjobs/status", "get") {
+	if !hasRule(m, "remediation.mechanic.io", "remediationjobs/status", "get") {
 		t.Errorf("%s: namespace-scoped Role is missing \"get\" on remediationjobs/status", path)
 	}
 }
@@ -213,7 +213,7 @@ func TestAgentClusterRole_NoDuplicateStatusRules(t *testing.T) {
 
 	var count int
 	for _, rule := range m.Rules {
-		if containsStr(rule.APIGroups, "remediation.mendabot.io") &&
+		if containsStr(rule.APIGroups, "remediation.mechanic.io") &&
 			containsStr(rule.Resources, "remediationjobs/status") {
 			count++
 		}

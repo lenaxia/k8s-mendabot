@@ -74,7 +74,7 @@
 
 ## Executive Summary
 
-This is the first security review of mendabot following the `docs/SECURITY/PROCESS.md` v1.0 process. The review covered all ten phases by code review; cluster-dependent live tests were deferred due to the absence of a running cluster in the review environment. No CRITICAL or HIGH findings were identified.
+This is the first security review of mechanic following the `docs/SECURITY/PROCESS.md` v1.0 process. The review covered all ten phases by code review; cluster-dependent live tests were deferred due to the absence of a running cluster in the review environment. No CRITICAL or HIGH findings were identified.
 
 The overall security posture is good. Core controls — secret redaction in all providers, prompt injection detection, init-container key isolation, read-only agent RBAC, prompt envelope, and HARD RULE 8 — are all confirmed to be in place and correctly implemented. Audit logging is comprehensive and does not leak credential values.
 

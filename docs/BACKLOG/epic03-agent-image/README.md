@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Build the `mendabot-agent` Docker image — a self-contained investigation environment
+Build the `mechanic-agent` Docker image — a self-contained investigation environment
 containing every CLI tool the OpenCode agent needs to inspect a cluster, read a GitOps
 repo, and open a pull request.
 

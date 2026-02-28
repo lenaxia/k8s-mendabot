@@ -19,8 +19,8 @@ All 2026-02-23 findings were marked Remediated in the 2026-02-24 report and re-v
 
 | Finding ID | Title | Previous Status | Still Remediated / Still Open? | Evidence |
 |-----------|-------|----------------|-------------------------------|---------|
-| 2026-02-24-001 | Prompt injection envelope missing from Helm chart | Remediated | **Verified Remediated** | `charts/mendabot/files/prompts/core.txt` has `=== BEGIN/END FINDING ERRORS ===` and HARD RULE 8 |
-| 2026-02-24-002 | Watcher ClusterRole grants cluster-wide `secrets` | Remediated | **REGRESSION in deployed cluster** | Chart source fixed; live cluster not redeployed. Live `mendabot-watcher` ClusterRole still has `"secrets"`. See finding P-005. |
+| 2026-02-24-001 | Prompt injection envelope missing from Helm chart | Remediated | **Verified Remediated** | `charts/mechanic/files/prompts/core.txt` has `=== BEGIN/END FINDING ERRORS ===` and HARD RULE 8 |
+| 2026-02-24-002 | Watcher ClusterRole grants cluster-wide `secrets` | Remediated | **REGRESSION in deployed cluster** | Chart source fixed; live cluster not redeployed. Live `mechanic-watcher` ClusterRole still has `"secrets"`. See finding P-005. |
 | 2026-02-24-003 | Pod unschedulable message not truncated | Open | **Still open** | `internal/provider/native/pod.go:104` — no truncate before RedactSecrets |
 | 2026-02-24-004 | Priority annotation bypass emits no audit log | Open | **Still open** | `internal/provider/provider.go:260–261` — no log on priority critical path |
 | 2026-02-24-005 | Integer overflow int32 casts | Open | **Still open** | `config.go:222`, `main.go:105` — unchanged |

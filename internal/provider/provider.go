@@ -16,11 +16,11 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
-	"github.com/lenaxia/k8s-mendabot/internal/circuitbreaker"
-	"github.com/lenaxia/k8s-mendabot/internal/config"
-	"github.com/lenaxia/k8s-mendabot/internal/domain"
-	"github.com/lenaxia/k8s-mendabot/internal/readiness"
+	v1alpha1 "github.com/lenaxia/k8s-mechanic/api/v1alpha1"
+	"github.com/lenaxia/k8s-mechanic/internal/circuitbreaker"
+	"github.com/lenaxia/k8s-mechanic/internal/config"
+	"github.com/lenaxia/k8s-mechanic/internal/domain"
+	"github.com/lenaxia/k8s-mechanic/internal/readiness"
 )
 
 // SourceProviderReconciler is a controller-runtime Reconciler that wraps a SourceProvider.
@@ -395,7 +395,7 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	var rjobList v1alpha1.RemediationJobList
 	if err := r.List(ctx, &rjobList,
 		client.InNamespace(r.Cfg.AgentNamespace),
-		client.MatchingLabels{"remediation.mendabot.io/fingerprint": fp[:12]},
+		client.MatchingLabels{"remediation.mechanic.io/fingerprint": fp[:12]},
 	); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -465,19 +465,19 @@ func (r *SourceProviderReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	agentSA := r.Cfg.AgentSA
 	if r.Cfg.AgentRBACScope == "namespace" {
-		agentSA = "mendabot-agent-ns"
+		agentSA = "mechanic-agent-ns"
 	}
 
 	rjob := &v1alpha1.RemediationJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-" + fp[:12],
+			Name:      "mechanic-" + fp[:12],
 			Namespace: r.Cfg.AgentNamespace,
 			Labels: map[string]string{
-				"remediation.mendabot.io/fingerprint": fp[:12],
-				"app.kubernetes.io/managed-by":        "mendabot-watcher",
+				"remediation.mechanic.io/fingerprint": fp[:12],
+				"app.kubernetes.io/managed-by":        "mechanic-watcher",
 			},
 			Annotations: map[string]string{
-				"remediation.mendabot.io/fingerprint-full": fp,
+				"remediation.mechanic.io/fingerprint-full": fp,
 			},
 		},
 		Spec: v1alpha1.RemediationJobSpec{

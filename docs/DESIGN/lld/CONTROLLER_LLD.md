@@ -185,18 +185,18 @@ Reconcile(ctx, req):
   2. fingerprintFor(result.Namespace, result.Spec) → fp
 
   3. List RemediationJobs in cfg.AgentNamespace with label
-     remediation.mendabot.io/fingerprint=fp[:12]
+     remediation.mechanic.io/fingerprint=fp[:12]
      For each match:
        if rjob.Spec.Fingerprint == fp AND rjob.Status.Phase != PhaseFailed:
          return nil  // already handled, not failed
 
    4. Build RemediationJob from result + fp:
-      name: "mendabot-" + fp[:12]
+      name: "mechanic-" + fp[:12]
       namespace: cfg.AgentNamespace
        labels:
-         remediation.mendabot.io/fingerprint: fp[:12]
+         remediation.mechanic.io/fingerprint: fp[:12]
        annotations:
-         remediation.mendabot.io/fingerprint-full: fp
+         remediation.mechanic.io/fingerprint-full: fp
       spec:
         sourceType: "k8sgpt"
         sourceResultRef: {name: result.Name, namespace: result.Namespace}
@@ -260,7 +260,7 @@ Reconcile(ctx, req):
        return nil  // terminal; retained indefinitely for postmortem
 
   3. List batch/v1 Jobs in cfg.AgentNamespace with label
-     remediation.mendabot.io/remediation-job=rjob.Name
+     remediation.mechanic.io/remediation-job=rjob.Name
      If a Job exists:
        a. newPhase = syncPhaseFromJob(job)
        b. If newPhase != rjob.Status.Phase (or CompletedAt/JobRef not yet set):
@@ -271,7 +271,7 @@ Reconcile(ctx, req):
 
   4. Check MAX_CONCURRENT_JOBS:
      List batch/v1 Jobs in cfg.AgentNamespace with label
-     app.kubernetes.io/managed-by=mendabot-watcher.
+     app.kubernetes.io/managed-by=mechanic-watcher.
      Count those where:
        job.Status.Active > 0
        OR (job.Status.Succeeded == 0 AND job.Status.CompletionTime == nil)

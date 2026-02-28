@@ -8,7 +8,7 @@
 
 ## Objective
 
-Diagnose and fix a helm install failure where the `mendabot-crd-upgrader` pre-install hook job
+Diagnose and fix a helm install failure where the `mechanic-crd-upgrader` pre-install hook job
 was stuck in `ImagePullBackOff`, causing helm to time out and mark the release as failed.
 
 ---
@@ -56,7 +56,7 @@ None.
 
 ## Tests Run
 
-- `helm template mendabot charts/mendabot --set gitops.repo=test/repo --set gitops.manifestRoot=/`
+- `helm template mechanic charts/mechanic --set gitops.repo=test/repo --set gitops.manifestRoot=/`
   — rendered correctly, image field shows `registry.k8s.io/kubectl:v1.28.15`
 - Override path tested with `--set crdUpgrader.image.repository=my-registry.internal/kubectl
   --set crdUpgrader.image.tag=1.29.0 --set crdUpgrader.image.pullPolicy=Always`
@@ -75,5 +75,5 @@ in a future chart version, update `crdUpgrader.image.tag` to match the new minim
 
 ## Files Modified
 
-- `charts/mendabot/values.yaml` — added `crdUpgrader.image` block, corrected tag to `v1.28.15`
-- `charts/mendabot/templates/job-crd-upgrade.yaml` — templated image and imagePullPolicy fields
+- `charts/mechanic/values.yaml` — added `crdUpgrader.image` block, corrected tag to `v1.28.15`
+- `charts/mechanic/templates/job-crd-upgrade.yaml` — templated image and imagePullPolicy fields

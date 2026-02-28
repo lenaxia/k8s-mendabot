@@ -11,13 +11,13 @@
 
 ### 1.1 Purpose
 
-Defines every Kubernetes resource needed to run the mendabot-watcher and mendabot-agent
+Defines every Kubernetes resource needed to run the mechanic-watcher and mechanic-agent
 in a cluster. All resources are managed via Kustomize in `deploy/kustomize/`.
 
 ### 1.2 Design Principles
 
 - **Least privilege** — watcher and agent have only the permissions they actually need
-- **Namespace isolation** — all workloads run in `mendabot`; agent Jobs are also
+- **Namespace isolation** — all workloads run in `mechanic`; agent Jobs are also
   created in this namespace
 - **No secrets committed** — secret manifests in the repo are placeholders only; real
   values are applied out-of-band or via Sealed Secrets / SOPS
@@ -33,7 +33,7 @@ in a cluster. All resources are managed via Kustomize in `deploy/kustomize/`.
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: mendabot
+  name: mechanic
 ```
 
 ---
@@ -56,9 +56,9 @@ requests where the field is set for the first time.
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: remediationjobs.remediation.mendabot.io
+  name: remediationjobs.remediation.mechanic.io
 spec:
-  group: remediation.mendabot.io
+  group: remediation.mechanic.io
   names:
     kind: RemediationJob
     listKind: RemediationJobList
@@ -153,26 +153,26 @@ spec:
 
 ## 3. ServiceAccounts
 
-### 3.1 mendabot-watcher
+### 3.1 mechanic-watcher
 
 ```yaml
 # serviceaccount-watcher.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: mendabot-watcher
-  namespace: mendabot
+  name: mechanic-watcher
+  namespace: mechanic
 ```
 
-### 3.2 mendabot-agent
+### 3.2 mechanic-agent
 
 ```yaml
 # serviceaccount-agent.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: mendabot-agent
-  namespace: mendabot
+  name: mechanic-agent
+  namespace: mechanic
 ```
 
 ---
@@ -186,7 +186,7 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: mendabot-watcher
+  name: mechanic-watcher
 rules:
 - apiGroups: ["core.k8sgpt.ai"]
   resources: ["results"]
@@ -194,10 +194,10 @@ rules:
 - apiGroups: [""]
   resources: ["namespaces"]
   verbs: ["get", "list"]
-- apiGroups: ["remediation.mendabot.io"]
+- apiGroups: ["remediation.mechanic.io"]
   resources: ["remediationjobs"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-- apiGroups: ["remediation.mendabot.io"]
+- apiGroups: ["remediation.mechanic.io"]
   resources: ["remediationjobs/status"]
   verbs: ["get", "patch", "update"]
 ```
@@ -209,14 +209,14 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: mendabot-watcher
+  name: mechanic-watcher
 subjects:
 - kind: ServiceAccount
-  name: mendabot-watcher
-  namespace: mendabot
+  name: mechanic-watcher
+  namespace: mechanic
 roleRef:
   kind: ClusterRole
-  name: mendabot-watcher
+  name: mechanic-watcher
   apiGroup: rbac.authorization.k8s.io
 ```
 
@@ -227,8 +227,8 @@ roleRef:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: mendabot-watcher
-  namespace: mendabot
+  name: mechanic-watcher
+  namespace: mechanic
 rules:
 - apiGroups: ["batch"]
   resources: ["jobs"]
@@ -245,15 +245,15 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: mendabot-watcher
-  namespace: mendabot
+  name: mechanic-watcher
+  namespace: mechanic
 subjects:
 - kind: ServiceAccount
-  name: mendabot-watcher
-  namespace: mendabot
+  name: mechanic-watcher
+  namespace: mechanic
 roleRef:
   kind: Role
-  name: mendabot-watcher
+  name: mechanic-watcher
   apiGroup: rbac.authorization.k8s.io
 ```
 
@@ -271,7 +271,7 @@ already granted to the k8sgpt Deployment by its own Helm chart.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: mendabot-agent
+  name: mechanic-agent
 rules:
 - apiGroups: ["*"]
   resources: ["*"]
@@ -290,28 +290,28 @@ must not appear in RBAC rules.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: mendabot-agent
+  name: mechanic-agent
 subjects:
 - kind: ServiceAccount
-  name: mendabot-agent
-  namespace: mendabot
+  name: mechanic-agent
+  namespace: mechanic
 roleRef:
   kind: ClusterRole
-  name: mendabot-agent
+  name: mechanic-agent
   apiGroup: rbac.authorization.k8s.io
 ```
 
-### 5.3 Role (status writeback in mendabot namespace)
+### 5.3 Role (status writeback in mechanic namespace)
 
 ```yaml
 # role-agent.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: mendabot-agent
-  namespace: mendabot
+  name: mechanic-agent
+  namespace: mechanic
 rules:
-- apiGroups: ["remediation.mendabot.io"]
+- apiGroups: ["remediation.mechanic.io"]
   resources: ["remediationjobs/status"]
   verbs: ["get", "patch"]
 ```
@@ -323,15 +323,15 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: mendabot-agent
-  namespace: mendabot
+  name: mechanic-agent
+  namespace: mechanic
 subjects:
 - kind: ServiceAccount
-  name: mendabot-agent
-  namespace: mendabot
+  name: mechanic-agent
+  namespace: mechanic
 roleRef:
   kind: Role
-  name: mendabot-agent
+  name: mechanic-agent
   apiGroup: rbac.authorization.k8s.io
 ```
 
@@ -359,7 +359,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: github-app
-  namespace: mendabot
+  namespace: mechanic
 type: Opaque
 stringData:
   app-id: "REPLACE_ME"
@@ -376,7 +376,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: llm-credentials
-  namespace: mendabot
+  namespace: mechanic
 type: Opaque
 stringData:
   api-key: "REPLACE_ME"
@@ -395,7 +395,7 @@ setup step:
 ```bash
 gh label create needs-human-review \
   --repo lenaxia/talos-ops-prod \
-  --description "PR opened by mendabot-agent requires human review before merge" \
+  --description "PR opened by mechanic-agent requires human review before merge" \
   --color "e11d48"
 ```
 
@@ -416,7 +416,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: opencode-prompt
-  namespace: mendabot
+  namespace: mechanic
 data:
   prompt.txt: |
     <see PROMPT_LLD.md for content>
@@ -431,19 +431,19 @@ data:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: mendabot-watcher
-  namespace: mendabot
+  name: mechanic-watcher
+  namespace: mechanic
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: mendabot-watcher
+      app: mechanic-watcher
   template:
     metadata:
       labels:
-        app: mendabot-watcher
+        app: mechanic-watcher
     spec:
-      serviceAccountName: mendabot-watcher
+      serviceAccountName: mechanic-watcher
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -451,18 +451,18 @@ spec:
           type: RuntimeDefault
       containers:
       - name: watcher
-        image: ghcr.io/lenaxia/mendabot-watcher:latest
+        image: ghcr.io/lenaxia/mechanic-watcher:latest
         env:
         - name: GITOPS_REPO
           value: "lenaxia/talos-ops-prod"
         - name: GITOPS_MANIFEST_ROOT
           value: "kubernetes"
         - name: AGENT_IMAGE
-          value: "ghcr.io/lenaxia/mendabot-agent:latest"
+          value: "ghcr.io/lenaxia/mechanic-agent:latest"
         - name: AGENT_NAMESPACE
-          value: "mendabot"  # must equal the watcher's own namespace
+          value: "mechanic"  # must equal the watcher's own namespace
         - name: AGENT_SA
-          value: "mendabot-agent"
+          value: "mechanic-agent"
         - name: SINK_TYPE
           value: "github"
         - name: LOG_LEVEL
@@ -537,11 +537,11 @@ resources:
 To deploy via Flux from the GitOps repo, add to `lenaxia/talos-ops-prod`:
 
 ```yaml
-# kubernetes/apps/mendabot/ks.yaml
+# kubernetes/apps/mechanic/ks.yaml
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: mendabot-watcher
+  name: mechanic-watcher
   namespace: flux-system
 spec:
   interval: 10m
@@ -549,7 +549,7 @@ spec:
   prune: true
   sourceRef:
     kind: GitRepository
-    name: k8s-mendabot   # GitRepository pointing at this repo
+    name: k8s-mechanic   # GitRepository pointing at this repo
   dependsOn:
   - name: k8sgpt-operator          # ensure operator is deployed first
 ```
@@ -566,7 +566,7 @@ kubectl apply -k deploy/kustomize/ --dry-run=client
 kubectl apply -k deploy/kustomize/
 
 # Verify
-kubectl -n mendabot get all
-kubectl -n mendabot get remediationjobs
-kubectl get clusterrole mendabot-watcher mendabot-agent
+kubectl -n mechanic get all
+kubectl -n mechanic get remediationjobs
+kubectl get clusterrole mechanic-watcher mechanic-agent
 ```

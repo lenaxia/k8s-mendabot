@@ -8,7 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	"github.com/lenaxia/k8s-mendabot/internal/domain"
+	"github.com/lenaxia/k8s-mechanic/internal/domain"
 )
 
 // healthyNode builds a Node in a fully healthy state:
@@ -540,7 +540,7 @@ func assertNodeErrorTextContains(t *testing.T, errors, substr string) {
 	t.Errorf("no error entry contains %q in: %s", substr, errors)
 }
 
-// TestNodeAnnotationEnabled_False: NotReady node with mendabot.io/enabled=false → (nil, nil).
+// TestNodeAnnotationEnabled_False: NotReady node with mechanic.io/enabled=false → (nil, nil).
 // Uses an unhealthy object to prove the gate fires on an object that would otherwise produce
 // a non-nil finding.
 func TestNodeAnnotationEnabled_False(t *testing.T) {
@@ -567,7 +567,7 @@ func TestNodeAnnotationEnabled_False(t *testing.T) {
 	}
 }
 
-// TestNodeAnnotationSkipUntilFuture: NotReady node with mendabot.io/skip-until=2099-12-31 → (nil, nil).
+// TestNodeAnnotationSkipUntilFuture: NotReady node with mechanic.io/skip-until=2099-12-31 → (nil, nil).
 func TestNodeAnnotationSkipUntilFuture(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()

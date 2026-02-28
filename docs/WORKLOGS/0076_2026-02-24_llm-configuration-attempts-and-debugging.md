@@ -13,7 +13,7 @@ Two blockers prevented agent execution:
 1. The `OPENCODE_CONFIG_CONTENT` JSON in `llm-credentials-opencode` used an incorrect
    schema — all formats tried were rejected by OpenCode CLI at startup.
 2. The watcher pod could not start because `secrets` was missing from the
-   `mendabot-watcher` ClusterRole, causing controller-runtime REST mapper initialisation
+   `mechanic-watcher` ClusterRole, causing controller-runtime REST mapper initialisation
    to fail with `v1: Unauthorized`.
 
 ---
@@ -27,7 +27,7 @@ readiness gate. Verified via watcher logs that RemediationJobs are dispatched wi
 readiness errors.
 
 ```bash
-kubectl patch deployment mendabot -n default \
+kubectl patch deployment mechanic -n default \
   -p '{"spec":{"template":{"spec":{"containers":[{"name":"watcher","env":[{"name":"LLM_PROVIDER","value":"openai"}]}]}}}}'
 ```
 
@@ -94,7 +94,7 @@ kubectl delete remediationjobs --all -n default
 
 ### 5. Diagnosed and Fixed Watcher `Unauthorized` Error
 
-Watcher pod `mendabot-68d6d55795-llw4n` failed to start with:
+Watcher pod `mechanic-68d6d55795-llw4n` failed to start with:
 
 ```
 unable to start manager: failed to determine if *v1.Secret is namespaced:
@@ -103,23 +103,23 @@ unable to retrieve the complete list of server APIs: v1: Unauthorized
 ```
 
 controller-runtime tries to register a `*v1.Secret` informer at startup (for LLM
-credential watching). `secrets` was absent from the `mendabot-watcher` ClusterRole,
+credential watching). `secrets` was absent from the `mechanic-watcher` ClusterRole,
 so the REST mapper initialisation failed before the manager could start.
 
 Patched the live ClusterRole:
 
 ```bash
-kubectl patch clusterrole mendabot-watcher --type='json' \
+kubectl patch clusterrole mechanic-watcher --type='json' \
   -p='[{"op":"add","path":"/rules/0/resources/-","value":"secrets"}]'
 ```
 
 Deleted the failing pod to trigger an immediate restart:
 
 ```bash
-kubectl delete pod mendabot-68d6d55795-llw4n -n default
+kubectl delete pod mechanic-68d6d55795-llw4n -n default
 ```
 
-New pod `mendabot-68d6d55795-pwx7t` started cleanly. All controllers came up:
+New pod `mechanic-68d6d55795-pwx7t` started cleanly. All controllers came up:
 
 ```
 Starting Controller  controller=remediationjob
@@ -133,16 +133,16 @@ Starting workers     (all controllers)
 ```
 
 RemediationJobs were immediately dispatched and 3 agent pods reached `Running`:
-- `mendabot-agent-22693f928816-ftsld`
-- `mendabot-agent-2167deb6ac69-gvkg6`
-- `mendabot-agent-0cd2345e0966-5t4wz`
+- `mechanic-agent-22693f928816-ftsld`
+- `mechanic-agent-2167deb6ac69-gvkg6`
+- `mechanic-agent-0cd2345e0966-5t4wz`
 
 Agent logs confirmed the gitops repo was cloned and opencode is executing.
 
 ### 6. Persisted RBAC Fix to Helm Chart
 
 The live `kubectl patch` would be lost on the next `helm upgrade`. Added `secrets`
-permanently to `charts/mendabot/templates/clusterrole-watcher.yaml`:
+permanently to `charts/mechanic/templates/clusterrole-watcher.yaml`:
 
 ```yaml
 - apiGroups: [""]
@@ -187,7 +187,7 @@ No automated tests run. This session was live cluster debugging only.
    and opens a PR against the gitops repo for `test-broken-image` or `test-crashloop`:
    ```bash
    kubectl get remediationjobs -n default
-   kubectl logs -n default -l app=mendabot-agent --tail=50
+   kubectl logs -n default -l app=mechanic-agent --tail=50
    ```
 
 2. **Commit and release Helm chart** — the `clusterrole-watcher.yaml` change needs to
@@ -197,5 +197,5 @@ No automated tests run. This session was live cluster debugging only.
 
 ## Files Modified
 
-- `charts/mendabot/templates/clusterrole-watcher.yaml` — added `secrets` to core API
+- `charts/mechanic/templates/clusterrole-watcher.yaml` — added `secrets` to core API
   group read rule

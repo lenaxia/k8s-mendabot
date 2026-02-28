@@ -10,7 +10,7 @@
 ## User Story
 
 As a **cluster operator**, I want to set `DRY_RUN=true` on the watcher Deployment and have
-the entire system respect it, so that I can evaluate mendabot in shadow mode without creating
+the entire system respect it, so that I can evaluate mechanic in shadow mode without creating
 any pull requests.
 
 ---
@@ -202,5 +202,5 @@ func TestFromEnv_DryRunInvalid(t *testing.T) {
 - [x] Full test suite passes: `go test -timeout 120s -race ./...`
 - [x] `go vet ./...` clean
 - [x] `go build ./...` clean
-- [x] `DRY_RUN` documented in `charts/mendabot/templates/deployment-watcher.yaml` env block
+- [x] `DRY_RUN` documented in `charts/mechanic/templates/deployment-watcher.yaml` env block
   (as a commented-out optional variable with its default `false`)

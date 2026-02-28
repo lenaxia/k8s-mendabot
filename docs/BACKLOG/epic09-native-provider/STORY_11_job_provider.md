@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **cluster operator**, I want mendabot to detect genuinely failed Jobs directly from
+As a **cluster operator**, I want mechanic to detect genuinely failed Jobs directly from
 cluster state so that Jobs that have exhausted their retry budget trigger a remediation
 Job without requiring k8sgpt-operator.
 

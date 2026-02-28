@@ -62,7 +62,7 @@ None.
 
 ```
 go test -timeout 30s -race -count=1 ./internal/jobbuilder/...
-# ok  github.com/lenaxia/k8s-mendabot/internal/jobbuilder  1.088s
+# ok  github.com/lenaxia/k8s-mechanic/internal/jobbuilder  1.088s
 
 go build ./...
 # clean

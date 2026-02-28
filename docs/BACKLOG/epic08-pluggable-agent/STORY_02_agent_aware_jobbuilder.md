@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **mendabot developer**, I want the job builder to derive secret names and prompt
+As a **mechanic developer**, I want the job builder to derive secret names and prompt
 ConfigMap names from the agent type, so that adding a new agent runner requires no
 changes to the job builder — only a new Secret and entrypoint script.
 

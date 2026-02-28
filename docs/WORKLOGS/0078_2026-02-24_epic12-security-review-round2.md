@@ -98,9 +98,9 @@ gosec ./...                         # 4 issues: 2 real (NEW-06), 1 FP (NEW-07), 
 ## Next Steps
 
 1. Create backlog story to remediate NEW-02 (restore untrusted-data envelope in
-   `charts/mendabot/files/prompts/core.txt` and add HARD RULE 8 equivalent)
+   `charts/mechanic/files/prompts/core.txt` and add HARD RULE 8 equivalent)
 2. Create backlog story (or inline fix) to remediate NEW-05 (remove `secrets` from
-   watcher ClusterRole in `charts/mendabot/templates/clusterrole-watcher.yaml`)
+   watcher ClusterRole in `charts/mechanic/templates/clusterrole-watcher.yaml`)
 3. Fix NEW-01 (one-liner in `internal/provider/native/pod.go:104`)
 4. Fix NEW-04 (add audit log for priority annotation bypass in `provider.go`)
 5. Fix NEW-06 (add overflow guards in `config.go` and `main.go` int32 casts)

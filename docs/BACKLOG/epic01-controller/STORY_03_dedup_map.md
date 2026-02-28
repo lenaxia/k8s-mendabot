@@ -23,7 +23,7 @@ all error cases correctly.
   and `rjob.Spec.SourceResultRef.Namespace == req.Namespace` in `cfg.AgentNamespace`,
   then returns nil
 - [ ] Computes fingerprint via `fingerprintFor(namespace, spec)`
-- [ ] Lists `RemediationJob` objects with label `remediation.mendabot.io/fingerprint=fp[:12]`
+- [ ] Lists `RemediationJob` objects with label `remediation.mechanic.io/fingerprint=fp[:12]`
   in `cfg.AgentNamespace`; if a match exists with `spec.fingerprint == fp` and phase is
   not Failed, returns nil immediately (deduplicated via CRD, no in-memory map)
 - [ ] Builds `RemediationJob` with:

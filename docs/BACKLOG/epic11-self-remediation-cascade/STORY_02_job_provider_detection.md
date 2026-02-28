@@ -1,4 +1,4 @@
-# Story 02: jobProvider — Detect Mendabot Agent Jobs and Compute Chain Depth
+# Story 02: jobProvider — Detect Mechanic Agent Jobs and Compute Chain Depth
 
 **Epic:** [epic11-self-remediation-cascade](README.md)
 **Priority:** Critical
@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **mendabot operator**, I want failed mendabot agent jobs to produce a
+As a **mechanic operator**, I want failed mechanic agent jobs to produce a
 Finding (rather than being silently dropped), so that the watcher can trigger
 a self-remediation investigation up to the configured depth limit.
 
@@ -18,11 +18,11 @@ a self-remediation investigation up to the configured depth limit.
 ## Problem
 
 `internal/provider/native/job.go:53-55` currently returns `(nil, nil)` for any
-job whose `app.kubernetes.io/managed-by` label equals `mendabot-watcher`. This
+job whose `app.kubernetes.io/managed-by` label equals `mechanic-watcher`. This
 prevents a cascade loop but also prevents any investigation of a legitimately
 failing agent job.
 
-This story replaces that unconditional guard with depth-aware logic: a mendabot
+This story replaces that unconditional guard with depth-aware logic: a mechanic
 agent job produces a Finding with `ChainDepth` computed from its owning
 `RemediationJob`. Depth enforcement (whether to proceed) is handled in
 STORY_03; this story only computes and surfaces the depth.
@@ -31,7 +31,7 @@ STORY_03; this story only computes and surfaces the depth.
 
 ## Acceptance Criteria
 
-- [ ] A failed `batch/v1` Job labelled `app.kubernetes.io/managed-by: mendabot-watcher`
+- [ ] A failed `batch/v1` Job labelled `app.kubernetes.io/managed-by: mechanic-watcher`
   returns a non-nil `Finding` from `jobProvider.ExtractFinding`.
 - [ ] `Finding.ChainDepth` equals the owning `RemediationJob`'s
   `Spec.Finding.ChainDepth` plus one.
@@ -41,7 +41,7 @@ STORY_03; this story only computes and surfaces the depth.
   - CronJob-owned jobs → `(nil, nil)`
   - Suspended jobs → `(nil, nil)`
   - Not-yet-failed jobs (failed == 0 || active != 0 || completionTime != nil) → `(nil, nil)`
-- [ ] Non-mendabot jobs are unaffected; `ChainDepth` is always `0` for them.
+- [ ] Non-mechanic jobs are unaffected; `ChainDepth` is always `0` for them.
 - [ ] `getChainDepthFromOwner` is a private helper on `jobProvider` that:
   - Looks up the owning `RemediationJob` via `job.OwnerReferences`
   - Reads `RemediationJob.Spec.Finding.ChainDepth` and returns it + 1
@@ -55,19 +55,19 @@ STORY_03; this story only computes and surfaces the depth.
 
 ### Location: `internal/provider/native/job.go`
 
-**Replace the unconditional mendabot guard at line 53-55:**
+**Replace the unconditional mechanic guard at line 53-55:**
 
 ```go
 // Before (unconditional guard — blocks all self-remediations):
-if job.Labels["app.kubernetes.io/managed-by"] == "mendabot-watcher" {
+if job.Labels["app.kubernetes.io/managed-by"] == "mechanic-watcher" {
     return nil, nil
 }
 
 // After (depth-aware — produces a Finding with ChainDepth):
-isMendabotJob := job.Labels["app.kubernetes.io/managed-by"] == "mendabot-watcher"
+isMechanicJob := job.Labels["app.kubernetes.io/managed-by"] == "mechanic-watcher"
 ```
 
-The `isMendabotJob` flag is used at the end of `ExtractFinding` to populate
+The `isMechanicJob` flag is used at the end of `ExtractFinding` to populate
 `Finding.ChainDepth` via `getChainDepthFromOwner`.
 
 **New private helper:**
@@ -102,12 +102,12 @@ func (p *jobProvider) getChainDepthFromOwner(ctx context.Context, job *batchv1.J
 **Updated `ExtractFinding` skeleton (depth path only):**
 
 ```go
-isMendabotJob := job.Labels["app.kubernetes.io/managed-by"] == "mendabot-watcher"
+isMechanicJob := job.Labels["app.kubernetes.io/managed-by"] == "mechanic-watcher"
 
 // ... existing CronJob, suspended, failure-detection guards unchanged ...
 
 var chainDepth int
-if isMendabotJob {
+if isMechanicJob {
     var err error
     chainDepth, err = p.getChainDepthFromOwner(context.Background(), job)
     if err != nil {
@@ -132,7 +132,7 @@ return finding, nil
 
 `job.go` must import:
 - `apierrors "k8s.io/apimachinery/pkg/api/errors"` (for `IsNotFound`)
-- `"github.com/lenaxia/k8s-mendabot/api/v1alpha1"` (for `RemediationJob`)
+- `"github.com/lenaxia/k8s-mechanic/api/v1alpha1"` (for `RemediationJob`)
 
 The file already imports `"sigs.k8s.io/controller-runtime/pkg/client"` and
 `"context"`.
@@ -144,7 +144,7 @@ The file already imports `"sigs.k8s.io/controller-runtime/pkg/client"` and
 - Does not enforce `SELF_REMEDIATION_MAX_DEPTH` — that is STORY_03.
 - Does not call the circuit breaker — that is STORY_03 / STORY_04.
 - Does not add config fields — that is STORY_03.
-- Does not change any non-mendabot-job code paths.
+- Does not change any non-mechanic-job code paths.
 
 ---
 
@@ -161,8 +161,8 @@ The file already imports `"sigs.k8s.io/controller-runtime/pkg/client"` and
 
 **Unit tests** (`internal/provider/native/job_test.go`):
 
-**First:** Delete `TestJobProvider_ExtractFinding_ExcludesMendabotManagedJobs`
-(lines 398–431). That test asserts `(nil, nil)` for a failed mendabot-labelled
+**First:** Delete `TestJobProvider_ExtractFinding_ExcludesMechanicManagedJobs`
+(lines 398–431). That test asserts `(nil, nil)` for a failed mechanic-labelled
 job, which is the exact behaviour this story replaces. It will fail after the
 change and must not be left in the file.
 
@@ -178,15 +178,15 @@ without redefinition.
 
 | Test case | Setup | Expected `ChainDepth` | Expected nil? |
 |---|---|---|---|
-| Non-mendabot failed job | No label | `0` | no |
-| Mendabot job, owner RJob has depth 0 | `RJob.Spec.Finding.ChainDepth = 0` | `1` | no |
-| Mendabot job, owner RJob has depth 1 | `RJob.Spec.Finding.ChainDepth = 1` | `2` | no |
-| Mendabot job, owner not found (404) | No RJob in fake client | `1` | no |
-| Mendabot job, no owner reference | Empty `OwnerReferences` | `1` | no |
-| Mendabot job, still active | `Active=1, Failed=0` | — | yes (nil) |
-| Mendabot job, succeeded | `CompletionTime != nil` | — | yes (nil) |
-| CronJob-owned mendabot job | CronJob owner ref | — | yes (nil) |
-| Suspended mendabot job | `JobSuspended=True` | — | yes (nil) |
+| Non-mechanic failed job | No label | `0` | no |
+| Mechanic job, owner RJob has depth 0 | `RJob.Spec.Finding.ChainDepth = 0` | `1` | no |
+| Mechanic job, owner RJob has depth 1 | `RJob.Spec.Finding.ChainDepth = 1` | `2` | no |
+| Mechanic job, owner not found (404) | No RJob in fake client | `1` | no |
+| Mechanic job, no owner reference | Empty `OwnerReferences` | `1` | no |
+| Mechanic job, still active | `Active=1, Failed=0` | — | yes (nil) |
+| Mechanic job, succeeded | `CompletionTime != nil` | — | yes (nil) |
+| CronJob-owned mechanic job | CronJob owner ref | — | yes (nil) |
+| Suspended mechanic job | `JobSuspended=True` | — | yes (nil) |
 
 Multiple happy path and unhappy path tests are required per the project TDD
 standards.
@@ -206,4 +206,4 @@ standards.
 - [ ] `go vet` clean
 - [ ] `go build ./...` clean
 - [ ] `getChainDepthFromOwner` tested for all owner-lookup branches
-- [ ] Non-mendabot job paths unchanged and covered by existing tests
+- [ ] Non-mechanic job paths unchanged and covered by existing tests

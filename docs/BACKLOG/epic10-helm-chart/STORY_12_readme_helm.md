@@ -9,7 +9,7 @@
 
 ## User Story
 
-As an **external operator**, I want the README to show me how to install mendabot
+As an **external operator**, I want the README to show me how to install mechanic
 with Helm in under 5 minutes.
 
 ---
@@ -53,16 +53,16 @@ with Helm in under 5 minutes.
 ### 1. Create required Secrets
 
 ```sh
-kubectl create namespace mendabot
+kubectl create namespace mechanic
 
 kubectl create secret generic github-app \
-  --namespace mendabot \
+  --namespace mechanic \
   --from-literal=app-id=<your-app-id> \
   --from-literal=installation-id=<your-installation-id> \
   --from-file=private-key=<path-to-private-key.pem>
 
 kubectl create secret generic llm-credentials \
-  --namespace mendabot \
+  --namespace mechanic \
   --from-literal=api-key=<your-api-key> \
   --from-literal=base-url=https://api.openai.com/v1 \
   --from-literal=model=gpt-4o \
@@ -72,8 +72,8 @@ kubectl create secret generic llm-credentials \
 ### 2. Install the chart
 
 ```sh
-helm install mendabot oci://ghcr.io/lenaxia/charts/mendabot \
-  --namespace mendabot \
+helm install mechanic oci://ghcr.io/lenaxia/charts/mechanic \
+  --namespace mechanic \
   --set gitops.repo=myorg/my-gitops-repo \
   --set gitops.manifestRoot=kubernetes
 ```
@@ -81,8 +81,8 @@ helm install mendabot oci://ghcr.io/lenaxia/charts/mendabot \
 Or from source:
 
 ```sh
-helm install mendabot charts/mendabot/ \
-  --namespace mendabot \
+helm install mechanic charts/mechanic/ \
+  --namespace mechanic \
   --set gitops.repo=myorg/my-gitops-repo \
   --set gitops.manifestRoot=kubernetes
 ```
@@ -90,7 +90,7 @@ helm install mendabot charts/mendabot/ \
 ### 3. Verify
 
 ```sh
-kubectl get rjob -n mendabot
+kubectl get rjob -n mechanic
 ```
 ```
 

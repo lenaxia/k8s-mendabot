@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	igithub "github.com/lenaxia/k8s-mendabot/internal/github"
+	igithub "github.com/lenaxia/k8s-mechanic/internal/github"
 )
 
 // generateTestKey creates a small RSA key suitable for unit tests only.

@@ -12,7 +12,7 @@
 
 **Log collection command:**
 ```bash
-kubectl logs -n mendabot deployment/mendabot-watcher --since=10m \
+kubectl logs -n mechanic deployment/mechanic-watcher --since=10m \
   | jq 'select(.audit == true) | {event: .event, ts: .ts}' 2>/dev/null \
   | sort | uniq
 ```
@@ -53,7 +53,7 @@ For each audit event, verify no credential values appear in the log fields.
 
 ```bash
 # Check for credential patterns in audit log lines
-kubectl logs -n mendabot deployment/mendabot-watcher --since=10m \
+kubectl logs -n mechanic deployment/mechanic-watcher --since=10m \
   | grep '"audit":true' \
   | grep -i -E '(password|secret|token|key|credential)' \
   | grep -v '"event"' | grep -v '"audit"'

@@ -59,7 +59,7 @@ Result: 3 blockers, 4 advisories found.
 - Deleted `feature/epic09-native-provider` local branch
 - Tagged `v0.3.0` (significant feature: removes k8sgpt dependency, adds 6 native providers)
 - Fixed remote URL from `git@ssh.github.com` → `git@github.com` (stale alternate-port config)
-- Pushed `main` and `v0.3.0` to `github.com:lenaxia/k8s-mendabot.git`
+- Pushed `main` and `v0.3.0` to `github.com:lenaxia/k8s-mechanic.git`
 
 ---
 

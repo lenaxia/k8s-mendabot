@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **mendabot operator**, I want `RemediationJobStatus` to track how many times a
+As a **mechanic operator**, I want `RemediationJobStatus` to track how many times a
 remediation attempt has been retried and `RemediationJobSpec` to declare a per-job
 retry cap, so that the reconciler and source provider can cooperate to stop re-dispatching
 jobs that have exhausted all retries.
@@ -150,7 +150,7 @@ package v1alpha1_test
 import (
     "testing"
 
-    v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
+    v1alpha1 "github.com/lenaxia/k8s-mechanic/api/v1alpha1"
 )
 
 // TestPhasePermanentlyFailed_ConstantValue pins the string value so a rename

@@ -54,7 +54,7 @@ broken `RemediationJob` objects so that a failed deployment never burns unlimite
 ### 5. STORY_05 — CRD Schema Updates
 
 - `testdata/crds/remediationjob_crd.yaml`: added format:int32 and description to maxRetries/retryCount (partially done in STORY_01; completed here)
-- `charts/mendabot/crds/remediationjob.yaml`: added maxRetries, retryCount, PermanentlyFailed; preserved isSelfRemediation, chainDepth, correlationGroupID, Suppressed
+- `charts/mechanic/crds/remediationjob.yaml`: added maxRetries, retryCount, PermanentlyFailed; preserved isSelfRemediation, chainDepth, correlationGroupID, Suppressed
 - `deploy/kustomize/crd-remediationjob.yaml`: same changes (confirmed standalone copy)
 
 ---
@@ -81,7 +81,7 @@ None.
 go build ./...                            — clean
 go test -timeout 60s -race ./...          — 12/12 packages PASS
 go vet ./...                              — clean
-helm lint charts/mendabot                 — 1 chart(s) linted, 0 failed
+helm lint charts/mechanic                 — 1 chart(s) linted, 0 failed
 ```
 
 ---
@@ -105,5 +105,5 @@ After epic23: epic21 → epic22 → epic18 → epic15 → epic16 → epic20.
 - `internal/provider/provider.go`
 - `internal/provider/provider_test.go`
 - `testdata/crds/remediationjob_crd.yaml`
-- `charts/mendabot/crds/remediationjob.yaml`
+- `charts/mechanic/crds/remediationjob.yaml`
 - `deploy/kustomize/crd-remediationjob.yaml`

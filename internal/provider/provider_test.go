@@ -23,13 +23,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
-	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
-	"github.com/lenaxia/k8s-mendabot/internal/circuitbreaker"
-	"github.com/lenaxia/k8s-mendabot/internal/config"
-	"github.com/lenaxia/k8s-mendabot/internal/domain"
-	"github.com/lenaxia/k8s-mendabot/internal/provider"
-	"github.com/lenaxia/k8s-mendabot/internal/provider/native"
-	"github.com/lenaxia/k8s-mendabot/internal/testutil"
+	v1alpha1 "github.com/lenaxia/k8s-mechanic/api/v1alpha1"
+	"github.com/lenaxia/k8s-mechanic/internal/circuitbreaker"
+	"github.com/lenaxia/k8s-mechanic/internal/config"
+	"github.com/lenaxia/k8s-mechanic/internal/domain"
+	"github.com/lenaxia/k8s-mechanic/internal/provider"
+	"github.com/lenaxia/k8s-mechanic/internal/provider/native"
+	"github.com/lenaxia/k8s-mechanic/internal/testutil"
 )
 
 // fakeSourceProvider is a controllable domain.SourceProvider for unit tests.
@@ -48,7 +48,7 @@ func (f *fakeSourceProvider) ExtractFinding(_ client.Object) (*domain.Finding, e
 
 var _ domain.SourceProvider = (*fakeSourceProvider)(nil)
 
-const agentNamespace = "mendabot"
+const agentNamespace = "mechanic"
 
 func newTestScheme() *runtime.Scheme {
 	s := v1alpha1.NewScheme()
@@ -205,7 +205,7 @@ func TestSourceProviderReconciler_CreatesRemediationJob(t *testing.T) {
 	}
 
 	rjob := list.Items[0]
-	expectedName := "mendabot-" + expectedFP[:12]
+	expectedName := "mechanic-" + expectedFP[:12]
 	if rjob.Name != expectedName {
 		t.Errorf("name = %q, want %q", rjob.Name, expectedName)
 	}
@@ -221,11 +221,11 @@ func TestSourceProviderReconciler_CreatesRemediationJob(t *testing.T) {
 	if rjob.Spec.SourceResultRef.Namespace != "default" {
 		t.Errorf("sourceResultRef.Namespace = %q, want %q", rjob.Spec.SourceResultRef.Namespace, "default")
 	}
-	if rjob.Labels["remediation.mendabot.io/fingerprint"] != expectedFP[:12] {
-		t.Errorf("fingerprint label = %q, want %q", rjob.Labels["remediation.mendabot.io/fingerprint"], expectedFP[:12])
+	if rjob.Labels["remediation.mechanic.io/fingerprint"] != expectedFP[:12] {
+		t.Errorf("fingerprint label = %q, want %q", rjob.Labels["remediation.mechanic.io/fingerprint"], expectedFP[:12])
 	}
-	if rjob.Annotations["remediation.mendabot.io/fingerprint-full"] != expectedFP {
-		t.Errorf("fingerprint-full annotation = %q, want %q", rjob.Annotations["remediation.mendabot.io/fingerprint-full"], expectedFP)
+	if rjob.Annotations["remediation.mechanic.io/fingerprint-full"] != expectedFP {
+		t.Errorf("fingerprint-full annotation = %q, want %q", rjob.Annotations["remediation.mechanic.io/fingerprint-full"], expectedFP)
 	}
 	if rjob.Spec.Finding.Kind != "Pod" {
 		t.Errorf("finding.kind = %q, want %q", rjob.Spec.Finding.Kind, "Pod")
@@ -252,9 +252,9 @@ func TestSourceProviderReconciler_SkipsDuplicateFingerprint(t *testing.T) {
 
 	existing := &v1alpha1.RemediationJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-" + fp[:12],
+			Name:      "mechanic-" + fp[:12],
 			Namespace: agentNamespace,
-			Labels:    map[string]string{"remediation.mendabot.io/fingerprint": fp[:12]},
+			Labels:    map[string]string{"remediation.mechanic.io/fingerprint": fp[:12]},
 		},
 		Spec: v1alpha1.RemediationJobSpec{
 			Fingerprint: fp,
@@ -303,9 +303,9 @@ func TestSourceProviderReconciler_ReDispatchesFailedRemediationJob(t *testing.T)
 	// The reconciler should delete it and create a new one with the same name.
 	failedRJob := &v1alpha1.RemediationJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-" + fp[:12],
+			Name:      "mechanic-" + fp[:12],
 			Namespace: agentNamespace,
-			Labels:    map[string]string{"remediation.mendabot.io/fingerprint": fp[:12]},
+			Labels:    map[string]string{"remediation.mechanic.io/fingerprint": fp[:12]},
 		},
 		Spec: v1alpha1.RemediationJobSpec{
 			Fingerprint:        fp,
@@ -313,8 +313,8 @@ func TestSourceProviderReconciler_ReDispatchesFailedRemediationJob(t *testing.T)
 			SinkType:           "github",
 			GitOpsRepo:         "org/repo",
 			GitOpsManifestRoot: "deploy",
-			AgentImage:         "mendabot-agent:test",
-			AgentSA:            "mendabot-agent",
+			AgentImage:         "mechanic-agent:test",
+			AgentSA:            "mechanic-agent",
 			SourceResultRef:    v1alpha1.ResultRef{Name: "r1", Namespace: "default"},
 			Finding: v1alpha1.FindingSpec{
 				Kind:         "Pod",
@@ -360,7 +360,7 @@ func TestSourceProviderReconciler_NotFound_DeletesPendingRJobs(t *testing.T) {
 
 	pendingRJob := &v1alpha1.RemediationJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-pending",
+			Name:      "mechanic-pending",
 			Namespace: agentNamespace,
 		},
 		Spec: v1alpha1.RemediationJobSpec{
@@ -397,7 +397,7 @@ func TestSourceProviderReconciler_NotFound_DeletesDispatchedRJobs(t *testing.T) 
 
 	dispatchedRJob := &v1alpha1.RemediationJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-dispatched",
+			Name:      "mechanic-dispatched",
 			Namespace: agentNamespace,
 		},
 		Spec: v1alpha1.RemediationJobSpec{
@@ -433,7 +433,7 @@ func TestSourceProviderReconciler_NotFound_DeletesRunningRJobs(t *testing.T) {
 
 	runningRJob := &v1alpha1.RemediationJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-running",
+			Name:      "mechanic-running",
 			Namespace: agentNamespace,
 		},
 		Spec: v1alpha1.RemediationJobSpec{
@@ -1031,13 +1031,13 @@ func TestSourceProviderReconciler_PermanentlyFailed_Suppressed(t *testing.T) {
 
 	permFailedRJob := &v1alpha1.RemediationJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-" + fp[:12],
+			Name:      "mechanic-" + fp[:12],
 			Namespace: agentNamespace,
 			Labels: map[string]string{
-				"remediation.mendabot.io/fingerprint": fp[:12],
+				"remediation.mechanic.io/fingerprint": fp[:12],
 			},
 			Annotations: map[string]string{
-				"remediation.mendabot.io/fingerprint-full": fp,
+				"remediation.mechanic.io/fingerprint-full": fp,
 			},
 		},
 		Spec: v1alpha1.RemediationJobSpec{
@@ -1118,13 +1118,13 @@ func TestSourceProviderReconciler_PhaseFailed_DeletesAndCreatesNew(t *testing.T)
 
 	failedRJob := &v1alpha1.RemediationJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-" + fp[:12],
+			Name:      "mechanic-" + fp[:12],
 			Namespace: agentNamespace,
 			Labels: map[string]string{
-				"remediation.mendabot.io/fingerprint": fp[:12],
+				"remediation.mechanic.io/fingerprint": fp[:12],
 			},
 			Annotations: map[string]string{
-				"remediation.mendabot.io/fingerprint-full": fp,
+				"remediation.mechanic.io/fingerprint-full": fp,
 			},
 		},
 		Spec: v1alpha1.RemediationJobSpec{
@@ -1247,7 +1247,7 @@ func makeWatchedObjectWithAnnotations(name, namespace string, annotations map[st
 }
 
 // TestStabilisationWindow_PriorityCriticalBypassesWindow verifies that when the reconciled
-// resource carries annotation mendabot.io/priority=critical and StabilisationWindow > 0,
+// resource carries annotation mechanic.io/priority=critical and StabilisationWindow > 0,
 // the stabilisation window is bypassed: a RemediationJob is created immediately, no
 // RequeueAfter is returned, and firstSeen is never touched.
 func TestStabilisationWindow_PriorityCriticalBypassesWindow(t *testing.T) {
@@ -1286,7 +1286,7 @@ func TestStabilisationWindow_PriorityCriticalBypassesWindow(t *testing.T) {
 }
 
 // TestStabilisationWindow_PriorityCriticalWindowAlreadyZero verifies that when
-// StabilisationWindow==0 and the resource has annotation mendabot.io/priority=critical,
+// StabilisationWindow==0 and the resource has annotation mechanic.io/priority=critical,
 // a RemediationJob is still created immediately (same as the fast path without annotation).
 func TestStabilisationWindow_PriorityCriticalWindowAlreadyZero(t *testing.T) {
 	finding := makeFinding()
@@ -1319,7 +1319,7 @@ func TestStabilisationWindow_PriorityCriticalWindowAlreadyZero(t *testing.T) {
 }
 
 // TestStabilisationWindow_PriorityCriticalEmitsAuditLog verifies that when
-// mendabot.io/priority=critical bypasses the stabilisation window, an audit log
+// mechanic.io/priority=critical bypasses the stabilisation window, an audit log
 // entry with event=finding.stabilisation_window_bypassed is emitted.
 func TestStabilisationWindow_PriorityCriticalEmitsAuditLog(t *testing.T) {
 	finding := makeFinding()
@@ -1522,9 +1522,9 @@ func TestAuditLog_FindingSuppressedDuplicate(t *testing.T) {
 
 	existingRJob := &v1alpha1.RemediationJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-" + fp[:12],
+			Name:      "mechanic-" + fp[:12],
 			Namespace: agentNamespace,
-			Labels:    map[string]string{"remediation.mendabot.io/fingerprint": fp[:12]},
+			Labels:    map[string]string{"remediation.mechanic.io/fingerprint": fp[:12]},
 		},
 		Spec: v1alpha1.RemediationJobSpec{
 			Fingerprint: fp,
@@ -1699,9 +1699,9 @@ func TestReconcile_EmitsEvent_DuplicateFingerprint(t *testing.T) {
 
 	existing := &v1alpha1.RemediationJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-" + fp[:12],
+			Name:      "mechanic-" + fp[:12],
 			Namespace: agentNamespace,
-			Labels:    map[string]string{"remediation.mendabot.io/fingerprint": fp[:12]},
+			Labels:    map[string]string{"remediation.mechanic.io/fingerprint": fp[:12]},
 		},
 		Spec: v1alpha1.RemediationJobSpec{
 			Fingerprint: fp,
@@ -1793,7 +1793,7 @@ func TestReconcile_EmitsEvent_SourceDeleted(t *testing.T) {
 
 	pendingRJob := &v1alpha1.RemediationJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-pending",
+			Name:      "mechanic-pending",
 			Namespace: agentNamespace,
 		},
 		Spec: v1alpha1.RemediationJobSpec{
@@ -2369,7 +2369,7 @@ func TestNSAnnotation_ClusterScoped_Exempt(t *testing.T) {
 }
 
 // TestNSAnnotation_EnabledFalse_LogsDebug verifies that when the Namespace carries
-// mendabot.io/enabled="false", Reconcile returns ctrl.Result{} with no error, creates no
+// mechanic.io/enabled="false", Reconcile returns ctrl.Result{} with no error, creates no
 // RemediationJob, and emits exactly one Debug-level log entry with the expected structured
 // fields (provider, namespace, kind, name).
 func TestNSAnnotation_EnabledFalse_LogsDebug(t *testing.T) {
@@ -2498,7 +2498,7 @@ func TestNSAnnotation_NamespaceGetError_ReturnsError(t *testing.T) {
 
 // TestAnnotationGate_EnabledFalse_NoRemediationJob is an integration test that uses a real
 // podProvider (from internal/provider/native) as the SourceProvider. It creates a failing Pod
-// (CrashLoopBackOff) with mendabot.io/enabled="false" in the fake client, runs
+// (CrashLoopBackOff) with mechanic.io/enabled="false" in the fake client, runs
 // SourceProviderReconciler.Reconcile, and asserts that zero RemediationJob objects are created.
 func TestAnnotationGate_EnabledFalse_NoRemediationJob(t *testing.T) {
 	s := newTestScheme()
@@ -2802,9 +2802,9 @@ func newSelfRemediationReconciler(p *fakeSourceProvider, c client.Client, maxDep
 func makeSelfRemediationFinding(chainDepth int) *domain.Finding {
 	return &domain.Finding{
 		Kind:         "Job",
-		Name:         "mendabot-agent-abc",
+		Name:         "mechanic-agent-abc",
 		Namespace:    agentNamespace,
-		ParentObject: "mendabot-agent-abc",
+		ParentObject: "mechanic-agent-abc",
 		Errors:       `[{"text":"agent job failed"}]`,
 		Severity:     domain.SeverityMedium,
 		ChainDepth:   chainDepth,
@@ -2822,8 +2822,8 @@ func TestReconciler_SelfRemediation_NormalFinding_PassesThrough(t *testing.T) {
 	r := newSelfRemediationReconciler(p, c, 2, nil)
 	r.Cfg.GitOpsRepo = "org/repo"
 	r.Cfg.GitOpsManifestRoot = "deploy"
-	r.Cfg.AgentImage = "mendabot-agent:test"
-	r.Cfg.AgentSA = "mendabot-agent"
+	r.Cfg.AgentImage = "mechanic-agent:test"
+	r.Cfg.AgentSA = "mechanic-agent"
 
 	res, err := r.Reconcile(context.Background(), ctrl.Request{
 		NamespacedName: types.NamespacedName{Name: obj.Name, Namespace: obj.Namespace},
@@ -2856,8 +2856,8 @@ func TestReconciler_SelfRemediation_DepthWithinLimit_PassesThrough(t *testing.T)
 	r := newSelfRemediationReconciler(p, c, 2, nil)
 	r.Cfg.GitOpsRepo = "org/repo"
 	r.Cfg.GitOpsManifestRoot = "deploy"
-	r.Cfg.AgentImage = "mendabot-agent:test"
-	r.Cfg.AgentSA = "mendabot-agent"
+	r.Cfg.AgentImage = "mechanic-agent:test"
+	r.Cfg.AgentSA = "mechanic-agent"
 
 	_, err := r.Reconcile(context.Background(), ctrl.Request{
 		NamespacedName: types.NamespacedName{Name: obj.Name, Namespace: obj.Namespace},
@@ -2886,8 +2886,8 @@ func TestReconciler_SelfRemediation_DepthAtLimit_PassesThrough(t *testing.T) {
 	r := newSelfRemediationReconciler(p, c, 2, nil)
 	r.Cfg.GitOpsRepo = "org/repo"
 	r.Cfg.GitOpsManifestRoot = "deploy"
-	r.Cfg.AgentImage = "mendabot-agent:test"
-	r.Cfg.AgentSA = "mendabot-agent"
+	r.Cfg.AgentImage = "mechanic-agent:test"
+	r.Cfg.AgentSA = "mechanic-agent"
 
 	_, err := r.Reconcile(context.Background(), ctrl.Request{
 		NamespacedName: types.NamespacedName{Name: obj.Name, Namespace: obj.Namespace},
@@ -3003,8 +3003,8 @@ func TestReconciler_SelfRemediation_CBAllows_RJobCreated(t *testing.T) {
 	r := newSelfRemediationReconciler(p, c, 2, cb)
 	r.Cfg.GitOpsRepo = "org/repo"
 	r.Cfg.GitOpsManifestRoot = "deploy"
-	r.Cfg.AgentImage = "mendabot-agent:test"
-	r.Cfg.AgentSA = "mendabot-agent"
+	r.Cfg.AgentImage = "mechanic-agent:test"
+	r.Cfg.AgentSA = "mechanic-agent"
 
 	_, err := r.Reconcile(context.Background(), ctrl.Request{
 		NamespacedName: types.NamespacedName{Name: obj.Name, Namespace: obj.Namespace},
@@ -3032,8 +3032,8 @@ func TestReconciler_SelfRemediation_CBNil_DepthPositive_PassesThrough(t *testing
 	r := newSelfRemediationReconciler(p, c, 2, nil) // nil CB
 	r.Cfg.GitOpsRepo = "org/repo"
 	r.Cfg.GitOpsManifestRoot = "deploy"
-	r.Cfg.AgentImage = "mendabot-agent:test"
-	r.Cfg.AgentSA = "mendabot-agent"
+	r.Cfg.AgentImage = "mechanic-agent:test"
+	r.Cfg.AgentSA = "mechanic-agent"
 
 	_, err := r.Reconcile(context.Background(), ctrl.Request{
 		NamespacedName: types.NamespacedName{Name: obj.Name, Namespace: obj.Namespace},
@@ -3199,7 +3199,7 @@ func makeSinkRef(url string) v1alpha1.SinkRef {
 func TestAutoClose_PathA_InFlightJobWithSinkRef(t *testing.T) {
 	t.Parallel()
 	rjob := &v1alpha1.RemediationJob{
-		ObjectMeta: metav1.ObjectMeta{Name: "mendabot-aaa111", Namespace: agentNamespace},
+		ObjectMeta: metav1.ObjectMeta{Name: "mechanic-aaa111", Namespace: agentNamespace},
 		Spec: v1alpha1.RemediationJobSpec{
 			SourceResultRef: v1alpha1.ResultRef{Name: "svc-a", Namespace: "default"},
 			Fingerprint:     "aaa111bbb222ccc333",
@@ -3239,7 +3239,7 @@ func TestAutoClose_PathA_InFlightJobWithSinkRef(t *testing.T) {
 func TestAutoClose_PathA_DispatchedJobWithSinkRef(t *testing.T) {
 	t.Parallel()
 	rjob := &v1alpha1.RemediationJob{
-		ObjectMeta: metav1.ObjectMeta{Name: "mendabot-dsp001", Namespace: agentNamespace},
+		ObjectMeta: metav1.ObjectMeta{Name: "mechanic-dsp001", Namespace: agentNamespace},
 		Spec: v1alpha1.RemediationJobSpec{
 			SourceResultRef: v1alpha1.ResultRef{Name: "svc-dsp", Namespace: "default"},
 			Fingerprint:     "dsp001bbb222ccc333",
@@ -3278,7 +3278,7 @@ func TestAutoClose_PathA_DispatchedJobWithSinkRef(t *testing.T) {
 func TestAutoClose_PathA_RunningJobWithSinkRef(t *testing.T) {
 	t.Parallel()
 	rjob := &v1alpha1.RemediationJob{
-		ObjectMeta: metav1.ObjectMeta{Name: "mendabot-run001", Namespace: agentNamespace},
+		ObjectMeta: metav1.ObjectMeta{Name: "mechanic-run001", Namespace: agentNamespace},
 		Spec: v1alpha1.RemediationJobSpec{
 			SourceResultRef: v1alpha1.ResultRef{Name: "svc-run", Namespace: "default"},
 			Fingerprint:     "run001bbb222ccc333",
@@ -3317,7 +3317,7 @@ func TestAutoClose_PathA_RunningJobWithSinkRef(t *testing.T) {
 func TestAutoClose_PathA_SuppressedJobWithSinkRef(t *testing.T) {
 	t.Parallel()
 	rjob := &v1alpha1.RemediationJob{
-		ObjectMeta: metav1.ObjectMeta{Name: "mendabot-sup001", Namespace: agentNamespace},
+		ObjectMeta: metav1.ObjectMeta{Name: "mechanic-sup001", Namespace: agentNamespace},
 		Spec: v1alpha1.RemediationJobSpec{
 			SourceResultRef: v1alpha1.ResultRef{Name: "svc-sup", Namespace: "default"},
 			Fingerprint:     "sup001bbb222ccc333",
@@ -3356,7 +3356,7 @@ func TestAutoClose_PathA_SuppressedJobWithSinkRef(t *testing.T) {
 func TestAutoClose_PathA_InFlightJobWithoutSinkRef(t *testing.T) {
 	t.Parallel()
 	rjob := &v1alpha1.RemediationJob{
-		ObjectMeta: metav1.ObjectMeta{Name: "mendabot-aaa222", Namespace: agentNamespace},
+		ObjectMeta: metav1.ObjectMeta{Name: "mechanic-aaa222", Namespace: agentNamespace},
 		Spec: v1alpha1.RemediationJobSpec{
 			SourceResultRef: v1alpha1.ResultRef{Name: "svc-b", Namespace: "default"},
 			Fingerprint:     "aaa222bbb333ccc444",
@@ -3392,7 +3392,7 @@ func TestAutoClose_PathA_InFlightJobWithoutSinkRef(t *testing.T) {
 func TestAutoClose_PathA_SinkCloserError_CancellationProceeds(t *testing.T) {
 	t.Parallel()
 	rjob := &v1alpha1.RemediationJob{
-		ObjectMeta: metav1.ObjectMeta{Name: "mendabot-aaa333", Namespace: agentNamespace},
+		ObjectMeta: metav1.ObjectMeta{Name: "mechanic-aaa333", Namespace: agentNamespace},
 		Spec: v1alpha1.RemediationJobSpec{
 			SourceResultRef: v1alpha1.ResultRef{Name: "svc-c", Namespace: "default"},
 			Fingerprint:     "aaa333bbb444ccc555",
@@ -3432,7 +3432,7 @@ func TestAutoClose_PathA_SinkCloserError_CancellationProceeds(t *testing.T) {
 func TestAutoClose_PathA_PRAutoCloseFalse_NoClose(t *testing.T) {
 	t.Parallel()
 	rjob := &v1alpha1.RemediationJob{
-		ObjectMeta: metav1.ObjectMeta{Name: "mendabot-aaa444", Namespace: agentNamespace},
+		ObjectMeta: metav1.ObjectMeta{Name: "mechanic-aaa444", Namespace: agentNamespace},
 		Spec: v1alpha1.RemediationJobSpec{
 			SourceResultRef: v1alpha1.ResultRef{Name: "svc-d", Namespace: "default"},
 			Fingerprint:     "aaa444bbb555ccc666",
@@ -3470,7 +3470,7 @@ func TestAutoClose_PathB_SucceededJobWithSinkRef(t *testing.T) {
 	t.Parallel()
 	obj := makeWatchedObject("svc-e", "default")
 	rjob := &v1alpha1.RemediationJob{
-		ObjectMeta: metav1.ObjectMeta{Name: "mendabot-aaa555", Namespace: agentNamespace},
+		ObjectMeta: metav1.ObjectMeta{Name: "mechanic-aaa555", Namespace: agentNamespace},
 		Spec: v1alpha1.RemediationJobSpec{
 			SourceResultRef: v1alpha1.ResultRef{Name: "svc-e", Namespace: "default"},
 			Fingerprint:     "aaa555bbb666ccc777",
@@ -3520,7 +3520,7 @@ func TestAutoClose_PathB_SucceededJobWithoutSinkRef(t *testing.T) {
 	t.Parallel()
 	obj := makeWatchedObject("svc-f", "default")
 	rjob := &v1alpha1.RemediationJob{
-		ObjectMeta: metav1.ObjectMeta{Name: "mendabot-aaa666", Namespace: agentNamespace},
+		ObjectMeta: metav1.ObjectMeta{Name: "mechanic-aaa666", Namespace: agentNamespace},
 		Spec: v1alpha1.RemediationJobSpec{
 			SourceResultRef: v1alpha1.ResultRef{Name: "svc-f", Namespace: "default"},
 			Fingerprint:     "aaa666bbb777ccc888",
@@ -3557,7 +3557,7 @@ func TestAutoClose_PathB_SinkCloserError_RJobNotDeleted(t *testing.T) {
 	t.Parallel()
 	obj := makeWatchedObject("svc-g", "default")
 	rjob := &v1alpha1.RemediationJob{
-		ObjectMeta: metav1.ObjectMeta{Name: "mendabot-aaa777", Namespace: agentNamespace},
+		ObjectMeta: metav1.ObjectMeta{Name: "mechanic-aaa777", Namespace: agentNamespace},
 		Spec: v1alpha1.RemediationJobSpec{
 			SourceResultRef: v1alpha1.ResultRef{Name: "svc-g", Namespace: "default"},
 			Fingerprint:     "aaa777bbb888ccc999",
@@ -3595,7 +3595,7 @@ func TestAutoClose_PathB_NilSinkCloser_NoPanic(t *testing.T) {
 	t.Parallel()
 	obj := makeWatchedObject("svc-h", "default")
 	rjob := &v1alpha1.RemediationJob{
-		ObjectMeta: metav1.ObjectMeta{Name: "mendabot-aaa888", Namespace: agentNamespace},
+		ObjectMeta: metav1.ObjectMeta{Name: "mechanic-aaa888", Namespace: agentNamespace},
 		Spec: v1alpha1.RemediationJobSpec{
 			SourceResultRef: v1alpha1.ResultRef{Name: "svc-h", Namespace: "default"},
 			Fingerprint:     "aaa888bbb999ccc000",
@@ -3626,7 +3626,7 @@ func TestAutoClose_PathB_NilSinkCloser_NoPanic(t *testing.T) {
 func TestAutoClose_PathB_IsNotFound_SucceededJob(t *testing.T) {
 	t.Parallel()
 	rjob := &v1alpha1.RemediationJob{
-		ObjectMeta: metav1.ObjectMeta{Name: "mendabot-bbb111", Namespace: agentNamespace},
+		ObjectMeta: metav1.ObjectMeta{Name: "mechanic-bbb111", Namespace: agentNamespace},
 		Spec: v1alpha1.RemediationJobSpec{
 			SourceResultRef: v1alpha1.ResultRef{Name: "svc-i", Namespace: "default"},
 			Fingerprint:     "bbb111ccc222ddd333",

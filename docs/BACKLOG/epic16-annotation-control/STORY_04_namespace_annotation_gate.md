@@ -10,8 +10,8 @@
 ## User Story
 
 As a **cluster operator**, I want to annotate a `Namespace` object with
-`mendabot.io/enabled: "false"` or `mendabot.io/skip-until: "YYYY-MM-DD"` to suppress
-all mendabot investigations for every resource in that namespace, so that I can silence
+`mechanic.io/enabled: "false"` or `mechanic.io/skip-until: "YYYY-MM-DD"` to suppress
+all mechanic investigations for every resource in that namespace, so that I can silence
 an entire namespace (e.g. a load-test namespace or a namespace under active manual
 investigation) without having to annotate every individual resource inside it.
 
@@ -128,11 +128,11 @@ The existing `fakeSourceProvider` and fake client infrastructure is used through
 | Test name | Namespace annotation | `finding.Namespace` | Expected |
 |---|---|---|---|
 | `NSAnnotation_NoAnnotation_Proceeds` | none | `"production"` | `RemediationJob` created |
-| `NSAnnotation_EnabledFalse_Suppressed` | `mendabot.io/enabled: "false"` | `"production"` | no `RemediationJob` |
-| `NSAnnotation_SkipUntilFuture_Suppressed` | `mendabot.io/skip-until: <future date>` | `"production"` | no `RemediationJob` |
-| `NSAnnotation_SkipUntilPast_Proceeds` | `mendabot.io/skip-until: <past date>` | `"production"` | `RemediationJob` created |
+| `NSAnnotation_EnabledFalse_Suppressed` | `mechanic.io/enabled: "false"` | `"production"` | no `RemediationJob` |
+| `NSAnnotation_SkipUntilFuture_Suppressed` | `mechanic.io/skip-until: <future date>` | `"production"` | no `RemediationJob` |
+| `NSAnnotation_SkipUntilPast_Proceeds` | `mechanic.io/skip-until: <past date>` | `"production"` | `RemediationJob` created |
 | `NSAnnotation_NamespaceNotFound_Proceeds` | (namespace object absent) | `"production"` | `RemediationJob` created |
-| `NSAnnotation_ClusterScoped_Exempt` | `mendabot.io/enabled: "false"` on any ns | `""` | `RemediationJob` created (gate bypassed) |
+| `NSAnnotation_ClusterScoped_Exempt` | `mechanic.io/enabled: "false"` on any ns | `""` | `RemediationJob` created (gate bypassed) |
 
 For `NSAnnotation_EnabledFalse_Suppressed` and `NSAnnotation_SkipUntilFuture_Suppressed`:
 create a `corev1.Namespace` object in the fake client with the appropriate annotation

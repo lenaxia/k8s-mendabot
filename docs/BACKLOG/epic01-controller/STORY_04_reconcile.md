@@ -23,10 +23,10 @@ As a **developer**, I want the `RemediationJobReconciler.Reconcile()` method to 
   if TTL is not yet due returns `ctrl.Result{RequeueAfter: time.Until(deadline)}, nil`;
   if `CompletedAt` is not yet set returns nil (will be set when Job syncs)
 - [ ] If phase is `Failed`: returns nil immediately (terminal, retained indefinitely, no TTL)
-- [ ] Looks for an owned Job (label `remediation.mendabot.io/remediation-job=rjob.Name`);
+- [ ] Looks for an owned Job (label `remediation.mechanic.io/remediation-job=rjob.Name`);
   if found, syncs phase via `syncPhaseFromJob` (defined in CONTROLLER_LLD.md §6.3) and returns nil
 - [ ] Checks `MAX_CONCURRENT_JOBS` — counts active Jobs with label
-  `app.kubernetes.io/managed-by=mendabot-watcher`; if at limit, requeues after 30s
+  `app.kubernetes.io/managed-by=mechanic-watcher`; if at limit, requeues after 30s
 - [ ] Calls `jobBuilder.Build(rjob)` to produce the Job spec
 - [ ] Calls `client.Create(ctx, job)` to create the Job
 - [ ] On `IsAlreadyExists`: re-fetches job, syncs phase, returns nil

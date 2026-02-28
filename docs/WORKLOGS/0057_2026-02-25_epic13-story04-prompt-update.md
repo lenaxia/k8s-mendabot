@@ -12,11 +12,11 @@ are now fully in sync.
 
 ## Changes
 
-### `charts/mendabot/files/prompts/default.txt`
+### `charts/mechanic/files/prompts/default.txt`
 
 - Added `Severity: ${FINDING_SEVERITY}` field to the `=== FINDING ===` section
-- Added `<<<MENDABOT:UNTRUSTED_INPUT:FINDING_ERRORS:BEGIN/END>>>` security delimiters around `${FINDING_ERRORS}`
-- Added `<<<MENDABOT:UNTRUSTED_INPUT:AI_ANALYSIS:BEGIN/END>>>` security delimiters around `${FINDING_DETAILS}`
+- Added `<<<MECHANIC:UNTRUSTED_INPUT:FINDING_ERRORS:BEGIN/END>>>` security delimiters around `${FINDING_ERRORS}`
+- Added `<<<MECHANIC:UNTRUSTED_INPUT:AI_ANALYSIS:BEGIN/END>>>` security delimiters around `${FINDING_DETAILS}`
 - `=== CORRELATED GROUP ===` section already present (added in previous session); confirmed correct
 - `## Correlated Findings` block in `=== PR BODY FORMAT ===` already present; confirmed correct
 - Expanded STEP 7 to detail all three kubeconform cases (plain YAML, Kustomize overlay, Helm values)
@@ -33,7 +33,7 @@ are now fully in sync.
 
 ## Verification
 
-- `helm template mendabot charts/mendabot --set gitops.repo=... --set gitops.manifestRoot=... ...` renders without error
+- `helm template mechanic charts/mechanic --set gitops.repo=... --set gitops.manifestRoot=... ...` renders without error
 - Section structure verified to be identical between both prompt files
 - `go build ./...` — clean (no Go changes in this story)
 - `go test -timeout 30s -race ./...` — all packages pass

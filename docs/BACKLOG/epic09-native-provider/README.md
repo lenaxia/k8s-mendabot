@@ -3,7 +3,7 @@
 ## Purpose
 
 Replace the k8sgpt operator dependency with a native `SourceProvider` implementation
-that watches core Kubernetes resources directly. mendabot will no longer require
+that watches core Kubernetes resources directly. mechanic will no longer require
 k8sgpt-operator to be installed in the cluster.
 
 ## Status: Complete
@@ -20,7 +20,7 @@ k8sgpt-operator to be installed in the cluster.
 
 ## Background
 
-mendabot currently depends on k8sgpt-operator writing `Result` CRDs, which
+mechanic currently depends on k8sgpt-operator writing `Result` CRDs, which
 `K8sGPTProvider` then watches. After reading the k8sgpt source, the analyser logic is
 simple rule-checking against standard Kubernetes API state — status field comparisons,
 owner reference traversal, and event lookups. None of it requires an external operator.

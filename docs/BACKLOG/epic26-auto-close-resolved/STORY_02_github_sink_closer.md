@@ -60,8 +60,8 @@ import (
     "fmt"
     "net/http"
 
-    igithub "github.com/lenaxia/k8s-mendabot/internal/github"
-    v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
+    igithub "github.com/lenaxia/k8s-mechanic/internal/github"
+    v1alpha1 "github.com/lenaxia/k8s-mechanic/api/v1alpha1"
 )
 
 // GitHubSinkCloser closes GitHub PRs and issues via the REST API.

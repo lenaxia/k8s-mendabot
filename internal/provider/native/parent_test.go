@@ -14,7 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
+	v1alpha1 "github.com/lenaxia/k8s-mechanic/api/v1alpha1"
 )
 
 func newTestScheme() *runtime.Scheme {

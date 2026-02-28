@@ -30,7 +30,7 @@ All six return `domain.SourceProvider`.
 
 ### 2. Modified cmd/watcher/main.go
 
-- Added import: `"github.com/lenaxia/k8s-mendabot/internal/provider/native"`
+- Added import: `"github.com/lenaxia/k8s-mechanic/internal/provider/native"`
 - Extracted `nativeClient := mgr.GetClient()` before the slice literal
 - Expanded `enabledProviders` from 1 entry (K8sGPTProvider) to 7:
   ```go

@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
-	"github.com/lenaxia/k8s-mendabot/internal/domain"
-	sinkhub "github.com/lenaxia/k8s-mendabot/internal/sink/github"
+	v1alpha1 "github.com/lenaxia/k8s-mechanic/api/v1alpha1"
+	"github.com/lenaxia/k8s-mechanic/internal/domain"
+	sinkhub "github.com/lenaxia/k8s-mechanic/internal/sink/github"
 )
 
 // Compile-time interface check.

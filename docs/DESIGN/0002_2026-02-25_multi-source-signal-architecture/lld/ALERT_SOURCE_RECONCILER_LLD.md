@@ -16,7 +16,7 @@ as a controller-runtime reconciler with two reconcile targets:
    webhook paths on the `DynamicMux`, starts/stops polling goroutines, updates status.
 
 2. **`RemediationJob` objects** (via `Watches`) — when a RJ that carries a
-   `mendabot.io/pending-alert` annotation reaches a terminal phase (Succeeded or Failed),
+   `mechanic.io/pending-alert` annotation reaches a terminal phase (Succeeded or Failed),
    the reconciler reads the annotation, clears it atomically, and creates a new RJ from the
    pending finding. This requires **no `FindingCh` wired into `RemediationJobReconciler`**.
 
@@ -503,7 +503,7 @@ func (r *AlertSourceReconciler) processFinding(ctx context.Context, f domain.Fin
 ### 4.2 createRemediationJob
 
 Alert-sourced RJs use the AlertSource CR name as the `SourceResultRef` sentinel value.
-This is safe because AlertSource names are in the mendabot namespace and will never collide
+This is safe because AlertSource names are in the mechanic namespace and will never collide
 with workload object names used by native providers. See HLD §14.2.
 
 ```go
@@ -516,7 +516,7 @@ func (r *AlertSourceReconciler) createRemediationJob(
     // f.Errors is always valid JSON (constructed by the adapter as [{"text":"..."}]).
     // If FindingFingerprintV1 fails for any reason, fall back to using the v2 fp
     // for the legacy Spec.Fingerprint field — this is safe because the v1 dedup
-    // check (in SourceProviderReconciler) uses the remediation.mendabot.io/fingerprint
+    // check (in SourceProviderReconciler) uses the remediation.mechanic.io/fingerprint
     // label which is also set to fp[:12] as the fallback. The only consequence is
     // that the migration-window v1 fallback check becomes a no-op for this RJ.
     v1fp, err := domain.FindingFingerprintV1(f)
@@ -528,19 +528,19 @@ func (r *AlertSourceReconciler) createRemediationJob(
 
     rj := &v1alpha1.RemediationJob{
         ObjectMeta: metav1.ObjectMeta{
-            Name:      "mendabot-" + fp[:12],
+            Name:      "mechanic-" + fp[:12],
             Namespace: r.Cfg.AgentNamespace,
             Labels: map[string]string{
                 v1alpha1.LabelResourceFingerprint:           fp[:12],
                 v1alpha1.LabelSourcePriority:                strconv.Itoa(f.SourcePriority),
-                "remediation.mendabot.io/fingerprint":       v1fp[:12], // migration compat
-                "app.kubernetes.io/managed-by":              "mendabot-watcher",
+                "remediation.mechanic.io/fingerprint":       v1fp[:12], // migration compat
+                "app.kubernetes.io/managed-by":              "mechanic-watcher",
             },
             Annotations: map[string]string{
                 v1alpha1.AnnotationResourceFingerprintFull:  fp,
                 v1alpha1.AnnotationSourceType:               f.SourceType,
                 v1alpha1.AnnotationErrorSummary:             buildErrorSummary(f),
-                "remediation.mendabot.io/fingerprint-full":  v1fp, // migration compat
+                "remediation.mechanic.io/fingerprint-full":  v1fp, // migration compat
             },
         },
         Spec: v1alpha1.RemediationJobSpec{
@@ -584,7 +584,7 @@ func (r *AlertSourceReconciler) createRemediationJob(
     return nil
 }
 
-// buildErrorSummary constructs the value for the mendabot.io/error-summary annotation.
+// buildErrorSummary constructs the value for the mechanic.io/error-summary annotation.
 // It is a plain-text, single-line summary for quick human inspection via kubectl.
 // Format: "<alertname>: <key>=<value> <key>=<value> ..."
 // Key labels included (in order, if present): namespace, the resource label that resolved
@@ -647,7 +647,7 @@ func (r *AlertSourceReconciler) annotatePendingAlert(
 Constants:
 ```go
 // api/v1alpha1/annotations.go
-const AnnotationPendingAlert = "mendabot.io/pending-alert"
+const AnnotationPendingAlert = "mechanic.io/pending-alert"
 ```
 
 ### 5.2 Processing on Terminal State — `handlePendingAlert`
@@ -780,7 +780,7 @@ func (r *AlertSourceReconciler) resolveDedup(
         case v1alpha1.PhaseSucceeded:
             // Delete the succeeded RJ before signalling create. With v2 resource-level
             // fingerprinting, the new RJ would have the exact same name
-            // ("mendabot-" + rfp[:12]). If the old Succeeded RJ is not deleted first,
+            // ("mechanic-" + rfp[:12]). If the old Succeeded RJ is not deleted first,
             // r.Create returns AlreadyExists and the new RJ is silently never created.
             // This is the key difference from the v1 behaviour: v1 fingerprints included
             // error texts, so the new finding (with fresh errors) produced a different

@@ -18,17 +18,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
-	"github.com/lenaxia/k8s-mendabot/internal/config"
-	"github.com/lenaxia/k8s-mendabot/internal/controller"
-	"github.com/lenaxia/k8s-mendabot/internal/correlator"
-	"github.com/lenaxia/k8s-mendabot/internal/domain"
-	"github.com/lenaxia/k8s-mendabot/internal/jobbuilder"
-	"github.com/lenaxia/k8s-mendabot/internal/testutil"
+	v1alpha1 "github.com/lenaxia/k8s-mechanic/api/v1alpha1"
+	"github.com/lenaxia/k8s-mechanic/internal/config"
+	"github.com/lenaxia/k8s-mechanic/internal/controller"
+	"github.com/lenaxia/k8s-mechanic/internal/correlator"
+	"github.com/lenaxia/k8s-mechanic/internal/domain"
+	"github.com/lenaxia/k8s-mechanic/internal/jobbuilder"
+	"github.com/lenaxia/k8s-mechanic/internal/testutil"
 	"go.uber.org/zap"
 )
 
-const testNamespace = "mendabot"
+const testNamespace = "mechanic"
 
 func newTestScheme(t *testing.T) *runtime.Scheme {
 	t.Helper()
@@ -78,10 +78,10 @@ func newRJob(name, fp string) *v1alpha1.RemediationJob {
 			Name:      name,
 			Namespace: testNamespace,
 			UID:       types.UID("uid-" + name),
-			// All mendabot-managed RemediationJobs carry this label; pendingPeers
+			// All mechanic-managed RemediationJobs carry this label; pendingPeers
 			// uses it as a server-side filter to avoid full-namespace scans.
 			Labels: map[string]string{
-				"app.kubernetes.io/managed-by": "mendabot-watcher",
+				"app.kubernetes.io/managed-by": "mechanic-watcher",
 			},
 		},
 		Spec: v1alpha1.RemediationJobSpec{
@@ -211,7 +211,7 @@ func TestRemediationJobReconciler_MaxConcurrent_Requeues(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "active-job-1",
 			Namespace: testNamespace,
-			Labels:    map[string]string{"app.kubernetes.io/managed-by": "mendabot-watcher"},
+			Labels:    map[string]string{"app.kubernetes.io/managed-by": "mechanic-watcher"},
 		},
 		Status: batchv1.JobStatus{Active: 1},
 	}
@@ -219,7 +219,7 @@ func TestRemediationJobReconciler_MaxConcurrent_Requeues(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "active-job-2",
 			Namespace: testNamespace,
-			Labels:    map[string]string{"app.kubernetes.io/managed-by": "mendabot-watcher"},
+			Labels:    map[string]string{"app.kubernetes.io/managed-by": "mechanic-watcher"},
 		},
 		Status: batchv1.JobStatus{Active: 1},
 	}
@@ -239,7 +239,7 @@ func TestRemediationJobReconciler_MaxConcurrent_Requeues(t *testing.T) {
 	// No new job should be created
 	var jobList batchv1.JobList
 	if err := c.List(context.Background(), &jobList, client.InNamespace(testNamespace),
-		client.MatchingLabels{"remediation.mendabot.io/remediation-job": "test-rjob"}); err != nil {
+		client.MatchingLabels{"remediation.mechanic.io/remediation-job": "test-rjob"}); err != nil {
 		t.Fatalf("list jobs: %v", err)
 	}
 	if len(jobList.Items) != 0 {
@@ -264,9 +264,9 @@ func TestRemediationJobReconciler_JobExists_SyncsStatus(t *testing.T) {
 
 	existingJob := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-agent-" + fp[:12],
+			Name:      "mechanic-agent-" + fp[:12],
 			Namespace: testNamespace,
-			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-rjob"},
+			Labels:    map[string]string{"remediation.mechanic.io/remediation-job": "test-rjob"},
 		},
 		Spec:   batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
 		Status: batchv1.JobStatus{Active: 1},
@@ -393,9 +393,9 @@ func TestRemediationJobReconciler_PhaseFailed_IncrementsRetryCount(t *testing.T)
 	backoffLimit := int32(1)
 	failedJob := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-agent-" + fp[:12],
+			Name:      "mechanic-agent-" + fp[:12],
 			Namespace: testNamespace,
-			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-retry-count"},
+			Labels:    map[string]string{"remediation.mechanic.io/remediation-job": "test-retry-count"},
 		},
 		Spec:   batchv1.JobSpec{BackoffLimit: &backoffLimit},
 		Status: batchv1.JobStatus{Failed: backoffLimit + 1},
@@ -434,9 +434,9 @@ func TestRemediationJobReconciler_PhaseFailed_AtCap_PermanentlyFails(t *testing.
 	backoffLimit := int32(1)
 	failedJob := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-agent-" + fp[:12],
+			Name:      "mechanic-agent-" + fp[:12],
 			Namespace: testNamespace,
-			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-perm-fail"},
+			Labels:    map[string]string{"remediation.mechanic.io/remediation-job": "test-perm-fail"},
 		},
 		Spec:   batchv1.JobSpec{BackoffLimit: &backoffLimit},
 		Status: batchv1.JobStatus{Failed: backoffLimit + 1},
@@ -574,9 +574,9 @@ func TestRemediationJobReconciler_PhaseFailed_ZeroMaxRetries_UsesDefault(t *test
 	backoffLimit := int32(1)
 	failedJob := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-agent-" + fp[:12],
+			Name:      "mechanic-agent-" + fp[:12],
 			Namespace: testNamespace,
-			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-zero-maxretries"},
+			Labels:    map[string]string{"remediation.mechanic.io/remediation-job": "test-zero-maxretries"},
 		},
 		Spec:   batchv1.JobSpec{BackoffLimit: &backoffLimit},
 		Status: batchv1.JobStatus{Failed: backoffLimit + 1},
@@ -755,9 +755,9 @@ func TestReconcile_EmitsEvent_JobSucceeded_WithPR(t *testing.T) {
 
 	succeededJob := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-agent-" + fp[:12],
+			Name:      "mechanic-agent-" + fp[:12],
 			Namespace: testNamespace,
-			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-rjob-pr"},
+			Labels:    map[string]string{"remediation.mechanic.io/remediation-job": "test-rjob-pr"},
 		},
 		Spec:   batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
 		Status: batchv1.JobStatus{Succeeded: 1},
@@ -803,9 +803,9 @@ func TestReconcile_EmitsEvent_JobSucceeded_NoPR(t *testing.T) {
 
 	succeededJob := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-agent-" + fp[:12],
+			Name:      "mechanic-agent-" + fp[:12],
 			Namespace: testNamespace,
-			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-rjob-nopr"},
+			Labels:    map[string]string{"remediation.mechanic.io/remediation-job": "test-rjob-nopr"},
 		},
 		Spec:   batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
 		Status: batchv1.JobStatus{Succeeded: 1},
@@ -851,9 +851,9 @@ func TestReconcile_EmitsEvent_JobFailed(t *testing.T) {
 
 	failedJob := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-agent-" + fp[:12],
+			Name:      "mechanic-agent-" + fp[:12],
 			Namespace: testNamespace,
-			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-rjob-failed"},
+			Labels:    map[string]string{"remediation.mechanic.io/remediation-job": "test-rjob-failed"},
 		},
 		Spec:   batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
 		Status: batchv1.JobStatus{Failed: 2},
@@ -902,9 +902,9 @@ func TestReconcile_EmitsEvent_JobPermanentlyFailed(t *testing.T) {
 	backoffLimit := int32(1)
 	failedJob := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-agent-" + fp[:12],
+			Name:      "mechanic-agent-" + fp[:12],
 			Namespace: testNamespace,
-			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-rjob-perm-failed"},
+			Labels:    map[string]string{"remediation.mechanic.io/remediation-job": "test-rjob-perm-failed"},
 		},
 		Spec:   batchv1.JobSpec{BackoffLimit: &backoffLimit},
 		Status: batchv1.JobStatus{Failed: 2},
@@ -1051,11 +1051,11 @@ func TestReconcile_EmitsEvent_JobDispatched_AlreadyExists(t *testing.T) {
 	// AlreadyExists because the name conflicts.
 	preExistingJob := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-agent-" + fp[:12],
+			Name:      "mechanic-agent-" + fp[:12],
 			Namespace: testNamespace,
-			// intentionally no "remediation.mendabot.io/remediation-job" label
+			// intentionally no "remediation.mechanic.io/remediation-job" label
 			Labels: map[string]string{
-				"app.kubernetes.io/managed-by": "mendabot-watcher",
+				"app.kubernetes.io/managed-by": "mechanic-watcher",
 			},
 		},
 		Spec: batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
@@ -1899,9 +1899,9 @@ func TestReconcile_WindowHold_DoesNotRunBeforeOwnedJobsSync(t *testing.T) {
 	// There is already an owned batch/v1 Job for this rjob in Active state.
 	existingJob := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-agent-" + fp[:12],
+			Name:      "mechanic-agent-" + fp[:12],
 			Namespace: testNamespace,
-			Labels:    map[string]string{"remediation.mendabot.io/remediation-job": rjob.Name},
+			Labels:    map[string]string{"remediation.mechanic.io/remediation-job": rjob.Name},
 		},
 		Spec:   batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
 		Status: batchv1.JobStatus{Active: 1},
@@ -2068,7 +2068,7 @@ func TestCorrelation_RecoveryPath_RespectsMaxConcurrentJobs(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "active-gate-job-1",
 			Namespace: testNamespace,
-			Labels:    map[string]string{"app.kubernetes.io/managed-by": "mendabot-watcher"},
+			Labels:    map[string]string{"app.kubernetes.io/managed-by": "mechanic-watcher"},
 		},
 		Status: batchv1.JobStatus{Active: 1},
 	}
@@ -2121,7 +2121,7 @@ func TestRemediationJobReconciler_Dispatched_OwnedJobGCd_NilCorrelator_NoDoubleD
 
 	rjob := newRJob("dispatched-gcjob-rjob", fp)
 	rjob.Status.Phase = v1alpha1.PhaseDispatched
-	rjob.Status.JobRef = "mendabot-agent-" + fp[:12] // already dispatched
+	rjob.Status.JobRef = "mechanic-agent-" + fp[:12] // already dispatched
 
 	// No owned batch/v1 Job in the fake store — simulates GC.
 	c := newFakeClient(t, rjob)

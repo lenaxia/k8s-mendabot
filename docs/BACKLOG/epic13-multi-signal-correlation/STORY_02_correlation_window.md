@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **mendabot operator**, I want the `RemediationJobReconciler` to hold newly-created
+As a **mechanic operator**, I want the `RemediationJobReconciler` to hold newly-created
 `RemediationJob` objects in `Pending` phase for a configurable window before dispatching,
 so that correlated findings created within the same window are grouped rather than
 dispatched independently.
@@ -42,9 +42,9 @@ durable state.
 - [x] When `Correlator.Evaluate` returns `found=true` and the candidate **is the primary**:
   - All non-primary correlated peers (from `group.CorrelatedUIDs`) are transitioned to
     `Suppressed` phase with `CorrelationGroupID` set — by the primary's reconcile call
-  - `mendabot.io/correlation-group-id` and `mendabot.io/correlation-role=primary` labels
+  - `mechanic.io/correlation-group-id` and `mechanic.io/correlation-role=primary` labels
     are patched onto the primary before `dispatch` is called
-  - `mendabot.io/correlation-group-id` and `mendabot.io/correlation-role=correlated` labels
+  - `mechanic.io/correlation-group-id` and `mechanic.io/correlation-role=correlated` labels
     are patched onto each suppressed peer
   - Primary is dispatched with correlated peer findings via `dispatch(ctx, rjob, group.AllFindings)`
 - [x] When `Correlator.Evaluate` returns `found=true`, the candidate **is not the primary**,
@@ -182,7 +182,7 @@ func (r *RemediationJobReconciler) suppressCorrelatedPeers(
 
 ### `labelAsPrimary` helper
 
-Patches the `mendabot.io/correlation-group-id` and `mendabot.io/correlation-role=primary`
+Patches the `mechanic.io/correlation-group-id` and `mechanic.io/correlation-role=primary`
 labels onto the primary RJob **before** `dispatch` is called, so that `Build()` can read
 the group ID label when injecting `FINDING_CORRELATION_GROUP_ID` into the Job env.
 
@@ -258,7 +258,7 @@ func (r *RemediationJobReconciler) dispatch(
 ```
 
 The `groupID` is **not** passed as a parameter. `labelAsPrimary` patches the
-`mendabot.io/correlation-group-id` label onto the primary before `dispatch` is called,
+`mechanic.io/correlation-group-id` label onto the primary before `dispatch` is called,
 so `Build()` reads it directly from `rjob.Labels[domain.CorrelationGroupIDLabel]`. There
 is no need to thread it through `dispatch`. This keeps the dispatch signature minimal and
 avoids two sources of truth for the group ID.
@@ -278,7 +278,7 @@ func (r *RemediationJobReconciler) correlationPeers(ctx context.Context, candida
     var list v1alpha1.RemediationJobList
     if err := r.List(ctx, &list,
         client.InNamespace(r.Cfg.AgentNamespace),
-        client.MatchingLabels{"app.kubernetes.io/managed-by": "mendabot-watcher"},
+        client.MatchingLabels{"app.kubernetes.io/managed-by": "mechanic-watcher"},
     ); err != nil {
         return nil, err
     }
@@ -391,7 +391,7 @@ if err := (&controller.RemediationJobReconciler{
 }
 ```
 
-This requires adding `import "github.com/lenaxia/k8s-mendabot/internal/correlator"` to
+This requires adding `import "github.com/lenaxia/k8s-mechanic/internal/correlator"` to
 `cmd/watcher/main.go`.
 
 The escape hatch check in the reconciler is `if r.Correlator != nil` — do not use
@@ -463,7 +463,7 @@ if threshStr == "" {
 
 The three new config fields must flow through the Helm chart.
 
-**`charts/mendabot/values.yaml`** — add under the `watcher:` section (after
+**`charts/mechanic/values.yaml`** — add under the `watcher:` section (after
 `stabilisationWindowSeconds`):
 
 ```yaml
@@ -477,7 +477,7 @@ The three new config fields must flow through the Helm chart.
   multiPodThreshold: 3
 ```
 
-**`charts/mendabot/templates/deployment-watcher.yaml`** — add three env entries after the
+**`charts/mechanic/templates/deployment-watcher.yaml`** — add three env entries after the
 `STABILISATION_WINDOW_SECONDS` entry at line 51:
 
 ```yaml
@@ -523,8 +523,8 @@ scenarios where source deletion is possible.
       `config.Config` and parse them in `config.FromEnv()`
 - [x] Add `config_test.go` cases for the three new fields
 - [x] Add conditional `Correlator` construction in `cmd/watcher/main.go`
-- [x] Add three env var entries to `charts/mendabot/templates/deployment-watcher.yaml`
-- [x] Add three fields to `charts/mendabot/values.yaml` under `watcher:`
+- [x] Add three env var entries to `charts/mechanic/templates/deployment-watcher.yaml`
+- [x] Add three fields to `charts/mechanic/values.yaml` under `watcher:`
 - [x] Run `go test -timeout 30s -race ./...` — must pass
 
 ---

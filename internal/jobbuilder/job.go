@@ -8,9 +8,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/lenaxia/k8s-mendabot/api/v1alpha1"
-	"github.com/lenaxia/k8s-mendabot/internal/config"
-	"github.com/lenaxia/k8s-mendabot/internal/domain"
+	"github.com/lenaxia/k8s-mechanic/api/v1alpha1"
+	"github.com/lenaxia/k8s-mechanic/internal/config"
+	"github.com/lenaxia/k8s-mechanic/internal/domain"
 )
 
 var _ domain.JobBuilder = (*Builder)(nil)
@@ -66,7 +66,7 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 		return nil, fmt.Errorf("jobbuilder: Fingerprint must be at least 12 characters, got %d", len(rjob.Spec.Fingerprint))
 	}
 
-	jobName := "mendabot-agent-" + rjob.Spec.Fingerprint[:12]
+	jobName := "mechanic-agent-" + rjob.Spec.Fingerprint[:12]
 	secretName := "llm-credentials-" + string(b.cfg.AgentType)
 	coreCMName := "agent-prompt-core"
 	agentCMName := "agent-prompt-" + string(b.cfg.AgentType)
@@ -124,7 +124,7 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 	}
 
 	mainContainer := corev1.Container{
-		Name:  "mendabot-agent",
+		Name:  "mechanic-agent",
 		Image: rjob.Spec.AgentImage,
 		Env: []corev1.EnvVar{
 			{Name: "FINDING_KIND", Value: rjob.Spec.Finding.Kind},
@@ -168,7 +168,7 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 				// Mounted at a non-standard path so entrypoint-common.sh can detect
 				// its presence and prefer it over the auto-mounted projected token.
 				Name:      "agent-token",
-				MountPath: "/var/run/secrets/mendabot/serviceaccount",
+				MountPath: "/var/run/secrets/mechanic/serviceaccount",
 				ReadOnly:  true,
 			},
 		},
@@ -196,8 +196,8 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 		// dry-run mode via a tamper-proof file rather than an env var that a child
 		// shell could unset.
 		mainContainer.VolumeMounts = append(mainContainer.VolumeMounts, corev1.VolumeMount{
-			Name:      "mendabot-cfg",
-			MountPath: "/mendabot-cfg",
+			Name:      "mechanic-cfg",
+			MountPath: "/mechanic-cfg",
 			ReadOnly:  true,
 		})
 	}
@@ -246,7 +246,7 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 			Name: "agent-token",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: "mendabot-agent-token",
+					SecretName: "mechanic-agent-token",
 				},
 			},
 		},
@@ -255,12 +255,12 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 	initContainers := []corev1.Container{initContainer}
 
 	if b.cfg.DryRun {
-		// dry-run-gate: writes /mendabot-cfg/dry-run before the main container
+		// dry-run-gate: writes /mechanic-cfg/dry-run before the main container
 		// starts. The main container mounts the same emptyDir read-only, so the
 		// sentinel file cannot be deleted or modified by any child process inside
 		// the agent — not even via "unset DRY_RUN" shell tricks.
 		volumes = append(volumes, corev1.Volume{
-			Name: "mendabot-cfg",
+			Name: "mechanic-cfg",
 			VolumeSource: corev1.VolumeSource{
 				EmptyDir: &corev1.EmptyDirVolumeSource{},
 			},
@@ -269,9 +269,9 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 			Name:    "dry-run-gate",
 			Image:   rjob.Spec.AgentImage,
 			Command: []string{"/bin/sh", "-c"},
-			Args:    []string{"echo -n 'true' > /mendabot-cfg/dry-run && chmod 444 /mendabot-cfg/dry-run"},
+			Args:    []string{"echo -n 'true' > /mechanic-cfg/dry-run && chmod 444 /mechanic-cfg/dry-run"},
 			VolumeMounts: []corev1.VolumeMount{
-				{Name: "mendabot-cfg", MountPath: "/mendabot-cfg"},
+				{Name: "mechanic-cfg", MountPath: "/mechanic-cfg"},
 			},
 			SecurityContext: &corev1.SecurityContext{
 				AllowPrivilegeEscalation: ptr(false),
@@ -284,11 +284,11 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 	}
 
 	annotations := map[string]string{
-		"remediation.mendabot.io/fingerprint-full": rjob.Spec.Fingerprint,
-		"remediation.mendabot.io/finding-parent":   rjob.Spec.Finding.ParentObject,
+		"remediation.mechanic.io/fingerprint-full": rjob.Spec.Fingerprint,
+		"remediation.mechanic.io/finding-parent":   rjob.Spec.Finding.ParentObject,
 	}
 	if b.cfg.DryRun {
-		annotations["mendabot.io/dry-run"] = "true"
+		annotations["mechanic.io/dry-run"] = "true"
 	}
 
 	job := &batchv1.Job{
@@ -296,15 +296,15 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 			Name:      jobName,
 			Namespace: b.cfg.AgentNamespace,
 			Labels: map[string]string{
-				"app.kubernetes.io/managed-by":            "mendabot-watcher",
-				"remediation.mendabot.io/fingerprint":     rjob.Spec.Fingerprint[:12],
-				"remediation.mendabot.io/remediation-job": rjob.Name,
-				"remediation.mendabot.io/finding-kind":    rjob.Spec.Finding.Kind,
+				"app.kubernetes.io/managed-by":            "mechanic-watcher",
+				"remediation.mechanic.io/fingerprint":     rjob.Spec.Fingerprint[:12],
+				"remediation.mechanic.io/remediation-job": rjob.Name,
+				"remediation.mechanic.io/finding-kind":    rjob.Spec.Finding.Kind,
 			},
 			Annotations: annotations,
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					APIVersion:         "remediation.mendabot.io/v1alpha1",
+					APIVersion:         "remediation.mechanic.io/v1alpha1",
 					Kind:               "RemediationJob",
 					Name:               rjob.Name,
 					UID:                rjob.UID,

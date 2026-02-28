@@ -4,7 +4,7 @@
 
 When the agent opens a PR or issue, the interaction does not end there. Human reviewers
 leave comments, request changes, ask clarifying questions, or point out that the proposed
-fix is wrong. Today mendabot is deaf to all of this. A reviewed PR sits with unaddressed
+fix is wrong. Today mechanic is deaf to all of this. A reviewed PR sits with unaddressed
 comments until a human manually intervenes.
 
 This epic adds a **feedback watch loop**: the watcher polls open sinks (PRs and issues
@@ -79,7 +79,7 @@ type Comment struct {
 
 A comment is considered actionable if **all** of the following hold:
 
-1. Author is not a known bot (`github-actions[bot]`, `dependabot[bot]`, `mendabot[bot]`)
+1. Author is not a known bot (`github-actions[bot]`, `dependabot[bot]`, `mechanic[bot]`)
 2. Body length > 20 characters (filters "+1", "thanks", emoji reactions)
 3. Body does not match a pure approval pattern:
    `(?i)^(lgtm|looks good|approved?|ship it|:+1:|👍|✅)\s*$`
@@ -117,7 +117,7 @@ agent to:
 5. Reply to the reviewer comment with a summary of what was changed
 
 The follow-up Job's name includes an iteration suffix:
-`mendabot-agent-<fingerprint[:12]>-fb<N>`
+`mechanic-agent-<fingerprint[:12]>-fb<N>`
 
 ### Reconciler changes
 
@@ -188,7 +188,7 @@ FEEDBACK_MAX_ITERATIONS=3
 | `internal/config/config.go` | Add `FeedbackWatch bool`, `FeedbackPollInterval time.Duration`, `FeedbackMaxIterations int` |
 | `internal/config/config_test.go` | Config parsing tests |
 | `deploy/kustomize/configmap-prompt.yaml` | Add `feedback-mode.txt` key |
-| `charts/mendabot/files/prompts/feedback-mode.txt` | New feedback prompt |
+| `charts/mechanic/files/prompts/feedback-mode.txt` | New feedback prompt |
 | `testdata/crds/remediationjob_crd.yaml` | Add new phase constants and status fields |
 
 ## Definition of Done

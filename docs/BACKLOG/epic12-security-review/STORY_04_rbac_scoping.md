@@ -35,8 +35,8 @@ This story implements that restriction as a first-class feature. The mechanism:
 1. A new env var `AGENT_RBAC_SCOPE` on the watcher Deployment (`cluster` | `namespace`)
 2. When `namespace`, `config.FromEnv()` also reads `AGENT_WATCH_NAMESPACES` (comma-separated)
 3. `JobBuilder.Build()` selects a different ServiceAccount based on scope:
-   - `cluster`: `rjob.Spec.AgentSA` (current behaviour — `mendabot-agent`)
-   - `namespace`: `mendabot-agent-ns` (a new SA bound to namespace-scoped Roles)
+   - `cluster`: `rjob.Spec.AgentSA` (current behaviour — `mechanic-agent`)
+   - `namespace`: `mechanic-agent-ns` (a new SA bound to namespace-scoped Roles)
 4. New namespace-scoped RBAC manifests in the deploy overlay
 
 The `rjob.Spec.AgentSA` field is already set by `SourceProviderReconciler.Reconcile()`
@@ -55,9 +55,9 @@ the reconciler which to use.
 - [ ] `config.FromEnv()` returns an error if `AGENT_RBAC_SCOPE` is not `"cluster"` or
       `"namespace"`
 - [ ] `SourceProviderReconciler.Reconcile()` sets `AgentSA` based on scope:
-      `mendabot-agent` for cluster scope, `mendabot-agent-ns` for namespace scope
+      `mechanic-agent` for cluster scope, `mechanic-agent-ns` for namespace scope
 - [ ] `deploy/kustomize/overlays/security/` contains a `ServiceAccount`, `Role` (per
-      watched namespace), and `RoleBinding` for `mendabot-agent-ns`
+      watched namespace), and `RoleBinding` for `mechanic-agent-ns`
 - [ ] `config_test.go` covers: valid cluster scope, valid namespace scope with namespaces,
       namespace scope with empty namespaces (error), invalid scope value (error)
 - [ ] `go test -timeout 30s -race ./internal/config/...` passes
@@ -113,9 +113,9 @@ In `internal/provider/provider.go`, where `AgentSA` is set on the `RemediationJo
 (currently line 313):
 
 ```go
-agentSA := r.Cfg.AgentSA  // default: "mendabot-agent" (cluster scope)
+agentSA := r.Cfg.AgentSA  // default: "mechanic-agent" (cluster scope)
 if r.Cfg.AgentRBACScope == "namespace" {
-    agentSA = "mendabot-agent-ns"
+    agentSA = "mechanic-agent-ns"
 }
 // ...
 AgentSA: agentSA,
@@ -128,8 +128,8 @@ AgentSA: agentSA,
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: mendabot-agent-ns
-  namespace: mendabot
+  name: mechanic-agent-ns
+  namespace: mechanic
 ```
 
 `role-agent-ns.yaml` — one Role per watched namespace (example for `production`):
@@ -137,7 +137,7 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: mendabot-agent-ns
+  name: mechanic-agent-ns
   namespace: production
 rules:
 - apiGroups: ["*"]
@@ -150,35 +150,35 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: mendabot-agent-ns
+  name: mechanic-agent-ns
   namespace: production
 subjects:
 - kind: ServiceAccount
-  name: mendabot-agent-ns
-  namespace: mendabot
+  name: mechanic-agent-ns
+  namespace: mechanic
 roleRef:
   kind: Role
-  name: mendabot-agent-ns
+  name: mechanic-agent-ns
   apiGroup: rbac.authorization.k8s.io
 ```
 
 The agent also needs the existing `role-agent.yaml` (`remediationjobs/status` patch)
-bound to `mendabot-agent-ns`:
+bound to `mechanic-agent-ns`:
 
 `rolebinding-agent-ns-statuswrite.yaml`:
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: mendabot-agent-ns-statuswrite
-  namespace: mendabot
+  name: mechanic-agent-ns-statuswrite
+  namespace: mechanic
 subjects:
 - kind: ServiceAccount
-  name: mendabot-agent-ns
-  namespace: mendabot
+  name: mechanic-agent-ns
+  namespace: mechanic
 roleRef:
   kind: Role
-  name: mendabot-agent
+  name: mechanic-agent
   apiGroup: rbac.authorization.k8s.io
 ```
 
@@ -193,7 +193,7 @@ is active. This is a known limitation that the operator accepts when choosing na
 - [ ] Write `config_test.go` cases for new fields (TDD)
 - [ ] Update `internal/config/config.go` with `AgentRBACScope` and `AgentWatchNamespaces`
 - [ ] Run config tests — must pass
-- [ ] Update `internal/provider/provider.go` to select `mendabot-agent-ns` when
+- [ ] Update `internal/provider/provider.go` to select `mechanic-agent-ns` when
       `AgentRBACScope == "namespace"`
 - [ ] Create namespace-scoped RBAC manifests in `deploy/kustomize/overlays/security/`
 - [ ] Run `kubectl apply -k deploy/kustomize/overlays/security/ --dry-run=client`

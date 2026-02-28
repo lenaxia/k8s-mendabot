@@ -10,7 +10,7 @@
 # Dry-run enforcement — three independent layers, defense-in-depth.
 # Any single layer returning "true" is sufficient to enforce dry-run mode.
 #
-#   Layer 1 — /mendabot-cfg/dry-run sentinel file (chmod 444, read-only volume mount).
+#   Layer 1 — /mechanic-cfg/dry-run sentinel file (chmod 444, read-only volume mount).
 #              Written by the dry-run-gate init container; cannot be removed or
 #              modified by any child process inside the agent container.
 #
@@ -23,7 +23,7 @@
 _dry_run="false"
 
 # Layer 1: sentinel file (tamper-proof read-only mount)
-if [ -f /mendabot-cfg/dry-run ] && [ "$(cat /mendabot-cfg/dry-run 2>/dev/null)" = "true" ]; then
+if [ -f /mechanic-cfg/dry-run ] && [ "$(cat /mechanic-cfg/dry-run 2>/dev/null)" = "true" ]; then
     _dry_run="true"
 fi
 

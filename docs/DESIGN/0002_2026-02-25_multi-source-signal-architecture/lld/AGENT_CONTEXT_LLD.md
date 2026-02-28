@@ -136,7 +136,7 @@ checks are added.
 
 ## 5. Prompt Template Changes
 
-The prompt template (`charts/mendabot/files/prompts/default.txt`) is updated in two places.
+The prompt template (`charts/mechanic/files/prompts/default.txt`) is updated in two places.
 
 ### 5.1 Alert Context Section (new)
 
@@ -169,7 +169,7 @@ The existing "Check for existing PRs" step in the prompt is extended to handle
 
 **Existing (v1):**
 ```
-1. Check for an existing PR on branch fix/mendabot-${FINDING_FINGERPRINT}.
+1. Check for an existing PR on branch fix/mechanic-${FINDING_FINGERPRINT}.
    If found, add a comment with updated findings and exit. Do not open a duplicate PR.
 ```
 
@@ -188,15 +188,15 @@ The existing "Check for existing PRs" step in the prompt is extended to handle
       - Do NOT open a new PR. Do NOT open a new branch.
       - Exit after updating.
 
-   b. If an open PR exists on branch fix/mendabot-${FINDING_FINGERPRINT}:
-      (Check: gh pr list --repo ${GITOPS_REPO} --state open --head fix/mendabot-${FINDING_FINGERPRINT})
+   b. If an open PR exists on branch fix/mechanic-${FINDING_FINGERPRINT}:
+      (Check: gh pr list --repo ${GITOPS_REPO} --state open --head fix/mechanic-${FINDING_FINGERPRINT})
       - Add a comment to the existing PR with updated findings
       - Do NOT open a duplicate PR
       - Exit after commenting.
 
    c. Otherwise:
       - Proceed with investigation (steps 2 onwards)
-      - Open a new PR on branch fix/mendabot-${FINDING_FINGERPRINT}
+      - Open a new PR on branch fix/mechanic-${FINDING_FINGERPRINT}
 ```
 
 This three-path structure ensures:

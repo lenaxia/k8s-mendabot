@@ -239,7 +239,7 @@ rjobs proceed normally regardless of this flag.
 **Granularity:** `PR_AUTO_CLOSE` is an operator-level binary flag. Per-namespace or
 per-resource overrides are not in scope for v1. If needed in a future version, the
 annotation control system (epic16) can be extended with a
-`mendabot.io/auto-close: false` annotation on the resource or namespace.
+`mechanic.io/auto-close: false` annotation on the resource or namespace.
 
 ## Stories
 
@@ -273,7 +273,7 @@ annotation control system (epic16) can be extended with a
 | `internal/provider/provider.go` | Add Path A + Path B auto-close calls; accept `SinkCloser` and read `PRAutoClose` |
 | `internal/config/config.go` | Add `PRAutoClose bool` |
 | `deploy/kustomize/deployment-watcher.yaml` | Mount GitHub App Secret; add `PR_AUTO_CLOSE` env var |
-| `charts/mendabot/templates/deployment-watcher.yaml` | Same as above for Helm chart |
+| `charts/mechanic/templates/deployment-watcher.yaml` | Same as above for Helm chart |
 | `testdata/crds/remediationjob_crd.yaml` | Add `sinkRef` to status schema |
 | `docker/scripts/agent-entrypoint.sh` | Parse `gh pr create --json url,number` output; `kubectl patch` status |
 

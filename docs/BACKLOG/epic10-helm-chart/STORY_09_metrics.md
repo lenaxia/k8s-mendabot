@@ -10,19 +10,19 @@
 ## User Story
 
 As a **platform engineer**, I want the chart to optionally create a Prometheus-scrape
-Service and ServiceMonitor so I can monitor mendabot's internal metrics without manual
+Service and ServiceMonitor so I can monitor mechanic's internal metrics without manual
 configuration.
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] `charts/mendabot/templates/service-metrics.yaml` is only rendered when
+- [ ] `charts/mechanic/templates/service-metrics.yaml` is only rendered when
   `metrics.enabled: true`
-- [ ] Service selects the watcher Pod via `mendabot.selectorLabels`
+- [ ] Service selects the watcher Pod via `mechanic.selectorLabels`
 - [ ] Service exposes port `8080` with name `metrics`, protocol `TCP`
 - [ ] Service type is `ClusterIP`
-- [ ] `charts/mendabot/templates/servicemonitor.yaml` is only rendered when both
+- [ ] `charts/mechanic/templates/servicemonitor.yaml` is only rendered when both
   `metrics.enabled: true` AND `metrics.serviceMonitor.enabled: true`
 - [ ] ServiceMonitor `apiVersion: monitoring.coreos.com/v1`
 - [ ] ServiceMonitor selects the metrics Service by its labels
@@ -53,7 +53,7 @@ configuration.
 - The `metrics.serviceMonitor.labels` merge pattern in Helm:
   ```yaml
   labels:
-    {{- include "mendabot.labels" . | nindent 4 }}
+    {{- include "mechanic.labels" . | nindent 4 }}
     {{- with .Values.metrics.serviceMonitor.labels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
@@ -70,7 +70,7 @@ configuration.
 
 ## Definition of Done
 
-- [ ] `helm lint charts/mendabot/` exits 0
+- [ ] `helm lint charts/mechanic/` exits 0
 - [ ] `helm template --set metrics.enabled=true` renders Service only
 - [ ] `helm template --set metrics.enabled=true --set metrics.serviceMonitor.enabled=true`
   renders both Service and ServiceMonitor

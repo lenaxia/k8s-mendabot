@@ -3,7 +3,7 @@ package domain
 import (
 	batchv1 "k8s.io/api/batch/v1"
 
-	"github.com/lenaxia/k8s-mendabot/api/v1alpha1"
+	"github.com/lenaxia/k8s-mechanic/api/v1alpha1"
 )
 
 // JobBuilder constructs a batch/v1 Job from a RemediationJob.

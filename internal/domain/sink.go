@@ -3,7 +3,7 @@ package domain
 import (
 	"context"
 
-	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
+	v1alpha1 "github.com/lenaxia/k8s-mechanic/api/v1alpha1"
 )
 
 // SinkCloser closes an open sink (PR or issue) when the underlying finding resolves.

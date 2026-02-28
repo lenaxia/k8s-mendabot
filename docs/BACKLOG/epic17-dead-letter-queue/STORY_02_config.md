@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **mendabot operator**, I want to control the maximum number of investigation retries
+As a **mechanic operator**, I want to control the maximum number of investigation retries
 via the `MAX_INVESTIGATION_RETRIES` environment variable so I can tune the retry cap to
 match my infrastructure's reliability characteristics without rebuilding the image.
 
@@ -187,9 +187,9 @@ func setRequiredEnv(t *testing.T) {
     t.Helper()
     t.Setenv("GITOPS_REPO", "org/repo")
     t.Setenv("GITOPS_MANIFEST_ROOT", "kubernetes/")
-    t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mendabot-agent:latest")
-    t.Setenv("AGENT_NAMESPACE", "mendabot")
-    t.Setenv("AGENT_SA", "mendabot-agent")
+    t.Setenv("AGENT_IMAGE", "ghcr.io/lenaxia/mechanic-agent:latest")
+    t.Setenv("AGENT_NAMESPACE", "mechanic")
+    t.Setenv("AGENT_SA", "mechanic-agent")
 }
 ```
 

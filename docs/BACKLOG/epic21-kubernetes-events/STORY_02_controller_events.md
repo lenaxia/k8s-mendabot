@@ -69,12 +69,12 @@ if err := (&controller.RemediationJobReconciler{
     Log:        logger,
     JobBuilder: jb,
     Cfg:        cfg,
-    Recorder:   mgr.GetEventRecorderFor("mendabot-watcher"),
+    Recorder:   mgr.GetEventRecorderFor("mechanic-watcher"),
 }).SetupWithManager(mgr); err != nil {
 ```
 
 `mgr.GetEventRecorderFor` is the exact method name on `ctrl.Manager`. Using
-`"mendabot-watcher"` as the component name is consistent with the
+`"mechanic-watcher"` as the component name is consistent with the
 `SourceProviderReconciler` wiring already present in `main.go:148`.
 
 ## Phase transitions and required Event calls
@@ -210,7 +210,7 @@ Add the following tests to
 
 | Test name | Scenario | Expected event |
 |---|---|---|
-| `TestReconcile_EmitsEvent_JobDispatched` | `PhasePending` rjob, no existing Job, Build succeeds | `"Normal JobDispatched Created agent Job mendabot-agent-..."` |
+| `TestReconcile_EmitsEvent_JobDispatched` | `PhasePending` rjob, no existing Job, Build succeeds | `"Normal JobDispatched Created agent Job mechanic-agent-..."` |
 | `TestReconcile_EmitsEvent_JobSucceeded_WithPR` | Owned Job with `Succeeded > 0`, `rjob.Status.PRRef` set | `"Normal JobSucceeded Agent Job completed; PR: https://..."` |
 | `TestReconcile_EmitsEvent_JobSucceeded_NoPR` | Owned Job with `Succeeded > 0`, `rjob.Status.PRRef` empty | `"Normal JobSucceeded Agent Job completed"` |
 | `TestReconcile_EmitsEvent_JobFailed` | Owned Job with `Failed >= BackoffLimit+1` | `"Warning JobFailed Agent Job failed after N attempt(s)"` |
@@ -268,9 +268,9 @@ func TestReconcile_EmitsEvent_JobFailed(t *testing.T) {
     // BackoffLimit=1 means PhaseFailed when Failed >= 2
     failedJob := &batchv1.Job{
         ObjectMeta: metav1.ObjectMeta{
-            Name:      "mendabot-agent-" + fp[:12],
+            Name:      "mechanic-agent-" + fp[:12],
             Namespace: testNamespace,
-            Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-rjob"},
+            Labels:    map[string]string{"remediation.mechanic.io/remediation-job": "test-rjob"},
         },
         Spec:   batchv1.JobSpec{BackoffLimit: ptr(int32(1))},
         Status: batchv1.JobStatus{Failed: 2},
@@ -320,14 +320,14 @@ modification.
 | File | Change |
 |---|---|
 | `internal/controller/remediationjob_controller.go` | Add `Recorder record.EventRecorder` field; add `corev1` and `record` imports; add 4 `Recorder.Event` calls |
-| `cmd/watcher/main.go` | Add `Recorder: mgr.GetEventRecorderFor("mendabot-watcher")` to `RemediationJobReconciler` literal |
+| `cmd/watcher/main.go` | Add `Recorder: mgr.GetEventRecorderFor("mechanic-watcher")` to `RemediationJobReconciler` literal |
 | `internal/controller/remediationjob_controller_test.go` | Add 5 new test functions (see above) |
 
 ## Definition of Done
 
 - [ ] `Recorder record.EventRecorder` field added to `RemediationJobReconciler`
 - [ ] `corev1` and `record` imports added to `remediationjob_controller.go`
-- [ ] `Recorder: mgr.GetEventRecorderFor("mendabot-watcher")` added in `cmd/watcher/main.go`
+- [ ] `Recorder: mgr.GetEventRecorderFor("mechanic-watcher")` added in `cmd/watcher/main.go`
 - [ ] `JobDispatched` event emitted in `dispatch()` after status patch
 - [ ] `JobSucceeded` event emitted (with PR URL if present) when `newPhase == PhaseSucceeded`
 - [ ] `JobFailed` event (Warning type) emitted with attempt count when `newPhase == PhaseFailed`

@@ -1,9 +1,9 @@
-# mendabot — developer convenience targets
+# mechanic — developer convenience targets
 # All targets are intended to be run from the repository root.
 
-WATCHER_IMAGE ?= mendabot-watcher:dev
-AGENT_IMAGE   ?= mendabot-agent:dev
-KIND_CLUSTER  ?= mendabot-dev
+WATCHER_IMAGE ?= mechanic-watcher:dev
+AGENT_IMAGE   ?= mechanic-agent:dev
+KIND_CLUSTER  ?= mechanic-dev
 
 .PHONY: build test lint lint-full lint-security lint-security-report \
         lint-secrets install-hooks \
@@ -86,10 +86,10 @@ help:
 ## generate: run controller-gen to regenerate CRD manifests from kubebuilder markers
 generate:
 	@which controller-gen > /dev/null 2>&1 || go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.19.0
-	controller-gen crd:generateEmbeddedObjectMeta=true paths=./api/... output:crd:artifacts:config=charts/mendabot/crds
-	cp charts/mendabot/crds/remediation.mendabot.io_remediationjobs.yaml testdata/crds/remediationjob_crd.yaml
+	controller-gen crd:generateEmbeddedObjectMeta=true paths=./api/... output:crd:artifacts:config=charts/mechanic/crds
+	cp charts/mechanic/crds/remediation.mechanic.io_remediationjobs.yaml testdata/crds/remediationjob_crd.yaml
 
-## docs-helm: regenerate charts/mendabot/README.md from values.yaml and README.md.gotmpl
+## docs-helm: regenerate charts/mechanic/README.md from values.yaml and README.md.gotmpl
 docs-helm:
 	helm-docs --chart-search-root charts/ --template-files README.md.gotmpl
 
@@ -108,8 +108,8 @@ docs: docs-helm docs-crd
 docs-check:
 	@$(MAKE) docs generate
 	@git diff --exit-code \
-		charts/mendabot/README.md \
+		charts/mechanic/README.md \
 		docs/api-reference.md \
-		charts/mendabot/crds/ \
+		charts/mechanic/crds/ \
 		testdata/crds/ \
 		|| (echo "\nERROR: generated docs are out of date. Run 'make docs generate' locally and commit the results." && exit 1)

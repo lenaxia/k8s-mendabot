@@ -52,7 +52,7 @@ grep -n 'GITHUB_APP' internal/jobbuilder/job.go
 
 **Main container env check:**
 ```bash
-kubectl exec -n mendabot "$AGENT_POD" -c mendabot-agent -- env | grep -i github
+kubectl exec -n mechanic "$AGENT_POD" -c mechanic-agent -- env | grep -i github
 ```
 ```
 <!-- paste output — must NOT contain GITHUB_APP_PRIVATE_KEY -->
@@ -60,7 +60,7 @@ kubectl exec -n mendabot "$AGENT_POD" -c mendabot-agent -- env | grep -i github
 
 **Main container mount check:**
 ```bash
-kubectl exec -n mendabot "$AGENT_POD" -c mendabot-agent -- ls /secrets/ 2>&1
+kubectl exec -n mechanic "$AGENT_POD" -c mechanic-agent -- ls /secrets/ 2>&1
 ```
 ```
 <!-- paste output — expected: "No such file or directory" or empty -->
@@ -68,7 +68,7 @@ kubectl exec -n mendabot "$AGENT_POD" -c mendabot-agent -- ls /secrets/ 2>&1
 
 **Workspace contents:**
 ```bash
-kubectl exec -n mendabot "$AGENT_POD" -c mendabot-agent -- ls /workspace/
+kubectl exec -n mechanic "$AGENT_POD" -c mechanic-agent -- ls /workspace/
 ```
 ```
 <!-- paste output — should show github-token and repo/, NOT the private key -->

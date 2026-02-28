@@ -17,17 +17,17 @@ Remove the pre-install/pre-upgrade hook Job (and all supporting resources) that 
 ### 1. Root cause analysis
 
 - Investigated a `readOnlyRootFilesystem: true` failure on the hook Job: kubectl cannot function with a read-only root filesystem even when `/tmp` is mounted as an `emptyDir`, because it attempts writes outside `/tmp`.
-- Confirmed the chart already has `charts/mendabot/crds/remediationjob.yaml`, which Helm applies automatically before any templates on both install and upgrade — rendering the hook Job entirely redundant.
+- Confirmed the chart already has `charts/mechanic/crds/remediationjob.yaml`, which Helm applies automatically before any templates on both install and upgrade — rendering the hook Job entirely redundant.
 
 ### 2. Removed hook Job scaffold
 
 Deleted all five templates that existed solely to support the hook:
 
-- `charts/mendabot/templates/job-crd-upgrade.yaml`
-- `charts/mendabot/templates/configmap-crd-hook.yaml`
-- `charts/mendabot/templates/serviceaccount-crd-hook.yaml`
-- `charts/mendabot/templates/clusterrole-crd-hook.yaml`
-- `charts/mendabot/templates/clusterrolebinding-crd-hook.yaml`
+- `charts/mechanic/templates/job-crd-upgrade.yaml`
+- `charts/mechanic/templates/configmap-crd-hook.yaml`
+- `charts/mechanic/templates/serviceaccount-crd-hook.yaml`
+- `charts/mechanic/templates/clusterrole-crd-hook.yaml`
+- `charts/mechanic/templates/clusterrolebinding-crd-hook.yaml`
 
 ### 3. Cleaned up values.yaml
 
@@ -54,16 +54,16 @@ None.
 No Go tests affected (chart-only change). `helm template` can be used to verify no crd-upgrader resources are rendered:
 
 ```
-helm template mendabot charts/mendabot --set gitops.repo=test/repo --set gitops.manifestRoot=/
+helm template mechanic charts/mechanic --set gitops.repo=test/repo --set gitops.manifestRoot=/
 ```
 
 ---
 
 ## Files Modified
 
-- `charts/mendabot/templates/job-crd-upgrade.yaml` — deleted
-- `charts/mendabot/templates/configmap-crd-hook.yaml` — deleted
-- `charts/mendabot/templates/serviceaccount-crd-hook.yaml` — deleted
-- `charts/mendabot/templates/clusterrole-crd-hook.yaml` — deleted
-- `charts/mendabot/templates/clusterrolebinding-crd-hook.yaml` — deleted
-- `charts/mendabot/values.yaml` — removed `crdUpgrader` stanza
+- `charts/mechanic/templates/job-crd-upgrade.yaml` — deleted
+- `charts/mechanic/templates/configmap-crd-hook.yaml` — deleted
+- `charts/mechanic/templates/serviceaccount-crd-hook.yaml` — deleted
+- `charts/mechanic/templates/clusterrole-crd-hook.yaml` — deleted
+- `charts/mechanic/templates/clusterrolebinding-crd-hook.yaml` — deleted
+- `charts/mechanic/values.yaml` — removed `crdUpgrader` stanza

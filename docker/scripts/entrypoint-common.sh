@@ -22,7 +22,7 @@ DRY_RUN="${DRY_RUN:-false}"
 # Build a kubeconfig from in-cluster credentials.
 #
 # Token selection strategy (tried in order):
-#   1. /var/run/secrets/mendabot/serviceaccount/token — legacy SA token with no
+#   1. /var/run/secrets/mechanic/serviceaccount/token — legacy SA token with no
 #      audience claim, created by secret-agent-token.yaml. The Kubernetes API server
 #      accepts tokens with no aud claim unconditionally (backwards compatibility
 #      requirement). This works on every distribution including Talos where projected
@@ -34,8 +34,8 @@ DRY_RUN="${DRY_RUN:-false}"
 # Server address: KUBERNETES_SERVICE_HOST and KUBERNETES_SERVICE_PORT are injected
 # into every pod by Kubernetes on every distribution — no operator configuration
 # required and no external secret needed.
-LEGACY_TOKEN=/var/run/secrets/mendabot/serviceaccount/token
-LEGACY_CA=/var/run/secrets/mendabot/serviceaccount/ca.crt
+LEGACY_TOKEN=/var/run/secrets/mechanic/serviceaccount/token
+LEGACY_CA=/var/run/secrets/mechanic/serviceaccount/ca.crt
 PROJECTED_TOKEN=/var/run/secrets/kubernetes.io/serviceaccount/token
 PROJECTED_CA=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
 
@@ -132,7 +132,7 @@ printf '%s' "$COMBINED_PROMPT" | envsubst "$VARS" > /tmp/rendered-prompt.txt
 # into a Kubernetes ConfigMap so the controller can retrieve the full content
 # without relying on log line counts or arbitrary tail windows.
 #
-# ConfigMap name: mendabot-dryrun-<FINDING_FINGERPRINT>
+# ConfigMap name: mechanic-dryrun-<FINDING_FINGERPRINT>
 # Namespace:      AGENT_NAMESPACE (injected by jobbuilder)
 #
 # The ConfigMap contains two keys:
@@ -146,7 +146,7 @@ emit_dry_run_report() {
         : "${AGENT_NAMESPACE:?AGENT_NAMESPACE must be set for dry-run report}"
         : "${FINDING_FINGERPRINT:?FINDING_FINGERPRINT must be set for dry-run report}"
 
-        CM_NAME="mendabot-dryrun-${FINDING_FINGERPRINT}"
+        CM_NAME="mechanic-dryrun-${FINDING_FINGERPRINT}"
 
         # Section 1: investigation report
         if [ -f /workspace/investigation-report.txt ]; then

@@ -11,7 +11,7 @@
 
 As a **cluster operator** using dry-run mode, I want `kubectl get rjob <name> -o yaml` to
 show the agent's investigation report in `status.message`, so that I can review what
-mendabot would have done without leaving the Kubernetes API.
+mechanic would have done without leaving the Kubernetes API.
 
 ---
 
@@ -60,17 +60,17 @@ report), the reconciler stores the raw truncated logs with a note.
 > **Coordination note:** The `emit_dry_run_report` function and the per-agent entrypoint
 > restructuring are implemented in STORY_03 (`entrypoint-common.sh`,
 > `entrypoint-opencode.sh`, `entrypoint-claude.sh`). STORY_04 assumes the sentinel and
-> report text are present in the `mendabot-agent` container logs when the Job has succeeded
-> and the `mendabot.io/dry-run: "true"` annotation is set on the Job.
+> report text are present in the `mechanic-agent` container logs when the Job has succeeded
+> and the `mechanic.io/dry-run: "true"` annotation is set on the Job.
 
 ### How the controller identifies a dry-run Job
 
-The Job built in STORY_02 carries the annotation `mendabot.io/dry-run: "true"`. The
+The Job built in STORY_02 carries the annotation `mechanic.io/dry-run: "true"`. The
 reconciler reads this from the Job object it already has in hand — no additional API call
 is needed:
 
 ```go
-isDryRun := job.Annotations["mendabot.io/dry-run"] == "true"
+isDryRun := job.Annotations["mechanic.io/dry-run"] == "true"
 ```
 
 ### Log fetch — not a shell exec
@@ -107,10 +107,10 @@ The first succeeded pod is used.
 
 - [x] `RemediationJobReconciler` gains a `KubeClient kubernetes.Interface` field
 - [x] When a Job succeeds (`job.Status.Succeeded > 0`) **and** has annotation
-  `mendabot.io/dry-run: "true"`, the reconciler:
+  `mechanic.io/dry-run: "true"`, the reconciler:
   1. Lists pods with label `batch.kubernetes.io/job-name: <job-name>` in `cfg.AgentNamespace`
   2. Selects the first pod with phase `Succeeded`
-  3. Fetches logs for container `"mendabot-agent"` via `KubeClient.CoreV1().Pods(...).GetLogs(...).Stream(ctx)`
+  3. Fetches logs for container `"mechanic-agent"` via `KubeClient.CoreV1().Pods(...).GetLogs(...).Stream(ctx)`
   4. Reads up to **10,000 bytes** of log output via `io.LimitReader` + `io.ReadAll`
   5. Extracts text after the sentinel `=== DRY_RUN INVESTIGATION REPORT ===`; falls back to raw log with note if sentinel absent
   6. Stores the result in `rjob.Status.Message`
@@ -150,7 +150,7 @@ type RemediationJobReconciler struct {
 ### 2. Add `fetchDryRunReport` helper method
 
 ```go
-// fetchDryRunReport retrieves the investigation report from the mendabot-agent
+// fetchDryRunReport retrieves the investigation report from the mechanic-agent
 // container logs of the first succeeded pod owned by job. It finds the sentinel
 // line "=== DRY_RUN INVESTIGATION REPORT ===" and returns only the text after it,
 // truncated to maxReportBytes. If the sentinel is absent, returns the raw
@@ -182,7 +182,7 @@ func (r *RemediationJobReconciler) fetchDryRunReport(ctx context.Context, job *b
         return "dry-run report unavailable: no succeeded pod found"
     }
 
-    logOpts := &corev1.PodLogOptions{Container: "mendabot-agent"}
+    logOpts := &corev1.PodLogOptions{Container: "mechanic-agent"}
     req := r.KubeClient.CoreV1().Pods(r.Cfg.AgentNamespace).GetLogs(podName, logOpts)
     stream, err := req.Stream(ctx)
     if err != nil {
@@ -217,7 +217,7 @@ and found to be `PhaseSucceeded`, add:
 
 ```go
 if newPhase == v1alpha1.PhaseSucceeded &&
-    job.Annotations["mendabot.io/dry-run"] == "true" &&
+    job.Annotations["mechanic.io/dry-run"] == "true" &&
     rjob.Status.Message == "" {
     rjob.Status.Message = r.fetchDryRunReport(ctx, job)
 }
@@ -279,7 +279,7 @@ ImagePullBackOff — image not found.
 
 | Test Name | Setup | Assertion |
 |-----------|-------|-----------|
-| `TestReconcile_DryRunSucceeded_ReportStored` | Job with `mendabot.io/dry-run: "true"` and `Succeeded: 1`; fake pod with `Phase: Succeeded`; fake log stream contains sentinel + report text | `rjob.Status.Message` contains the post-sentinel report text, not the sentinel line itself |
+| `TestReconcile_DryRunSucceeded_ReportStored` | Job with `mechanic.io/dry-run: "true"` and `Succeeded: 1`; fake pod with `Phase: Succeeded`; fake log stream contains sentinel + report text | `rjob.Status.Message` contains the post-sentinel report text, not the sentinel line itself |
 | `TestReconcile_DryRunSucceeded_ReportTruncated` | Same as above but post-sentinel log content is > 10,000 bytes | `rjob.Status.Message` is at most 10,000 bytes |
 | `TestReconcile_DryRunSucceeded_SentinelAbsent` | Same setup but log stream contains no sentinel line | `rjob.Status.Message` starts with `"(sentinel not found"` |
 | `TestReconcile_DryRunSucceeded_NoPodFound` | Job succeeded, dry-run annotated, but no pods in list | `rjob.Status.Message` starts with `"dry-run report unavailable"` |
@@ -294,7 +294,7 @@ ImagePullBackOff — image not found.
 - [x] Add `//+kubebuilder:rbac:groups="",resources=pods/log,verbs=get` marker
 - [x] Implement `fetchDryRunReport` method with `io.LimitReader` and sentinel extraction
 - [x] Add `maxReportBytes = 10_000` constant
-- [x] Wire dry-run branch in reconcile loop (detect `mendabot.io/dry-run` annotation)
+- [x] Wire dry-run branch in reconcile loop (detect `mechanic.io/dry-run` annotation)
 - [x] Add `KubeClient` wiring in `cmd/watcher/main.go`
 - [x] Write the six controller tests
 - [x] Run `go test -race ./internal/controller/...` — all pass
@@ -305,7 +305,7 @@ ImagePullBackOff — image not found.
 ## Dependencies
 
 **Depends on:** STORY_01 (`cfg.DryRun` field)
-**Depends on:** STORY_02 (`mendabot.io/dry-run` annotation on the Job)
+**Depends on:** STORY_02 (`mechanic.io/dry-run` annotation on the Job)
 **Depends on:** STORY_03 (`entrypoint-common.sh` must emit the sentinel and report to stdout
 in dry-run mode via `emit_dry_run_report`; implemented in STORY_03, not here)
 

@@ -20,9 +20,9 @@ loop termination, and finalizer consistency.
 
 #### GAP-1 (Major) — Dead finalizer RBAC marker
 - **Files:** `internal/controller/remediationjob_controller.go:24`,
-  `charts/mendabot/templates/clusterrole-watcher.yaml:27-29`,
+  `charts/mechanic/templates/clusterrole-watcher.yaml:27-29`,
   `deploy/kustomize/clusterrole-watcher.yaml:24-26`
-- **Fix:** Removed the `//+kubebuilder:rbac:groups=remediation.mendabot.io,resources=remediationjobs/finalizers,verbs=update`
+- **Fix:** Removed the `//+kubebuilder:rbac:groups=remediation.mechanic.io,resources=remediationjobs/finalizers,verbs=update`
   marker and the corresponding `remediationjobs/finalizers` RBAC rules from both YAML files.
   The controller never adds or removes a finalizer — the marker was dead code granting unnecessary
   permissions. The only legitimate finalizer references remaining are in integration tests where
@@ -63,7 +63,7 @@ loop termination, and finalizer consistency.
 go build ./...                              — clean
 go test -count=1 -timeout 60s -race ./...  — 12/12 packages PASS
 go vet ./...                                — clean
-helm lint charts/mendabot                  — 0 chart(s) failed
+helm lint charts/mechanic                  — 0 chart(s) failed
 ```
 
 ---
@@ -88,5 +88,5 @@ Proceed with next epic per the implementation order:
 - `internal/controller/remediationjob_controller_test.go`
 - `internal/jobbuilder/job.go`
 - `internal/provider/provider.go`
-- `charts/mendabot/templates/clusterrole-watcher.yaml`
+- `charts/mechanic/templates/clusterrole-watcher.yaml`
 - `deploy/kustomize/clusterrole-watcher.yaml`

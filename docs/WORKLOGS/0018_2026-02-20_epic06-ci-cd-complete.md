@@ -45,12 +45,12 @@ New files created:
 - `docker/metadata-action@v5` produces `sha-<7char>`, `latest` (on main), `v<semver>` (on tags)
 - `docker/build-push-action@v5`: multi-arch `linux/amd64,linux/arm64`; GHA layer cache
 - `WATCHER_VERSION=sha-<7chars>` embedded via `build-args` (using a prior step to compute the short SHA)
-- Smoke test: `docker run --rm ghcr.io/.../mendabot-watcher:sha-<7chars> --version`
+- Smoke test: `docker run --rm ghcr.io/.../mechanic-watcher:sha-<7chars> --version`
 
 ### S03+S04 — build-agent.yaml + Dockerfile.agent update
 
 **`.github/workflows/build-agent.yaml`**:
-- Same structure as build-watcher; image `ghcr.io/lenaxia/mendabot-agent`
+- Same structure as build-watcher; image `ghcr.io/lenaxia/mechanic-agent`
 - Smoke test: `docker run --rm --entrypoint /usr/local/bin/smoke-test.sh ...`
 
 **`docker/Dockerfile.agent`** (update):

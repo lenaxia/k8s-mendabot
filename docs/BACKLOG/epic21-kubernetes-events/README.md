@@ -24,7 +24,7 @@ EventRecorder record.EventRecorder
 ```
 `cmd/watcher/main.go` line 148 already assigns:
 ```go
-EventRecorder: mgr.GetEventRecorderFor("mendabot-watcher"),
+EventRecorder: mgr.GetEventRecorderFor("mechanic-watcher"),
 ```
 **The field is wired but never called.** No struct or `main.go` changes are needed for
 STORY_01 — only the four missing `r.EventRecorder.Event(...)` calls must be added.
@@ -39,7 +39,7 @@ Recorder record.EventRecorder
 ```
 `cmd/watcher/main.go` `RemediationJobReconciler` literal at line 122 must add:
 ```go
-Recorder: mgr.GetEventRecorderFor("mendabot-watcher"),
+Recorder: mgr.GetEventRecorderFor("mechanic-watcher"),
 ```
 Imports needed: `corev1 "k8s.io/api/core/v1"` and `"k8s.io/client-go/tools/record"`.
 
@@ -83,10 +83,10 @@ These two stories are independent and can be worked in parallel.
 | Reconciler | Reason | Type | Message pattern |
 |---|---|---|---|
 | SourceProvider | `FindingDetected` | Normal | `Provider native detected Pod/my-app in namespace default` |
-| SourceProvider | `DuplicateFingerprint` | Normal | `Existing RemediationJob mendabot-<fp[:12]> already covers this finding` |
+| SourceProvider | `DuplicateFingerprint` | Normal | `Existing RemediationJob mechanic-<fp[:12]> already covers this finding` |
 | SourceProvider | `FindingCleared` | Normal | `Finding cleared; no active finding on this object` |
 | SourceProvider | `SourceDeleted` | Normal | `Source object deleted; investigation cancelled` (emitted on rjob) |
-| Controller | `JobDispatched` | Normal | `Created agent Job mendabot-agent-<fp[:12]>` |
+| Controller | `JobDispatched` | Normal | `Created agent Job mechanic-agent-<fp[:12]>` |
 | Controller | `JobSucceeded` | Normal | `Agent Job completed; PR: <url>` (or `Agent Job completed` if no PR) |
 | Controller | `JobFailed` | **Warning** | `Agent Job failed after N attempt(s)` |
 
@@ -96,13 +96,13 @@ These two stories are independent and can be worked in parallel.
 |---|---|
 | `internal/provider/provider.go` | Add `corev1` import; add 4 `EventRecorder.Event` calls (nil-guarded) |
 | `internal/controller/remediationjob_controller.go` | Add `Recorder record.EventRecorder` field; add `corev1` + `record` imports; add 3 `Recorder.Event` calls (nil-guarded) |
-| `cmd/watcher/main.go` | Add `Recorder: mgr.GetEventRecorderFor("mendabot-watcher")` to `RemediationJobReconciler` literal |
+| `cmd/watcher/main.go` | Add `Recorder: mgr.GetEventRecorderFor("mechanic-watcher")` to `RemediationJobReconciler` literal |
 
 ## Definition of Done
 
 - [ ] `SourceProviderReconciler` `EventRecorder` field is called (already wired at line 33 / main.go:148)
 - [ ] `RemediationJobReconciler` gains `Recorder record.EventRecorder` field
-- [ ] `Recorder: mgr.GetEventRecorderFor("mendabot-watcher")` wired in `cmd/watcher/main.go`
+- [ ] `Recorder: mgr.GetEventRecorderFor("mechanic-watcher")` wired in `cmd/watcher/main.go`
 - [ ] All key lifecycle events emitted as listed above
 - [ ] All event calls guarded with nil-guard (`if r.EventRecorder != nil` / `if r.Recorder != nil`)
 - [ ] `kubectl describe rjob <name>` shows Events section with lifecycle entries

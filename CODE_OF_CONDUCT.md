@@ -2,7 +2,7 @@
 
 ## Our Pledge
 
-We as contributors and maintainers pledge to make participation in k8s-mendabot
+We as contributors and maintainers pledge to make participation in k8s-mechanic
 a harassment-free experience for everyone, regardless of age, body size,
 disability, ethnicity, sex characteristics, gender identity and expression,
 level of experience, education, socio-economic status, nationality, personal

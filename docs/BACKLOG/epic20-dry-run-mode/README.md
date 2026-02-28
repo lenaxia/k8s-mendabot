@@ -15,7 +15,7 @@ Add a `DRY_RUN=true` environment variable to the watcher Deployment. When set:
 - The watcher reads the report from the Job logs, extracts the section after the sentinel
   `=== DRY_RUN INVESTIGATION REPORT ===`, and stores it in `RemediationJob.status.message`
 
-This lets operators evaluate mendabot in shadow mode on production clusters before enabling
+This lets operators evaluate mechanic in shadow mode on production clusters before enabling
 live PR creation. The key design principle: **dry-run enforcement is deterministic, not
 probabilistic**. The prompt is updated to inform the LLM of the mode, but the wrappers
 are the actual enforcement layer.
@@ -65,9 +65,9 @@ called from each per-agent entrypoint after the agent process returns.
 
 ### Prompt template location
 The prompt template no longer lives in `deploy/kustomize/configmap-prompt.yaml`. It is at:
-- `charts/mendabot/files/prompts/core.txt` — shared investigation instructions (all agent types)
-- `charts/mendabot/files/prompts/opencode.txt` — OpenCode-specific preamble
-- `charts/mendabot/files/prompts/claude.txt` — Claude-specific preamble
+- `charts/mechanic/files/prompts/core.txt` — shared investigation instructions (all agent types)
+- `charts/mechanic/files/prompts/opencode.txt` — OpenCode-specific preamble
+- `charts/mechanic/files/prompts/claude.txt` — Claude-specific preamble
 
 The new dry-run HARD RULE goes in `core.txt` as **rule 11** (after the existing rule 10,
 the kubeconform rule). The existing rules go 1–7, 9, 10 — there is no rule 8; the new rule
@@ -141,13 +141,13 @@ after STORY_02. STORY_04 depends on both STORY_03 (entrypoint cat) and STORY_03b
 | `docker/scripts/entrypoint-common.sh` | Add `${DRY_RUN}` to VARS; add default assignment; add report-cat block |
 | `docker/scripts/entrypoint-opencode.sh` | Restructure `exec opencode` for dry-run path |
 | `docker/scripts/entrypoint-claude.sh` | Same restructuring as opencode |
-| `charts/mendabot/files/prompts/core.txt` | Add HARD RULE 11; update decision tree |
+| `charts/mechanic/files/prompts/core.txt` | Add HARD RULE 11; update decision tree |
 | `api/v1alpha1/remediationjob_types.go` | **No change needed** — `status.message` already exists |
 
 ## Definition of Done
 
 - [x] `config.Config` gains `DryRun bool`; `FromEnv` parses `DRY_RUN`
-- [x] `JobBuilder.Build()` adds `mendabot.io/dry-run: "true"` annotation when `cfg.DryRun == true`
+- [x] `JobBuilder.Build()` adds `mechanic.io/dry-run: "true"` annotation when `cfg.DryRun == true`
 - [x] When dry-run, agent Job env includes `DRY_RUN=true` (main container only)
 - [x] `gh` wrapper blocks all write subcommands (`pr create`, `pr comment`, `pr edit`,
   `issue create`, etc.) when `DRY_RUN=true`; exits 0 with a `[DRY_RUN]` log line to stderr
@@ -155,7 +155,7 @@ after STORY_02. STORY_04 depends on both STORY_03 (entrypoint cat) and STORY_03b
   passes all read-only subcommands through unchanged; installed in Dockerfile via rename+COPY
 - [x] `entrypoint-common.sh` has `${DRY_RUN}` in VARS; has report-cat block
 - [x] `entrypoint-opencode.sh` and `entrypoint-claude.sh` restructured to support dry-run path
-- [x] `charts/mendabot/files/prompts/core.txt` has HARD RULE 11; decision tree has dry-run branch
+- [x] `charts/mechanic/files/prompts/core.txt` has HARD RULE 11; decision tree has dry-run branch
 - [x] `RemediationJobReconciler` detects dry-run Jobs, fetches logs via KubeClient, extracts
   post-sentinel content, stores truncated report in `status.message`
 - [x] `KubeClient` wired in `main.go` from `ctrl.GetConfigOrDie()` (reuse existing REST config)

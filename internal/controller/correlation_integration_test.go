@@ -16,12 +16,12 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
-	"github.com/lenaxia/k8s-mendabot/internal/config"
-	"github.com/lenaxia/k8s-mendabot/internal/controller"
-	"github.com/lenaxia/k8s-mendabot/internal/correlator"
-	"github.com/lenaxia/k8s-mendabot/internal/domain"
-	"github.com/lenaxia/k8s-mendabot/internal/provider"
+	v1alpha1 "github.com/lenaxia/k8s-mechanic/api/v1alpha1"
+	"github.com/lenaxia/k8s-mechanic/internal/config"
+	"github.com/lenaxia/k8s-mechanic/internal/controller"
+	"github.com/lenaxia/k8s-mechanic/internal/correlator"
+	"github.com/lenaxia/k8s-mechanic/internal/domain"
+	"github.com/lenaxia/k8s-mechanic/internal/provider"
 	"go.uber.org/zap"
 )
 
@@ -85,10 +85,10 @@ func newCorrelationRJob(name, namespace, fp string, finding v1alpha1.FindingSpec
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
-			// All mendabot-managed RemediationJobs carry this label; pendingPeers
+			// All mechanic-managed RemediationJobs carry this label; pendingPeers
 			// uses it as a server-side filter to avoid full-namespace scans.
 			Labels: map[string]string{
-				"app.kubernetes.io/managed-by": "mendabot-watcher",
+				"app.kubernetes.io/managed-by": "mechanic-watcher",
 			},
 		},
 		Spec: v1alpha1.RemediationJobSpec{
@@ -102,8 +102,8 @@ func newCorrelationRJob(name, namespace, fp string, finding v1alpha1.FindingSpec
 			Finding:            finding,
 			GitOpsRepo:         "org/repo",
 			GitOpsManifestRoot: "deploy",
-			AgentImage:         "mendabot-agent:test",
-			AgentSA:            "mendabot-agent",
+			AgentImage:         "mechanic-agent:test",
+			AgentSA:            "mechanic-agent",
 		},
 	}
 }
@@ -808,14 +808,14 @@ func TestCorrelationIntegration_SourceProvider_SkipsSuppressed(t *testing.T) {
 	// Create a Suppressed RemediationJob that shares the same fingerprint.
 	existingRJob := &v1alpha1.RemediationJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-" + fp[:12],
+			Name:      "mechanic-" + fp[:12],
 			Namespace: ns,
 			Labels: map[string]string{
-				"remediation.mendabot.io/fingerprint": fp[:12],
-				"app.kubernetes.io/managed-by":        "mendabot-watcher",
+				"remediation.mechanic.io/fingerprint": fp[:12],
+				"app.kubernetes.io/managed-by":        "mechanic-watcher",
 			},
 			Annotations: map[string]string{
-				"remediation.mendabot.io/fingerprint-full": fp,
+				"remediation.mechanic.io/fingerprint-full": fp,
 			},
 		},
 		Spec: v1alpha1.RemediationJobSpec{
@@ -835,8 +835,8 @@ func TestCorrelationIntegration_SourceProvider_SkipsSuppressed(t *testing.T) {
 			},
 			GitOpsRepo:         "org/repo",
 			GitOpsManifestRoot: "deploy",
-			AgentImage:         "mendabot-agent:test",
-			AgentSA:            "mendabot-agent",
+			AgentImage:         "mechanic-agent:test",
+			AgentSA:            "mechanic-agent",
 		},
 	}
 	if err := c.Create(ctx, existingRJob); err != nil {
@@ -882,8 +882,8 @@ func TestCorrelationIntegration_SourceProvider_SkipsSuppressed(t *testing.T) {
 			RemediationJobTTLSeconds: 604800,
 			GitOpsRepo:               "org/repo",
 			GitOpsManifestRoot:       "deploy",
-			AgentImage:               "mendabot-agent:test",
-			AgentSA:                  "mendabot-agent",
+			AgentImage:               "mechanic-agent:test",
+			AgentSA:                  "mechanic-agent",
 			// StabilisationWindow=0 disables the stabilisation hold so the provider
 			// proceeds directly to the dedup check.
 			StabilisationWindow: 0,

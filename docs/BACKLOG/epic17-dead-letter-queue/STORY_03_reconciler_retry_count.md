@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **mendabot operator**, I want the `RemediationJobReconciler` to increment
+As a **mechanic operator**, I want the `RemediationJobReconciler` to increment
 `Status.RetryCount` each time the owned `batch/v1 Job` transitions to the `Failed`
 state, and to set `Phase = PermanentlyFailed` when `RetryCount >= MaxRetries`, so that
 the retry loop is bounded and I never burn unlimited LLM quota on a broken job.
@@ -229,9 +229,9 @@ func TestRemediationJobReconciler_PhaseFailed_IncrementsRetryCount(t *testing.T)
     backoffLimit := int32(1)
     failedJob := &batchv1.Job{
         ObjectMeta: metav1.ObjectMeta{
-            Name:      "mendabot-agent-" + fp[:12],
+            Name:      "mechanic-agent-" + fp[:12],
             Namespace: testNamespace,
-            Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-retry-count"},
+            Labels:    map[string]string{"remediation.mechanic.io/remediation-job": "test-retry-count"},
         },
         Spec:   batchv1.JobSpec{BackoffLimit: &backoffLimit},
         Status: batchv1.JobStatus{Failed: backoffLimit + 1},
@@ -270,9 +270,9 @@ func TestRemediationJobReconciler_PhaseFailed_AtCap_PermanentlyFails(t *testing.
     backoffLimit := int32(1)
     failedJob := &batchv1.Job{
         ObjectMeta: metav1.ObjectMeta{
-            Name:      "mendabot-agent-" + fp[:12],
+            Name:      "mechanic-agent-" + fp[:12],
             Namespace: testNamespace,
-            Labels:    map[string]string{"remediation.mendabot.io/remediation-job": "test-perm-fail"},
+            Labels:    map[string]string{"remediation.mechanic.io/remediation-job": "test-perm-fail"},
         },
         Spec:   batchv1.JobSpec{BackoffLimit: &backoffLimit},
         Status: batchv1.JobStatus{Failed: backoffLimit + 1},

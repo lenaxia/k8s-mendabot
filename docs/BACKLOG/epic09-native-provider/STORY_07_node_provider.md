@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **cluster operator**, I want mendabot to detect unhealthy nodes directly from cluster
+As a **cluster operator**, I want mechanic to detect unhealthy nodes directly from cluster
 state so that NotReady nodes and abnormal node conditions trigger a remediation Job without
 requiring k8sgpt-operator.
 

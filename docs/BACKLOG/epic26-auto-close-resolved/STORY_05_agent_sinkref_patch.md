@@ -17,18 +17,18 @@ The agent currently opens a PR in STEP 8 and the PR URL is later written to
 struct (added by STORY_00) requires `Type`, `URL`, `Number`, and `Repo` for REST API
 auto-close.
 
-The agent is an AI model driven by the prompt in `charts/mendabot/files/prompts/core.txt`.
+The agent is an AI model driven by the prompt in `charts/mechanic/files/prompts/core.txt`.
 The correct mechanism to instruct the agent to write `SinkRef` is to add a new step to
 the core prompt. No entrypoint shell script changes are needed — the agent calls
 `gh pr create` as an AI tool call, not via a shell wrapper.
 
-The `RemediationJob` name is deterministic: `mendabot-<FINDING_FINGERPRINT[:12]>`.
+The `RemediationJob` name is deterministic: `mechanic-<FINDING_FINGERPRINT[:12]>`.
 The agent already knows `FINDING_FINGERPRINT` from its env vars.
 The agent already has `kubectl` available and has cluster write access for status.
 
 ## Acceptance Criteria
 
-- [x] `charts/mendabot/files/prompts/core.txt` has a new STEP 9 after the `gh pr create`
+- [x] `charts/mechanic/files/prompts/core.txt` has a new STEP 9 after the `gh pr create`
       block in STEP 8
 - [x] STEP 9 instructs the agent to run `gh pr create --json url,number` (if not already
       done) and `kubectl patch` the `RemediationJob` status with `sinkRef`
@@ -57,7 +57,7 @@ After STEP 8 completes (either a new PR was opened or an existing PR was found a
 commented on), write the PR reference back to the RemediationJob status subresource.
 This enables the watcher to auto-close the PR when the underlying issue resolves.
 
-RJOB_NAME="mendabot-${FINDING_FINGERPRINT:0:12}"
+RJOB_NAME="mechanic-${FINDING_FINGERPRINT:0:12}"
 RJOB_NAMESPACE="${AGENT_NAMESPACE}"
 
 # Capture the PR URL and number. Use --json if you opened the PR in this step,
@@ -71,8 +71,8 @@ RJOB_NAMESPACE="${AGENT_NAMESPACE}"
 #   PR_URL=$(echo "$OUTPUT" | jq -r '.url')
 #   PR_NUMBER=$(echo "$OUTPUT" | jq -r '.number')
 # If you found an existing PR in STEP 1:
-#   PR_URL=$(gh pr view --repo ${GITOPS_REPO} fix/mendabot-${FINDING_FINGERPRINT} --json url -q .url)
-#   PR_NUMBER=$(gh pr view --repo ${GITOPS_REPO} fix/mendabot-${FINDING_FINGERPRINT} --json number -q .number)
+#   PR_URL=$(gh pr view --repo ${GITOPS_REPO} fix/mechanic-${FINDING_FINGERPRINT} --json url -q .url)
+#   PR_NUMBER=$(gh pr view --repo ${GITOPS_REPO} fix/mechanic-${FINDING_FINGERPRINT} --json number -q .number)
 
 PR_REPO="${GITOPS_REPO}"
 
@@ -117,7 +117,7 @@ The agent already has `update` on `remediationjobs/status` via the agent RBAC ma
 (added in the cascade prevention epic). Verify this before closing the story:
 
 ```bash
-kubectl auth can-i update remediationjobs/status --as=system:serviceaccount:mendabot:mendabot-agent
+kubectl auth can-i update remediationjobs/status --as=system:serviceaccount:mechanic:mechanic-agent
 ```
 
 If it returns `no`, add `remediationjobs/status` to the agent ClusterRole or Role.
@@ -125,9 +125,9 @@ If it returns `no`, add `remediationjobs/status` to the agent ClusterRole or Rol
 ### FINDING_FINGERPRINT length
 
 `FINDING_FINGERPRINT` is a 64-character hex SHA256. The RemediationJob name is
-`mendabot-<first 12 chars>`. The `${FINDING_FINGERPRINT:0:12}` bash substring
+`mechanic-<first 12 chars>`. The `${FINDING_FINGERPRINT:0:12}` bash substring
 syntax extracts the first 12 characters. This must match the name computed in
-`internal/provider/provider.go:433` (`"mendabot-" + fp[:12]`).
+`internal/provider/provider.go:433` (`"mechanic-" + fp[:12]`).
 
 ### AGENT_NAMESPACE env var
 
@@ -138,14 +138,14 @@ No new env vars are needed.
 
 | File | Change |
 |------|--------|
-| `charts/mendabot/files/prompts/core.txt` | Add STEP 9 after STEP 8 |
+| `charts/mechanic/files/prompts/core.txt` | Add STEP 9 after STEP 8 |
 
 ## Verification
 
 After deploying, trigger a test finding. When the agent completes:
 
 ```bash
-kubectl get rjob -n mendabot mendabot-<fp12> -o jsonpath='{.status.sinkRef}'
+kubectl get rjob -n mechanic mechanic-<fp12> -o jsonpath='{.status.sinkRef}'
 ```
 
 Should return a non-empty object with `type`, `url`, `number`, and `repo` populated.

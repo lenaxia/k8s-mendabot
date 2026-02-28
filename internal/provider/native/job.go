@@ -11,8 +11,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
-	"github.com/lenaxia/k8s-mendabot/internal/domain"
+	v1alpha1 "github.com/lenaxia/k8s-mechanic/api/v1alpha1"
+	"github.com/lenaxia/k8s-mechanic/internal/domain"
 )
 
 // Compile-time assertion: jobProvider satisfies domain.SourceProvider.
@@ -49,10 +49,10 @@ func (p *jobProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 		return nil, fmt.Errorf("jobProvider: expected *batchv1.Job, got %T", obj)
 	}
 
-	// Detect mendabot agent jobs for depth-aware self-remediation handling.
-	// Replacing the old unconditional guard: failed mendabot jobs now produce a
+	// Detect mechanic agent jobs for depth-aware self-remediation handling.
+	// Replacing the old unconditional guard: failed mechanic jobs now produce a
 	// Finding with ChainDepth computed from the owning RemediationJob.
-	isMendabotJob := job.Labels["app.kubernetes.io/managed-by"] == "mendabot-watcher"
+	isMechanicJob := job.Labels["app.kubernetes.io/managed-by"] == "mechanic-watcher"
 
 	// CronJob exclusion — checked before any failure detection.
 	// Jobs owned by a CronJob are transient by design; remediation should target
@@ -105,7 +105,7 @@ func (p *jobProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 	}
 
 	var chainDepth int
-	if isMendabotJob {
+	if isMechanicJob {
 		var depthErr error
 		chainDepth, depthErr = p.getChainDepthFromOwner(context.Background(), job)
 		if depthErr != nil {

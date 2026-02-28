@@ -1,0 +1,62 @@
+mechanic has been installed in namespace {{ .Release.Namespace }}.
+
+Verify the watcher is running:
+  kubectl get deployment -n {{ .Release.Namespace }} {{ include "mechanic.fullname" . }}
+  kubectl get rjob -n {{ .Release.Namespace }}
+
+REQUIRED: Create the following Secrets before the watcher can function.
+The names and keys below are derived from your agentType value and are
+compile-time constants in the mechanic jobbuilder. They cannot be overridden
+via Helm values.
+
+1. GitHub App credentials (Secret name must be exactly "github-app"):
+   kubectl create secret generic github-app \
+     --namespace {{ .Release.Namespace }} \
+     --from-literal=app-id=<your-app-id> \
+     --from-literal=installation-id=<your-installation-id> \
+     --from-file=private-key=<path-to-private-key.pem>
+
+   App ID: shown on https://github.com/settings/apps/<your-app-name>
+   Installation ID: numeric suffix in the URL at
+     https://github.com/organizations/<org>/settings/installations/<id>
+     (personal: https://github.com/settings/installations/<id>)
+
+   NOTE: The watcher pod also consumes this Secret when watcher.prAutoClose=true
+   (the default). If the Secret is absent the watcher pod will fail with
+   CreateContainerConfigError. To disable this requirement set
+   watcher.prAutoClose=false in your values.yaml.
+
+2. LLM + cluster credentials (Secret name: "llm-credentials-{{ .Values.agentType }}"):
+   The Secret uses an opaque config blob pattern — mechanic never interprets
+   the provider-config content; it is passed directly to the agent runner.
+
+   For agentType=opencode with a custom OpenAI-compatible endpoint:
+    kubectl create secret generic llm-credentials-opencode \
+      --namespace {{ .Release.Namespace }} \
+      --from-literal=provider-config='{"provider":{"myprovider":{"npm":"@ai-sdk/openai-compatible","name":"My Provider","options":{"baseURL":"<url>","apiKey":"<key>"},"models":{"<model-id>":{"name":"<model-name>"}}}},"model":"myprovider/<model-id>"}'
+
+   For agentType=opencode with native OpenAI (api.openai.com):
+    kubectl create secret generic llm-credentials-opencode \
+      --namespace {{ .Release.Namespace }} \
+      --from-literal=provider-config='{"model":"openai/<model-id>"}'
+    # Then run: opencode auth add openai (or set OPENAI_API_KEY in the agent env)
+
+   For agentType=claude (stub — not yet fully implemented):
+   kubectl create secret generic llm-credentials-claude \
+     --namespace {{ .Release.Namespace }} \
+     --from-literal=provider-config='{}'
+
+BREAKING CHANGE (from <=v0.x):
+  The previous Secret "llm-credentials" with keys api-key/base-url/model/kube-api-server
+  has been replaced. You must:
+  1. Delete the old secret:
+       kubectl delete secret llm-credentials -n {{ .Release.Namespace }}
+  2. Create the new secret per the instructions above.
+  3. Set agentType in your values.yaml (default: "opencode").
+{{- if .Values.metrics.serviceMonitor.enabled }}
+
+NOTE: ServiceMonitor is enabled. Ensure Prometheus Operator is installed in your
+cluster, otherwise the ServiceMonitor resource will be ignored.
+{{- end }}
+
+For documentation see https://github.com/lenaxia/k8s-mechanic

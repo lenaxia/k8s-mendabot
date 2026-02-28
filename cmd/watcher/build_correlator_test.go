@@ -3,8 +3,8 @@ package main
 import (
 	"testing"
 
-	"github.com/lenaxia/k8s-mendabot/internal/config"
-	"github.com/lenaxia/k8s-mendabot/internal/correlator"
+	"github.com/lenaxia/k8s-mechanic/internal/config"
+	"github.com/lenaxia/k8s-mechanic/internal/correlator"
 )
 
 // TestBuildCorrelator_DisableCorrelation verifies that DISABLE_CORRELATION=true

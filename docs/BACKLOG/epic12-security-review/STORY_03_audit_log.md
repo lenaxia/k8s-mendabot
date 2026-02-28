@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **security auditor**, I want every mendabot decision (finding suppressed, job
+As a **security auditor**, I want every mechanic decision (finding suppressed, job
 dispatched, job cancelled, PR recorded) to produce a structured zap log line with
 `"audit": true`, so that I can filter logs on that field and reconstruct a complete
 decision timeline for post-incident analysis.

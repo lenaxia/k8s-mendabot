@@ -14,8 +14,8 @@ go test -timeout 60s -race ./...
 
 <!-- For Helm changes: -->
 ```
-helm lint charts/mendabot/
-helm template mendabot charts/mendabot/ --set gitops.repo=test/repo --set gitops.manifestRoot=k8s | head -50
+helm lint charts/mechanic/
+helm template mechanic charts/mechanic/ --set gitops.repo=test/repo --set gitops.manifestRoot=k8s | head -50
 ```
 
 <!-- For security-relevant changes (RBAC, Dockerfile, redact, prompt): -->
@@ -31,8 +31,8 @@ helm template mendabot charts/mendabot/ --set gitops.repo=test/repo --set gitops
 - [ ] Worklog written in `docs/WORKLOGS/` (required for any meaningful change)
 - [ ] `CHANGELOG.md` updated under `[Unreleased]`
 - [ ] For security-relevant changes: relevant phases of `docs/SECURITY/PROCESS.md` re-run and findings documented
-- [ ] For Helm changes: `helm lint --strict charts/mendabot/` passes
-- [ ] For CRD changes: both `testdata/crds/` and `charts/mendabot/crds/` updated
+- [ ] For Helm changes: `helm lint --strict charts/mechanic/` passes
+- [ ] For CRD changes: both `testdata/crds/` and `charts/mechanic/crds/` updated
 
 ## Worklog reference
 

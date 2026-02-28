@@ -14,8 +14,8 @@ Live watcher logs collected and parsed for `"audit":true` JSON lines. Raw output
 ```json
 {"level":"info","ts":1771986483.49,"caller":"provider/provider.go:249","msg":"finding detected","audit":true,"event":"finding.detected","provider":"native","kind":"Deployment","namespace":"default","name":"test-crashloop","fingerprint":"0cd2345e0966"}
 {"level":"info","ts":1771986483.49,"caller":"provider/provider.go:265","msg":"finding suppressed","audit":true,"event":"finding.suppressed.stabilisation_window","provider":"native","fingerprint":"0cd2345e0966","reason":"first_seen","window":120}
-{"level":"info","ts":1771986603.49,"caller":"provider/provider.go:327","msg":"finding suppressed","audit":true,"event":"finding.suppressed.duplicate","provider":"native","fingerprint":"22693f928816","remediationJob":"mendabot-22693f928816","phase":"Succeeded"}
-{"level":"info","ts":1771987777.31,"caller":"controller/remediationjob_controller.go:318","msg":"dispatched agent job","audit":true,"event":"job.dispatched","remediationJob":"pentest-injection-001","job":"mendabot-agent-pentest00000","namespace":"default"}
+{"level":"info","ts":1771986603.49,"caller":"provider/provider.go:327","msg":"finding suppressed","audit":true,"event":"finding.suppressed.duplicate","provider":"native","fingerprint":"22693f928816","remediationJob":"mechanic-22693f928816","phase":"Succeeded"}
+{"level":"info","ts":1771987777.31,"caller":"controller/remediationjob_controller.go:318","msg":"dispatched agent job","audit":true,"event":"job.dispatched","remediationJob":"pentest-injection-001","job":"mechanic-agent-pentest00000","namespace":"default"}
 ```
 
 ---

@@ -28,7 +28,7 @@ failure mode.
 - Install destination: `/usr/local/bin/kubeconform` (as a redact wrapper; real binary
   at `/usr/local/bin/kubeconform.real`)
 - Arch-portable via `${TARGETARCH}` build-arg
-- Already listed in `charts/mendabot/files/prompts/core.txt` tool inventory at line 33:
+- Already listed in `charts/mechanic/files/prompts/core.txt` tool inventory at line 33:
   `jq, yq, kubeconform, stern, sops, age.`
 - Already checked in `docker/scripts/smoke-test.sh` at line 49: `check_binary kubeconform`
 
@@ -36,11 +36,11 @@ failure mode.
 
 ### STORY_02 — Prompt: Complete
 
-**File to edit:** `charts/mendabot/files/prompts/core.txt`
+**File to edit:** `charts/mechanic/files/prompts/core.txt`
 
 Note: `deploy/kustomize/configmap-prompt.yaml` was deleted in epic08 (2026-02-24). The
-prompt text now lives in `charts/mendabot/files/prompts/core.txt`. The Helm template at
-`charts/mendabot/templates/configmap-prompt.yaml` renders this file into a ConfigMap via
+prompt text now lives in `charts/mechanic/files/prompts/core.txt`. The Helm template at
+`charts/mechanic/templates/configmap-prompt.yaml` renders this file into a ConfigMap via
 `.Files.Get` — it contains no prompt text itself.
 
 **Current state of HARD RULES in `core.txt` (lines 183–208):**
@@ -49,7 +49,7 @@ Rules 1–8, no duplicates. Rule 8 is the untrusted-input delimiter rule. The
 correlated-findings rule that existed in the old kustomize configmap was dropped during
 the epic08 migration and is not present in the current file.
 
-**Changes required in `charts/mendabot/files/prompts/core.txt`:**
+**Changes required in `charts/mechanic/files/prompts/core.txt`:**
 
 1. Renumber current rule `8` (untrusted input, lines 205–207) to `9` — this makes room
    for the new rule and keeps numbering monotonically increasing.
@@ -68,14 +68,14 @@ ignore-missing-schemas prevents false positives on CRDs like `HelmRelease`,
 
 **Validation after change:**
 ```bash
-helm template mendabot charts/mendabot | grep -A5 "agent-prompt-core"
+helm template mechanic charts/mechanic | grep -A5 "agent-prompt-core"
 ```
 
 ## Dependencies
 
 - epic03-agent-image complete — confirmed: `docker/Dockerfile.agent` has kubeconform v0.7.0
   at line 39, install block at lines 128–135
-- epic08-pluggable-agent complete — prompt text moved to `charts/mendabot/files/prompts/core.txt`
+- epic08-pluggable-agent complete — prompt text moved to `charts/mechanic/files/prompts/core.txt`
 
 ## Blocks
 
@@ -97,9 +97,9 @@ STORY_01 (agent image) ─ DONE ──> STORY_02 (prompt) ─ DONE
 ## Definition of Done
 
 - [x] `docker/Dockerfile.agent` includes `kubeconform` installation (v0.7.0, lines 128–135)
-- [x] Current rule `8` (untrusted input) renumbered to `9` in `charts/mendabot/files/prompts/core.txt`
+- [x] Current rule `8` (untrusted input) renumbered to `9` in `charts/mechanic/files/prompts/core.txt`
 - [x] New HARD RULE `10` added covering Case A (plain YAML), Case B (kustomize), Case C (helm template)
 - [x] HARD RULE `10` specifies the fallback: no commit, empty-commit PR, `## Validation Errors` section, labels `validation-failed` + `needs-human-review`
 - [x] STEP 7 updated to mark validation mandatory, add Helm case, and cross-reference HARD RULE 10
-- [x] `helm template mendabot charts/mendabot | grep -A5 "agent-prompt-core"` renders without error
+- [x] `helm template mechanic charts/mechanic | grep -A5 "agent-prompt-core"` renders without error
 - [x] Worklog written

@@ -5,9 +5,9 @@ on:
   pull_request:
     paths:
       - 'api/**'
-      - 'charts/mendabot/values.yaml'
-      - 'charts/mendabot/README.md.gotmpl'
-      - 'charts/mendabot/Chart.yaml'
+      - 'charts/mechanic/values.yaml'
+      - 'charts/mechanic/README.md.gotmpl'
+      - 'charts/mechanic/Chart.yaml'
       - 'docs/crd-ref-docs-config.yaml'
       - 'Makefile'
       - '.github/workflows/docs.yml'
@@ -15,9 +15,9 @@ on:
     branches: [main]
     paths:
       - 'api/**'
-      - 'charts/mendabot/values.yaml'
-      - 'charts/mendabot/README.md.gotmpl'
-      - 'charts/mendabot/Chart.yaml'
+      - 'charts/mechanic/values.yaml'
+      - 'charts/mechanic/README.md.gotmpl'
+      - 'charts/mechanic/Chart.yaml'
       - 'docs/crd-ref-docs-config.yaml'
       - 'Makefile'
       - '.github/workflows/docs.yml'
@@ -93,9 +93,9 @@ jobs:
       - name: Fail if generated files are stale
         run: |
           git diff --exit-code \
-            charts/mendabot/README.md \
+            charts/mechanic/README.md \
             docs/api-reference.md \
-            charts/mendabot/crds/ \
+            charts/mechanic/crds/ \
             testdata/crds/ \
             || (echo "" && \
                 echo "ERROR: generated docs are out of date." && \

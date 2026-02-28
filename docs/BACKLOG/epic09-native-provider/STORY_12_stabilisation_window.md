@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **cluster operator**, I want mendabot to wait a configurable period after a finding
+As a **cluster operator**, I want mechanic to wait a configurable period after a finding
 is first detected before creating a `RemediationJob`, so that transient failures (e.g. a
 pod that crashes once during a rolling restart) do not trigger unnecessary investigations.
 

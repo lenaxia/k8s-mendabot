@@ -10,7 +10,7 @@
 ## User Story
 
 As a **cluster operator**, I want to set `MIN_SEVERITY=high` on the watcher Deployment so
-that mendabot only investigates high and critical findings, reducing noise from medium and
+that mechanic only investigates high and critical findings, reducing noise from medium and
 low severity events.
 
 ---
@@ -137,7 +137,7 @@ rjob := &v1alpha1.RemediationJob{
 ## Tasks
 
 - [ ] Write config tests for `MIN_SEVERITY` in `internal/config/config_test.go` (TDD — must fail first); follow the `setRequiredEnv` helper pattern already used in the file
-- [ ] Update `internal/config/config.go` — add `import "github.com/lenaxia/k8s-mendabot/internal/domain"` (new import; not circular — domain does not import config)
+- [ ] Update `internal/config/config.go` — add `import "github.com/lenaxia/k8s-mechanic/internal/domain"` (new import; not circular — domain does not import config)
 - [ ] Add `MinSeverity domain.Severity` field to `Config` struct
 - [ ] Add `MIN_SEVERITY` parsing block to `FromEnv()` using `domain.ParseSeverity`; default to `domain.SeverityLow` when env var is absent
 - [ ] Write reconciler test cases for severity filter in `internal/provider/provider_test.go`: (a) finding with severity above threshold passes; (b) finding with severity below threshold is dropped with no RemediationJob created

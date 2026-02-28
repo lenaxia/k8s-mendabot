@@ -98,7 +98,7 @@ strings for these fields, which the job builder handles by using the defaults.
 
 Two files require identical additions under `spec.versions[0].schema.openAPIV3Schema.properties.spec.properties`:
 
-**`charts/mendabot/crds/remediationjob.yaml`**
+**`charts/mechanic/crds/remediationjob.yaml`**
 **`internal/controller/testdata/crds/remediationjob_crd.yaml`**
 
 Add:
@@ -113,7 +113,7 @@ Neither field is added to the `required` list — both are optional.
 
 ### 4. Helm chart
 
-**`charts/mendabot/values.yaml`** — add under the `gitops:` key:
+**`charts/mechanic/values.yaml`** — add under the `gitops:` key:
 
 ```yaml
 gitops:
@@ -129,7 +129,7 @@ gitops:
   gitHost: "github.com"
 ```
 
-**`charts/mendabot/templates/deployment-watcher.yaml`** — inject the new env vars into
+**`charts/mechanic/templates/deployment-watcher.yaml`** — inject the new env vars into
 the watcher Deployment:
 
 ```yaml
@@ -193,10 +193,10 @@ GitOpsGitHost: r.Cfg.GitOpsGitHost,
 | `internal/config/config.go` | Add `GitOpsTool`, `GitOpsGitHost` fields + parsing |
 | `internal/config/config_test.go` | Add test cases for new fields |
 | `api/v1alpha1/remediationjob_types.go` | Add `GitOpsTool`, `GitOpsGitHost` to `RemediationJobSpec` |
-| `charts/mendabot/crds/remediationjob.yaml` | Add schema entries for new fields |
+| `charts/mechanic/crds/remediationjob.yaml` | Add schema entries for new fields |
 | `internal/controller/testdata/crds/remediationjob_crd.yaml` | Add schema entries for new fields |
-| `charts/mendabot/values.yaml` | Add `gitops.tool`, `gitops.gitHost` |
-| `charts/mendabot/templates/deployment-watcher.yaml` | Inject `GITOPS_TOOL`, `GITOPS_GIT_HOST` |
+| `charts/mechanic/values.yaml` | Add `gitops.tool`, `gitops.gitHost` |
+| `charts/mechanic/templates/deployment-watcher.yaml` | Inject `GITOPS_TOOL`, `GITOPS_GIT_HOST` |
 | `internal/jobbuilder/job.go` | Propagate fields to init + main container env |
 | `internal/jobbuilder/job_test.go` | Add test cases for new env vars |
 | `internal/provider/provider.go` | Set `GitOpsTool`, `GitOpsGitHost` when creating `RemediationJob` |

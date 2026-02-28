@@ -17,7 +17,7 @@ that fail or produce misleading output on my cluster.
 
 ## Background
 
-`charts/mendabot/files/prompts/core.txt` (lines 80–93) contains a Flux-specific
+`charts/mechanic/files/prompts/core.txt` (lines 80–93) contains a Flux-specific
 investigation step that the agent runs on every investigation:
 
 ```
@@ -46,7 +46,7 @@ handles the Go side).
 
 ## Design
 
-### Updated Step 5 in `charts/mendabot/files/prompts/core.txt`
+### Updated Step 5 in `charts/mechanic/files/prompts/core.txt`
 
 Replace lines 80–93 with:
 
@@ -122,7 +122,7 @@ VARS='${FINDING_KIND}${FINDING_NAME}${FINDING_NAMESPACE}${FINDING_PARENT}${FINDI
 Without this, `${GITOPS_TOOL}` is left as a literal string in the rendered prompt and
 the agent sees the unexpanded variable, not the value.
 
-### `charts/mendabot/files/prompts/opencode.txt` — tool listing
+### `charts/mechanic/files/prompts/opencode.txt` — tool listing
 
 Update the tool availability line to list both Flux and ArgoCD, and note that the active
 tool is set via `${GITOPS_TOOL}`:
@@ -138,8 +138,8 @@ tool is set via `${GITOPS_TOOL}`:
 
 | File | Change |
 |------|--------|
-| `charts/mendabot/files/prompts/core.txt` | Replace Step 5 with `GITOPS_TOOL`-conditional block; update tool listing in `=== ENVIRONMENT ===` |
-| `charts/mendabot/files/prompts/opencode.txt` | Update tool listing to include `argocd`; note active tool |
+| `charts/mechanic/files/prompts/core.txt` | Replace Step 5 with `GITOPS_TOOL`-conditional block; update tool listing in `=== ENVIRONMENT ===` |
+| `charts/mechanic/files/prompts/opencode.txt` | Update tool listing to include `argocd`; note active tool |
 | `docker/scripts/entrypoint-common.sh` | Add `${GITOPS_TOOL}` to the `VARS` envsubst list |
 
 No Go code changes. No Dockerfile changes.
@@ -246,8 +246,8 @@ STEP 5 — Understand the GitOps tool state
 
 ## Tasks
 
-- [ ] Edit `charts/mendabot/files/prompts/core.txt`: update `=== ENVIRONMENT ===` tool line; replace Step 5
-- [ ] Edit `charts/mendabot/files/prompts/opencode.txt`: update tool listing line
+- [ ] Edit `charts/mechanic/files/prompts/core.txt`: update `=== ENVIRONMENT ===` tool line; replace Step 5
+- [ ] Edit `charts/mechanic/files/prompts/opencode.txt`: update tool listing line
 - [ ] Edit `docker/scripts/entrypoint-common.sh`: add `${GITOPS_TOOL}` to `VARS`
 - [ ] Manual review: render the prompt with `GITOPS_TOOL=flux` and verify it matches the old Step 5 semantically
 - [ ] Manual review: render the prompt with `GITOPS_TOOL=argocd` and verify ArgoCD block is visible

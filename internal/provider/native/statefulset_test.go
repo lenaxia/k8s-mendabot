@@ -9,7 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	"github.com/lenaxia/k8s-mendabot/internal/domain"
+	"github.com/lenaxia/k8s-mechanic/internal/domain"
 )
 
 // TestStatefulSetProviderName_IsNative verifies ProviderName() returns "native".
@@ -446,7 +446,7 @@ func TestStatefulSetBothConditions_TwoEntries(t *testing.T) {
 }
 
 // TestStatefulSetAnnotationEnabled_False: degraded statefulset (ReadyReplicas=0, Replicas=3)
-// with mendabot.io/enabled=false → (nil, nil).
+// with mechanic.io/enabled=false → (nil, nil).
 // Uses an unhealthy object to prove the gate fires on an object that would otherwise produce
 // a non-nil finding.
 
@@ -574,7 +574,7 @@ func TestStatefulSetAnnotationEnabled_False(t *testing.T) {
 	}
 }
 
-// TestStatefulSetAnnotationSkipUntilFuture: degraded statefulset with mendabot.io/skip-until=2099-12-31 → (nil, nil).
+// TestStatefulSetAnnotationSkipUntilFuture: degraded statefulset with mechanic.io/skip-until=2099-12-31 → (nil, nil).
 func TestStatefulSetAnnotationSkipUntilFuture(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()

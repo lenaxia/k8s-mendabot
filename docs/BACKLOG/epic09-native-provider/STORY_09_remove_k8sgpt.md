@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **cluster operator**, I want to deploy mendabot without installing k8sgpt-operator
+As a **cluster operator**, I want to deploy mechanic without installing k8sgpt-operator
 so that there is one fewer prerequisite and one fewer binary in the agent image.
 
 ---
@@ -34,7 +34,7 @@ test suite pass after the change.
   - `NewScheme()` function updated to remove the `AddResultToScheme` call (which
     will no longer exist once `result_types.go` is deleted); `NewScheme()` must
     still register `RemediationJob` and `RemediationJobList` under
-    `remediation.mendabot.io/v1alpha1` and all standard Kubernetes types required
+    `remediation.mechanic.io/v1alpha1` and all standard Kubernetes types required
     by the test suite and envtest
 - [ ] `cmd/watcher/main.go`: `k8sgpt.K8sGPTProvider{}` entry removed from `enabledProviders`;
   `AddResultToScheme` call removed from scheme registration

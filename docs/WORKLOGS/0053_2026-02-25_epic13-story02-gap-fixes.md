@@ -22,8 +22,8 @@ Read all relevant files before making changes:
 - `internal/correlator/correlator.go` — `CorrelationGroup` was missing `CorrelatedUIDs []types.UID`
 - `internal/controller/remediationjob_controller.go` — already implemented (window hold, helpers, PhaseSuppressed)
 - `cmd/watcher/main.go` — already wired
-- `charts/mendabot/values.yaml` — missing correlation fields
-- `charts/mendabot/templates/deployment-watcher.yaml` — missing 3 env var entries
+- `charts/mechanic/values.yaml` — missing correlation fields
+- `charts/mechanic/templates/deployment-watcher.yaml` — missing 3 env var entries
 
 ### 2. `internal/config/config_test.go` — 4 new tests (TDD)
 
@@ -44,7 +44,7 @@ Added `CorrelatedUIDs []types.UID` to `CorrelationGroup` struct:
 - `TestCorrelator_CorrelatedUIDs_PopulatedOnMatch` — verifies CorrelatedUIDs contains only non-primary UIDs
 - `TestCorrelator_CorrelatedUIDs_EmptyWhenNoMatchedUIDs` — verifies nil in fallback path
 
-### 5. `charts/mendabot/values.yaml` — 3 new fields under watcher:
+### 5. `charts/mechanic/values.yaml` — 3 new fields under watcher:
 
 ```yaml
 correlationWindowSeconds: 30
@@ -52,7 +52,7 @@ disableCorrelation: false
 multiPodThreshold: 3
 ```
 
-### 6. `charts/mendabot/templates/deployment-watcher.yaml` — 3 new env entries
+### 6. `charts/mechanic/templates/deployment-watcher.yaml` — 3 new env entries
 
 Added after `STABILISATION_WINDOW_SECONDS`:
 ```yaml
@@ -101,7 +101,7 @@ STORY_02 is fully complete. Next stories in epic13: STORY_03 (jobbuilder multi-f
 - `internal/config/config_test.go` — 4 new tests for threshold and window validation
 - `internal/correlator/correlator.go` — added CorrelatedUIDs field and population logic
 - `internal/correlator/correlator_test.go` — 2 new tests for CorrelatedUIDs
-- `charts/mendabot/values.yaml` — 3 new correlation fields under watcher:
-- `charts/mendabot/templates/deployment-watcher.yaml` — 3 new CORRELATION_* env vars
+- `charts/mechanic/values.yaml` — 3 new correlation fields under watcher:
+- `charts/mechanic/templates/deployment-watcher.yaml` — 3 new CORRELATION_* env vars
 - `docs/WORKLOGS/0053_2026-02-25_epic13-story02-gap-fixes.md` (this file)
 - `docs/WORKLOGS/README.md` (updated)

@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **mendabot operator**, I want the agent container entrypoint to dispatch to an
+As a **mechanic operator**, I want the agent container entrypoint to dispatch to an
 agent-specific script based on `AGENT_TYPE`, so that the OpenCode-specific logic is
 isolated and adding a new agent runner requires only a new script — not modifications
 to the existing entrypoint.

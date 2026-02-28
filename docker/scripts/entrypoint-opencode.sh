@@ -16,7 +16,7 @@ grep -qxF 'export KUBECONFIG=/home/agent/.kube/config' /home/agent/.bashrc  2>/d
 grep -qxF 'export KUBECONFIG=/home/agent/.kube/config' /home/agent/.profile 2>/dev/null || echo "export KUBECONFIG=/home/agent/.kube/config" >> /home/agent/.profile
 
 # Pass the opaque provider config blob to opencode via its environment variable.
-# The operator is responsible for the content — mendabot does not interpret it.
+# The operator is responsible for the content — mechanic does not interpret it.
 export OPENCODE_CONFIG_CONTENT="$AGENT_PROVIDER_CONFIG"
 
 # Determine dry-run mode using the same three-layer logic as the wrappers.
@@ -27,7 +27,7 @@ export OPENCODE_CONFIG_CONTENT="$AGENT_PROVIDER_CONFIG"
 #
 # Layer 1: sentinel file (tamper-proof read-only mount)
 _entrypoint_dry_run="false"
-if [ -f /mendabot-cfg/dry-run ] && [ "$(cat /mendabot-cfg/dry-run 2>/dev/null)" = "true" ]; then
+if [ -f /mechanic-cfg/dry-run ] && [ "$(cat /mechanic-cfg/dry-run 2>/dev/null)" = "true" ]; then
     _entrypoint_dry_run="true"
 fi
 # Layer 2: /proc/1/environ (immutable container-init env)

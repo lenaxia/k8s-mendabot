@@ -1,0 +1,16 @@
+{{- if .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "mechanic.fullname" . }}-agent
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "mechanic.labels" . | nindent 4 }}
+rules:
+- apiGroups: ["remediation.mechanic.io"]
+  resources: ["remediationjobs/status"]
+  verbs: ["get", "patch"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["create"]
+{{- end }}

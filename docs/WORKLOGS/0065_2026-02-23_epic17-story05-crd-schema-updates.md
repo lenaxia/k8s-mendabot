@@ -22,7 +22,7 @@ fields introduced by stories 01–03.
   `PermanentlyFailed` in the phase enum, `maxRetries` in spec, and `retryCount` in status.
   However, `maxRetries` was missing `format: int32` and `description`; `retryCount` was
   a bare `{type: integer}` inline missing `format: int32`, `minimum: 0`, and `description`.
-- `charts/mendabot/crds/remediationjob.yaml` (105 lines): None of the three changes were
+- `charts/mechanic/crds/remediationjob.yaml` (105 lines): None of the three changes were
   present. Phase enum had `Suppressed` but not `PermanentlyFailed`. No `maxRetries` or
   `retryCount` fields. Existing fields `isSelfRemediation`, `chainDepth`, `correlationGroupID`,
   and `Suppressed` were preserved.
@@ -36,7 +36,7 @@ fields introduced by stories 01–03.
 - Replaced bare `retryCount: {type: integer}` with full expanded form including
   `format: int32`, `minimum: 0`, and `description`
 
-**`charts/mendabot/crds/remediationjob.yaml`:**
+**`charts/mechanic/crds/remediationjob.yaml`:**
 - Added `maxRetries` block after `chainDepth` in spec.properties
 - Added `PermanentlyFailed` to the phase enum (alongside existing `Suppressed`)
 - Added `retryCount` block after `correlationGroupID` in status.properties
@@ -48,7 +48,7 @@ fields introduced by stories 01–03.
 
 - `go test -timeout 60s -race ./internal/controller/...` — PASS (envtest loads CRD cleanly)
 - `go test -timeout 60s -race ./internal/provider/...` — PASS (all tests green)
-- `helm lint charts/mendabot` — 0 chart(s) failed (INFO/WARN about icon and required
+- `helm lint charts/mechanic` — 0 chart(s) failed (INFO/WARN about icon and required
   values are expected for a lint run without `--values`)
 
 ---
@@ -76,7 +76,7 @@ None.
 ```
 go test -timeout 60s -race ./internal/controller/...  → ok (8.972s)
 go test -timeout 60s -race ./internal/provider/...    → ok (10.308s)
-helm lint charts/mendabot                             → 1 chart(s) linted, 0 chart(s) failed
+helm lint charts/mechanic                             → 1 chart(s) linted, 0 chart(s) failed
 ```
 
 ---
@@ -96,5 +96,5 @@ needs to be implemented to fix the two pre-existing failing tests in `./internal
 
 - `testdata/crds/remediationjob_crd.yaml` — added `format: int32`, `description`, and
   `minimum: 0` to existing maxRetries/retryCount fields
-- `charts/mendabot/crds/remediationjob.yaml` — added maxRetries, retryCount, PermanentlyFailed
+- `charts/mechanic/crds/remediationjob.yaml` — added maxRetries, retryCount, PermanentlyFailed
 - `deploy/kustomize/crd-remediationjob.yaml` — added maxRetries, retryCount, PermanentlyFailed

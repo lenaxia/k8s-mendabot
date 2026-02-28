@@ -17,8 +17,8 @@ cmd/redact/                                @lenaxia
 deploy/kustomize/clusterrole-*.yaml        @lenaxia
 deploy/kustomize/role-*.yaml               @lenaxia
 deploy/overlays/security/                  @lenaxia
-charts/mendabot/templates/clusterrole-*.yaml @lenaxia
-charts/mendabot/templates/role-*.yaml      @lenaxia
+charts/mechanic/templates/clusterrole-*.yaml @lenaxia
+charts/mechanic/templates/role-*.yaml      @lenaxia
 
 # Agent image and entrypoint — supply chain and isolation
 docker/Dockerfile.agent                    @lenaxia

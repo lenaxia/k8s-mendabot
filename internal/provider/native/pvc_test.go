@@ -8,7 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	"github.com/lenaxia/k8s-mendabot/internal/domain"
+	"github.com/lenaxia/k8s-mechanic/internal/domain"
 )
 
 // makePVC builds a PVC with the given name, namespace and phase.
@@ -260,7 +260,7 @@ func TestPVCEventMessageRedacted(t *testing.T) {
 	assertErrorTextContains(t, finding.Errors, "[REDACTED]")
 }
 
-// TestPVCAnnotationEnabled_False: Pending PVC with ProvisioningFailed event and mendabot.io/enabled=false → (nil, nil).
+// TestPVCAnnotationEnabled_False: Pending PVC with ProvisioningFailed event and mechanic.io/enabled=false → (nil, nil).
 // Uses an unhealthy object to prove the gate fires on an object that would otherwise produce
 // a non-nil finding.
 func TestPVCAnnotationEnabled_False(t *testing.T) {
@@ -283,7 +283,7 @@ func TestPVCAnnotationEnabled_False(t *testing.T) {
 	}
 }
 
-// TestPVCAnnotationSkipUntilFuture: Pending PVC with ProvisioningFailed event and mendabot.io/skip-until=2099-12-31 → (nil, nil).
+// TestPVCAnnotationSkipUntilFuture: Pending PVC with ProvisioningFailed event and mechanic.io/skip-until=2099-12-31 → (nil, nil).
 func TestPVCAnnotationSkipUntilFuture(t *testing.T) {
 	s := newTestScheme()
 	pvc := makePVC("skip-pvc", "default", corev1.ClaimPending)

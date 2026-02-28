@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **mendabot operator**, I want a cooldown period enforced between
+As a **mechanic operator**, I want a cooldown period enforced between
 self-remediations, backed by a ConfigMap so it survives controller restarts,
 so that a repeated agent failure cannot exhaust my LLM quota in a single burst.
 
@@ -17,7 +17,7 @@ so that a repeated agent failure cannot exhaust my LLM quota in a single burst.
 
 ## Problem
 
-Without a cooldown, every reconcile cycle on a failing mendabot agent job
+Without a cooldown, every reconcile cycle on a failing mechanic agent job
 (within `SELF_REMEDIATION_MAX_DEPTH`) would attempt to create a new
 `RemediationJob`. Deduplication prevents redundant RJobs for the same
 fingerprint, but once an RJob is deleted (e.g. after it fails and is
@@ -45,7 +45,7 @@ prevents this by enforcing a minimum gap between successive self-remediations.
   is the constructor. `c` must be non-nil and `namespace` must be non-empty;
   panic with a descriptive message otherwise.
 - [ ] On the first call to `ShouldAllow`, the circuit breaker reads the
-  ConfigMap `mendabot-circuit-breaker` in `namespace` to load the last
+  ConfigMap `mechanic-circuit-breaker` in `namespace` to load the last
   permitted timestamp. If the ConfigMap does not exist, it treats the last
   timestamp as zero (always allow on first call).
 - [ ] On a call to `ShouldAllow` that returns `(true, 0, nil)`:
@@ -59,13 +59,13 @@ prevents this by enforcing a minimum gap between successive self-remediations.
   `initialized`).
 - [ ] ConfigMap metadata:
   ```yaml
-  name: mendabot-circuit-breaker
+  name: mechanic-circuit-breaker
   namespace: <AgentNamespace>
   labels:
-    app.kubernetes.io/managed-by: mendabot-watcher
+    app.kubernetes.io/managed-by: mechanic-watcher
     app.kubernetes.io/component: circuit-breaker
   ```
-- [ ] RBAC: `charts/mendabot/templates/role-watcher.yaml` currently grants the
+- [ ] RBAC: `charts/mechanic/templates/role-watcher.yaml` currently grants the
   watcher access to `batch/jobs`, `pods`, and `secrets` only. Add a new rule
   granting `get`, `create`, `update` on `configmaps`:
   ```yaml
@@ -95,7 +95,7 @@ import (
     "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const configMapName = "mendabot-circuit-breaker"
+const configMapName = "mechanic-circuit-breaker"
 const timestampKey  = "last-self-remediation"
 
 // Gater is the interface SourceProviderReconciler uses to gate self-remediations.
@@ -165,7 +165,7 @@ func (cb *CircuitBreaker) saveState(ctx context.Context, t time.Time) error {
     // ... rest of saveState unchanged
 ```
 
-**`loadState`** — reads `mendabot-circuit-breaker` ConfigMap; on `IsNotFound`,
+**`loadState`** — reads `mechanic-circuit-breaker` ConfigMap; on `IsNotFound`,
 leaves `lastAllowed` as zero and returns nil. On any other error, returns the
 error. Parses `data["last-self-remediation"]` as RFC3339 into `cb.lastAllowed`.
 If the key is absent or empty, leaves `lastAllowed` as zero.
@@ -214,7 +214,7 @@ func (cb *CircuitBreaker) saveState(ctx context.Context, t time.Time) error {
             Name:      configMapName,
             Namespace: cb.namespace,
             Labels: map[string]string{
-                "app.kubernetes.io/managed-by": "mendabot-watcher",
+                "app.kubernetes.io/managed-by": "mechanic-watcher",
                 "app.kubernetes.io/component":  "circuit-breaker",
             },
         },
@@ -246,10 +246,10 @@ func (cb *CircuitBreaker) saveState(ctx context.Context, t time.Time) error {
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: mendabot-circuit-breaker
+  name: mechanic-circuit-breaker
   namespace: <AgentNamespace>
   labels:
-    app.kubernetes.io/managed-by: mendabot-watcher
+    app.kubernetes.io/managed-by: mechanic-watcher
     app.kubernetes.io/component: circuit-breaker
 data:
   last-self-remediation: "2026-02-24T10:00:00Z"
@@ -257,7 +257,7 @@ data:
 
 ### RBAC
 
-`charts/mendabot/templates/role-watcher.yaml` currently grants `batch/jobs`,
+`charts/mechanic/templates/role-watcher.yaml` currently grants `batch/jobs`,
 `pods`, and `secrets` only. Add a new rule — ConfigMap access is absent:
 
 ```yaml
@@ -282,7 +282,7 @@ data:
 |------|--------|
 | `internal/circuitbreaker/circuitbreaker.go` | New file: `Gater` interface + `CircuitBreaker` implementation |
 | `internal/circuitbreaker/circuitbreaker_test.go` | New file: unit tests |
-| `charts/mendabot/templates/role-watcher.yaml` | Add `configmaps` RBAC rule |
+| `charts/mechanic/templates/role-watcher.yaml` | Add `configmaps` RBAC rule |
 
 ---
 
@@ -377,4 +377,4 @@ committed together in the same PR).
 - [ ] `var _ Gater = (*CircuitBreaker)(nil)` compile-time assertion present
 - [ ] `loadState`, `saveState`, and `ShouldAllow` all tested including all error paths
 - [ ] Concurrent test passes clean with `-race`
-- [ ] ConfigMap RBAC rule added to `charts/mendabot/templates/role-watcher.yaml`
+- [ ] ConfigMap RBAC rule added to `charts/mechanic/templates/role-watcher.yaml`

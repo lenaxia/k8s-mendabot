@@ -25,14 +25,14 @@ duplication.
   - `RemediationJob` (with kubebuilder markers)
   - `RemediationJobList`
   - `DeepCopyObject()` and `DeepCopyInto()` for both `RemediationJob` and `RemediationJobList`
-  - One `AddRemediationToScheme` function for the `remediation.mendabot.io/v1alpha1` group:
+  - One `AddRemediationToScheme` function for the `remediation.mechanic.io/v1alpha1` group:
     registers `RemediationJob` and `RemediationJobList`.
     This is called in `cmd/watcher/main.go` alongside the k8sgpt scheme registration.
 
 - [x] The `core.k8sgpt.ai/v1alpha1` scheme registration (Result + ResultList) is done
   by a separate `AddResultToScheme` function in `api/v1alpha1/result_types.go`
   (see epic00-foundation/STORY_04). `AddRemediationToScheme` only registers
-  remediation.mendabot.io types — no bundled Result registration.
+  remediation.mechanic.io types — no bundled Result registration.
 
 - [x] `RemediationJobSpec.SourceType` is a required string field, immutable after creation;
   `K8sGPTProvider` always sets it to `"k8sgpt"`

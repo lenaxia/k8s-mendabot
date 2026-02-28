@@ -11,7 +11,7 @@
 
 ### 1.1 Purpose
 
-The `mendabot-watcher` Docker image packages the Go controller binary that watches
+The `mechanic-watcher` Docker image packages the Go controller binary that watches
 `Result` CRDs and dispatches agent Jobs. It is a minimal, single-binary image with no
 additional tools — the watcher does not run any cluster inspection commands itself.
 
@@ -140,7 +140,7 @@ Identical to the agent image:
 | `sha-<7-char-commit>` | Immutable reference to a specific build |
 | `v<semver>` | Tagged release |
 
-The Deployment in `DEPLOY_LLD.md §8` references `ghcr.io/lenaxia/mendabot-watcher:latest`.
+The Deployment in `DEPLOY_LLD.md §8` references `ghcr.io/lenaxia/mechanic-watcher:latest`.
 Production deployments should pin to `sha-<commit>` or a semver tag.
 
 ---
@@ -165,21 +165,21 @@ After each image build, a smoke test step in CI runs:
 # (controller-runtime does not add --version automatically — main() must check
 # os.Args for "--version", print the Version variable, and os.Exit(0)).
 # Note: ENTRYPOINT is /usr/local/bin/watcher, so --version is passed as CMD arg.
-docker run --rm ghcr.io/lenaxia/mendabot-watcher:<tag> --version
+docker run --rm ghcr.io/lenaxia/mechanic-watcher:<tag> --version
 
 # Binary exits cleanly without a cluster (expect a non-zero exit from the controller
 # failing to connect, but the binary itself must start and print startup logs)
 docker run --rm \
   -e GITOPS_REPO=owner/repo \
   -e GITOPS_MANIFEST_ROOT=kubernetes \
-  -e AGENT_IMAGE=ghcr.io/lenaxia/mendabot-agent:latest \
-  -e AGENT_NAMESPACE=mendabot \
-  -e AGENT_SA=mendabot-agent \
-  ghcr.io/lenaxia/mendabot-watcher:<tag> \
+  -e AGENT_IMAGE=ghcr.io/lenaxia/mechanic-agent:latest \
+  -e AGENT_NAMESPACE=mechanic \
+  -e AGENT_SA=mechanic-agent \
+  ghcr.io/lenaxia/mechanic-watcher:<tag> \
   2>&1 | grep -q "starting manager"
 
 # Image runs as non-root
-docker run --rm --entrypoint id ghcr.io/lenaxia/mendabot-watcher:<tag> \
+docker run --rm --entrypoint id ghcr.io/lenaxia/mechanic-watcher:<tag> \
   | grep -q "uid=1000"
 ```
 
@@ -246,5 +246,5 @@ build-args: |
 This value is printed on startup:
 
 ```
-{"level":"info","msg":"mendabot-watcher starting","version":"sha-a3f9c2b"}
+{"level":"info","msg":"mechanic-watcher starting","version":"sha-a3f9c2b"}
 ```

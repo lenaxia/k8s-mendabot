@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **cluster operator**, I want mendabot to detect failing pods directly from cluster
+As a **cluster operator**, I want mechanic to detect failing pods directly from cluster
 state so that CrashLoopBackOff, ImagePullBackOff, OOMKilled, and similar conditions
 trigger a remediation Job without requiring k8sgpt-operator.
 

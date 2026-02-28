@@ -12,10 +12,10 @@ All tests run against the live deployed ServiceAccounts.
 **Status:** Executed
 
 ```
-kubectl auth can-i get secret -n kube-system --as=system:serviceaccount:default:mendabot-agent
+kubectl auth can-i get secret -n kube-system --as=system:serviceaccount:default:mechanic-agent
 → yes
 
-kubectl get secret -n kube-system --as=system:serviceaccount:default:mendabot-agent
+kubectl get secret -n kube-system --as=system:serviceaccount:default:mechanic-agent
 → NAME ... bootstrap-token-m1akoo ... sh.helm.release.v1.cilium.v22 ... (SUCCESS)
 ```
 
@@ -27,7 +27,7 @@ kubectl get secret -n kube-system --as=system:serviceaccount:default:mendabot-ag
 
 ## 4.2 Namespace Scope — Secret Read Restriction
 
-**Status:** SKIPPED — `mendabot-agent-ns` ServiceAccount not deployed (default scope deployment)
+**Status:** SKIPPED — `mechanic-agent-ns` ServiceAccount not deployed (default scope deployment)
 
 The `role-agent-ns.yaml` and `rolebinding-agent-ns.yaml` templates exist in the chart for namespace scope but are only deployed when `watcher.agentRBACScope=namespace`. Current deployment uses default cluster scope.
 
@@ -51,10 +51,10 @@ The `role-agent-ns.yaml` and `rolebinding-agent-ns.yaml` templates exist in the 
 **nodes/proxy escalation confirmed:**
 
 ```
-kubectl get --raw "/api/v1/nodes/cp-00/proxy/metrics" --as=...mendabot-agent
+kubectl get --raw "/api/v1/nodes/cp-00/proxy/metrics" --as=...mechanic-agent
 → # HELP aggregator_discovery_aggregation_count_total [ALPHA] ... (SUCCESS)
 
-kubectl get --raw "/api/v1/nodes/cp-00/proxy/logs/" --as=...mendabot-agent
+kubectl get --raw "/api/v1/nodes/cp-00/proxy/logs/" --as=...mechanic-agent
 → <listing: alternatives.log, containers/, etc.> (SUCCESS)
 ```
 
@@ -75,11 +75,11 @@ The agent can read node-level metrics and kubelet-exposed log listings via the A
 | Watcher cannot write ConfigMaps in own namespace | no | no | PASS (no configmap write in any ClusterRole or Role) |
 
 ```
-kubectl get secret -n kube-system --as=...mendabot-watcher
+kubectl get secret -n kube-system --as=...mechanic-watcher
 → NAME ... bootstrap-token-m1akoo ... (SUCCESS)
 ```
 
-**Root cause:** The live deployed `mendabot-watcher` ClusterRole includes `"secrets"` in the resource list. The Helm chart source (`charts/mendabot/templates/clusterrole-watcher.yaml`) was remediated in the 2026-02-24 security review (finding 2026-02-24-002), but the cluster was never re-deployed with the fixed chart. The live RBAC state is the **pre-fix version**.
+**Root cause:** The live deployed `mechanic-watcher` ClusterRole includes `"secrets"` in the resource list. The Helm chart source (`charts/mechanic/templates/clusterrole-watcher.yaml`) was remediated in the 2026-02-24 security review (finding 2026-02-24-002), but the cluster was never re-deployed with the fixed chart. The live RBAC state is the **pre-fix version**.
 
 ---
 
@@ -87,17 +87,17 @@ kubectl get secret -n kube-system --as=...mendabot-watcher
 
 **Status:** Executed
 
-`kubectl auth can-i patch remediationjobs/status -n default --as=...mendabot-agent` returns `no` — this is a known false negative with custom resource subresources in `kubectl auth can-i`. Actual impersonation test:
+`kubectl auth can-i patch remediationjobs/status -n default --as=...mechanic-agent` returns `no` — this is a known false negative with custom resource subresources in `kubectl auth can-i`. Actual impersonation test:
 
 ```
-kubectl patch remediationjob mendabot-0cd2345e0966 -n default \
+kubectl patch remediationjob mechanic-0cd2345e0966 -n default \
   --type=merge --subresource=status --patch='{"status":{"phase":"Running"}}' \
-  --as=system:serviceaccount:default:mendabot-agent
-→ remediationjob.remediation.mendabot.io/mendabot-0cd2345e0966 patched  (SUCCESS)
+  --as=system:serviceaccount:default:mechanic-agent
+→ remediationjob.remediation.mechanic.io/mechanic-0cd2345e0966 patched  (SUCCESS)
 
-kubectl patch remediationjob mendabot-0cd2345e0966 -n default \
+kubectl patch remediationjob mechanic-0cd2345e0966 -n default \
   --type=merge --patch='{"spec":{"maxRetries":99}}' \
-  --as=system:serviceaccount:default:mendabot-agent
+  --as=system:serviceaccount:default:mechanic-agent
 → Forbidden  (PASS — spec write blocked)
 ```
 

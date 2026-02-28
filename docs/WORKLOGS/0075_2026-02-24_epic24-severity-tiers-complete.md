@@ -25,7 +25,7 @@ Implement all 6 stories of epic24-severity-tiers: add a `Severity` domain type, 
 
 - Added `Severity string \`json:"severity,omitempty"\`` to `RemediationJobSpec` in `api/v1alpha1/remediationjob_types.go`
 - Added `severity: {type: string}` (no enum) to `testdata/crds/remediationjob_crd.yaml` under spec properties
-- Added same entry to `charts/mendabot/crds/remediationjob.yaml`
+- Added same entry to `charts/mechanic/crds/remediationjob.yaml`
 - No `DeepCopyInto` changes needed (all value types)
 
 ### 3. STORY_03 — Provider severity assignment (internal/provider/native/)
@@ -58,7 +58,7 @@ Review gaps fixed: `newTestReconciler` now explicitly sets `MinSeverity: domain.
 - Added `TestBuild_FindingSeverity_EmptyStringLegacy` (empty Severity, asserts env var present with empty value)
 - Added `${FINDING_SEVERITY}` to `VARS` string in `docker/scripts/entrypoint-common.sh`
 
-### 6. STORY_06 — Prompt calibration (charts/mendabot/files/prompts/core.txt)
+### 6. STORY_06 — Prompt calibration (charts/mechanic/files/prompts/core.txt)
 
 - Added `Severity:     ${FINDING_SEVERITY}` after Fingerprint in the finding context block
 - Added `=== SEVERITY CALIBRATION ===` block before investigation steps, covering critical/high/medium/low/empty
@@ -88,20 +88,20 @@ go build ./...
 
 go test -timeout 120s -race ./...
 # All 13 packages PASS:
-# ok  github.com/lenaxia/k8s-mendabot/api/v1alpha1
-# ok  github.com/lenaxia/k8s-mendabot/cmd/watcher
-# ok  github.com/lenaxia/k8s-mendabot/internal/config
-# ok  github.com/lenaxia/k8s-mendabot/internal/controller
-# ok  github.com/lenaxia/k8s-mendabot/internal/domain
-# ok  github.com/lenaxia/k8s-mendabot/internal/jobbuilder
-# ok  github.com/lenaxia/k8s-mendabot/internal/logging
-# ok  github.com/lenaxia/k8s-mendabot/internal/provider
-# ok  github.com/lenaxia/k8s-mendabot/internal/provider/native
-# ok  github.com/lenaxia/k8s-mendabot/internal/readiness
-# ok  github.com/lenaxia/k8s-mendabot/internal/readiness/llm
-# ok  github.com/lenaxia/k8s-mendabot/internal/readiness/sink
+# ok  github.com/lenaxia/k8s-mechanic/api/v1alpha1
+# ok  github.com/lenaxia/k8s-mechanic/cmd/watcher
+# ok  github.com/lenaxia/k8s-mechanic/internal/config
+# ok  github.com/lenaxia/k8s-mechanic/internal/controller
+# ok  github.com/lenaxia/k8s-mechanic/internal/domain
+# ok  github.com/lenaxia/k8s-mechanic/internal/jobbuilder
+# ok  github.com/lenaxia/k8s-mechanic/internal/logging
+# ok  github.com/lenaxia/k8s-mechanic/internal/provider
+# ok  github.com/lenaxia/k8s-mechanic/internal/provider/native
+# ok  github.com/lenaxia/k8s-mechanic/internal/readiness
+# ok  github.com/lenaxia/k8s-mechanic/internal/readiness/llm
+# ok  github.com/lenaxia/k8s-mechanic/internal/readiness/sink
 
-helm lint charts/mendabot/
+helm lint charts/mechanic/
 # 0 charts failed
 ```
 
@@ -123,7 +123,7 @@ Epic 24 is complete. Next epic candidates:
 - `internal/domain/provider.go` — Severity field added to Finding
 - `api/v1alpha1/remediationjob_types.go` — Severity string field added to RemediationJobSpec
 - `testdata/crds/remediationjob_crd.yaml` — severity: {type: string} added
-- `charts/mendabot/crds/remediationjob.yaml` — severity: {type: string} added
+- `charts/mechanic/crds/remediationjob.yaml` — severity: {type: string} added
 - `internal/provider/native/pod.go` — computePodSeverity, safe append pattern
 - `internal/provider/native/pod_test.go` — severity assertions + new severity tests
 - `internal/provider/native/deployment.go` — computeDeploymentSeverity, removed dead parameter
@@ -143,7 +143,7 @@ Epic 24 is complete. Next epic candidates:
 - `internal/jobbuilder/job.go` — FINDING_SEVERITY env var added
 - `internal/jobbuilder/job_test.go` — 2 new severity tests; FINDING_SEVERITY in required list
 - `docker/scripts/entrypoint-common.sh` — ${FINDING_SEVERITY} added to VARS
-- `charts/mendabot/files/prompts/core.txt` — Severity line + calibration block
+- `charts/mechanic/files/prompts/core.txt` — Severity line + calibration block
 - `docs/BACKLOG/epic24-severity-tiers/README.md` — status updated to Complete
 - `docs/BACKLOG/epic24-severity-tiers/STORY_01_severity_domain.md` — status updated
 - `docs/BACKLOG/epic24-severity-tiers/STORY_02_crd_severity_field.md` — status updated

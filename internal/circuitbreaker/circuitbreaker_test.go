@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lenaxia/k8s-mendabot/internal/circuitbreaker"
+	"github.com/lenaxia/k8s-mechanic/internal/circuitbreaker"
 )
 
 func TestCircuitBreaker_FirstCall(t *testing.T) {

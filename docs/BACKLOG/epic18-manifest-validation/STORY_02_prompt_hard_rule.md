@@ -10,7 +10,7 @@
 ## Goal
 
 Promote manifest validation from a "recommended step" (currently STEP 7, advisory only)
-to a non-negotiable HARD RULE in `charts/mendabot/files/prompts/core.txt`. The agent
+to a non-negotiable HARD RULE in `charts/mechanic/files/prompts/core.txt`. The agent
 must run `kubeconform` on every modified manifest **before** any `git commit`. A manifest
 that fails schema validation must never reach the GitOps repo.
 
@@ -18,11 +18,11 @@ that fails schema validation must never reach the GitOps repo.
 
 ## File to Edit
 
-**`charts/mendabot/files/prompts/core.txt`**
+**`charts/mechanic/files/prompts/core.txt`**
 
 This is the sole file that needs changing. `deploy/kustomize/configmap-prompt.yaml` was
 deleted in epic08 (2026-02-24). The prompt text now lives in `core.txt`. The Helm template
-at `charts/mendabot/templates/configmap-prompt.yaml` renders `core.txt` into a ConfigMap
+at `charts/mechanic/templates/configmap-prompt.yaml` renders `core.txt` into a ConfigMap
 via `.Files.Get` — it contains no prompt text and does not need to change.
 
 ---
@@ -55,7 +55,7 @@ FINDING_SEVERITY=${FINDING_SEVERITY}
 A critical severity finding requires maximum investigation depth and a confident fix.
 A low severity finding warrants a conservative, minimal-change proposal.
 
-1. NEVER commit directly to main — always use the fix/mendabot-${FINDING_FINGERPRINT} branch
+1. NEVER commit directly to main — always use the fix/mechanic-${FINDING_FINGERPRINT} branch
 2. NEVER create, read, modify, or reference Kubernetes Secrets in the GitOps repo
 3. Exactly ONE of these two outcomes must occur per invocation:
    a. If an existing PR was found in Step 1: comment on it and exit. Do not open a new PR.
@@ -230,7 +230,7 @@ should be validated with both `kustomize build` (Case B) and `helm template` (Ca
 
 ## Implementation Steps
 
-1. Open `charts/mendabot/files/prompts/core.txt`
+1. Open `charts/mechanic/files/prompts/core.txt`
 2. In the HARD RULES section (around line 205):
    - Change `8.` (untrusted input rule) to `9.`
    - Append new rule `10.` with the full validation mandate and fallback procedure
@@ -240,18 +240,18 @@ should be validated with both `kustomize build` (Case B) and `helm template` (Ca
    - Add `(MANDATORY — see HARD RULE 10)` to the step heading
 4. Verify the rendered output:
    ```bash
-   helm template mendabot charts/mendabot | grep -A5 "agent-prompt-core"
+   helm template mechanic charts/mechanic | grep -A5 "agent-prompt-core"
    ```
 
 ---
 
 ## Definition of Done
 
-- [ ] Rule `8` (untrusted input) renumbered to `9` in `charts/mendabot/files/prompts/core.txt`
+- [ ] Rule `8` (untrusted input) renumbered to `9` in `charts/mechanic/files/prompts/core.txt`
 - [ ] New HARD RULE `10` added covering Case A (plain YAML), Case B (kustomize), Case C (helm template)
 - [ ] HARD RULE `10` specifies the fallback: no commit, empty-commit PR, `## Validation Errors` section, labels `validation-failed` + `needs-human-review`
 - [ ] STEP 7 updated: mandatory heading, Helm case added, advisory language replaced, fallback cross-reference added
-- [ ] `helm template mendabot charts/mendabot` renders without error
+- [ ] `helm template mechanic charts/mechanic` renders without error
 - [ ] Worklog written
 
 ---
@@ -261,4 +261,4 @@ should be validated with both `kustomize build` (Case B) and `helm template` (Ca
 | Date | Action |
 |------|--------|
 | 2026-02-23 | Story written; current state analysed; exact diff produced against old configmap |
-| 2026-02-25 | Story rewritten against current codebase; target file corrected to `charts/mendabot/files/prompts/core.txt`; stale line numbers, duplicate-rule claim, and validation commands updated |
+| 2026-02-25 | Story rewritten against current codebase; target file corrected to `charts/mechanic/files/prompts/core.txt`; stale line numbers, duplicate-rule claim, and validation commands updated |

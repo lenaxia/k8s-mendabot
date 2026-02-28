@@ -9,7 +9,7 @@
 
 ## User Story
 
-As the **mendabot agent**, I want to receive the finding severity as an environment variable
+As the **mechanic agent**, I want to receive the finding severity as an environment variable
 so that I can calibrate how aggressively to propose a fix and how much to hedge.
 
 ---

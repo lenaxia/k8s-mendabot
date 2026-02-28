@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **cluster operator**, I want mendabot to detect PersistentVolumeClaims stuck in
+As a **cluster operator**, I want mechanic to detect PersistentVolumeClaims stuck in
 Pending so that storage provisioning failures trigger a remediation Job without requiring
 k8sgpt-operator.
 

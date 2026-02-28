@@ -12,11 +12,11 @@ import (
 
 var (
 	remediationGroupVersion = schema.GroupVersion{
-		Group:   "remediation.mendabot.io",
+		Group:   "remediation.mechanic.io",
 		Version: "v1alpha1",
 	}
 	// AddRemediationToScheme registers RemediationJob and RemediationJobList under
-	// remediation.mendabot.io/v1alpha1.
+	// remediation.mechanic.io/v1alpha1.
 	AddRemediationToScheme = addRemediationTypes
 )
 
@@ -245,7 +245,7 @@ type RemediationJobStatus struct {
 	//
 	// Design note: STORY_00 also specified RelatedFindings, CorrelationRole, and
 	// CorrelationRule as spec/status fields. The implementation intentionally stores
-	// these as labels (mendabot.io/correlation-group-id, mendabot.io/correlation-role)
+	// these as labels (mechanic.io/correlation-group-id, mechanic.io/correlation-role)
 	// and passes correlated findings as a runtime slice to dispatch() rather than
 	// persisting them. The labels are searchable via kubectl and the recovery path
 	// (controller.go) reconstructs AllFindings from suppressed peers on restart.

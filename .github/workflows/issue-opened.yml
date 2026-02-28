@@ -31,15 +31,15 @@ jobs:
           use_github_token: "true"
           share: "false"
           prompt: |
-            You are an AI assistant for the k8s-mendabot repository. A new GitHub issue has been opened. Analyze it and take the appropriate action.
+            You are an AI assistant for the k8s-mechanic repository. A new GitHub issue has been opened. Analyze it and take the appropriate action.
 
-            Repository: k8s-mendabot — a Kubernetes operator (Go/controller-runtime) that watches cluster events, uses an LLM to diagnose issues, and optionally remediates them via RemediationJob CRDs. Single maintainer: @lenaxia.
+            Repository: k8s-mechanic — a Kubernetes operator (Go/controller-runtime) that watches cluster events, uses an LLM to diagnose issues, and optionally remediates them via RemediationJob CRDs. Single maintainer: @lenaxia.
 
             Key directories:
             - cmd/               — operator entrypoints
             - internal/          — controller, agent, jobbuilder, redact wrappers
-            - api/               — CRD types (RemediationJob, MendabotConfig)
-            - charts/mendabot/   — Helm chart
+            - api/               — CRD types (RemediationJob, MechanicConfig)
+            - charts/mechanic/   — Helm chart
             - docs/              — architecture, security docs (THREAT_MODEL, pentest findings)
             - docker/            — Dockerfiles, smoke/wrapper test scripts
             - .github/workflows/ — CI/CD pipelines

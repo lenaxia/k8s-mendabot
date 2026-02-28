@@ -23,7 +23,7 @@ source /usr/local/bin/entrypoint-common.sh
 # Determine dry-run mode using the same three-layer logic as the wrappers.
 # Layer 1: sentinel file
 _entrypoint_dry_run="false"
-if [ -f /mendabot-cfg/dry-run ] && [ "$(cat /mendabot-cfg/dry-run 2>/dev/null)" = "true" ]; then
+if [ -f /mechanic-cfg/dry-run ] && [ "$(cat /mechanic-cfg/dry-run 2>/dev/null)" = "true" ]; then
     _entrypoint_dry_run="true"
 fi
 # Layer 2: /proc/1/environ

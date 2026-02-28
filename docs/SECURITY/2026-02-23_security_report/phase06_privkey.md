@@ -32,7 +32,7 @@ grep -n 'GITHUB_APP' internal/jobbuilder/job.go
 ```
 {Name: "shared-workspace", MountPath: "/workspace"}
 {Name: "prompt-configmap",  MountPath: "/prompt"}
-{Name: "agent-token",       MountPath: "/var/run/secrets/mendabot/serviceaccount"}
+{Name: "agent-token",       MountPath: "/var/run/secrets/mechanic/serviceaccount"}
 ```
 
 | Check | Result | Line | Notes |

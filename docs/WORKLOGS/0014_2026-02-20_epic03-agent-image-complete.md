@@ -8,7 +8,7 @@
 
 ## Objective
 
-Implement the `mendabot-agent` Docker image per `AGENT_IMAGE_LLD.md`: a self-contained Kubernetes Job environment containing all investigation tools (opencode, kubectl, k8sgpt, helm, flux, talosctl, kustomize, gh, yq, kubeconform, stern, age, sops, and supporting utilities). All scripts and the smoke test were also implemented.
+Implement the `mechanic-agent` Docker image per `AGENT_IMAGE_LLD.md`: a self-contained Kubernetes Job environment containing all investigation tools (opencode, kubectl, k8sgpt, helm, flux, talosctl, kustomize, gh, yq, kubeconform, stern, age, sops, and supporting utilities). All scripts and the smoke test were also implemented.
 
 ---
 

@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **mendabot operator**, I want the three built-in correlation rules
+As a **mechanic operator**, I want the three built-in correlation rules
 (`SameNamespaceParentRule`, `PVCPodRule`, `MultiPodSameNodeRule`) implemented and tested,
 so that the most common multi-signal root causes are automatically grouped into a single
 investigation.
@@ -172,7 +172,7 @@ func (r MultiPodSameNodeRule) Name() string { return "MultiPodSameNode" }
 
 Logic:
 1. Collect all pod findings (Kind == "Pod") across candidate + peers
-2. Group by the `nodeName` annotation (`mendabot.io/node-name`) set on the `RemediationJob`
+2. Group by the `nodeName` annotation (`mechanic.io/node-name`) set on the `RemediationJob`
 3. If any node has >= threshold pod findings: `Matched=true`
 4. **Primary selection:** The `RemediationJob` with the oldest `CreationTimestamp` among
    the grouped pod jobs becomes the primary. On a tie, use lexicographic order of `Name`
@@ -180,7 +180,7 @@ Logic:
 
 There is no synthetic node finding. The primary is a real, existing pod `RemediationJob`.
 The investigation agent receives all pod findings as correlated context and the shared node
-name via the `mendabot.io/node-name` annotation, giving it sufficient information to
+name via the `mechanic.io/node-name` annotation, giving it sufficient information to
 diagnose a node-level root cause.
 
 **Known limitation — pending/unschedulable pods:** `spec.nodeName` is only populated for
@@ -194,7 +194,7 @@ in tests.
 **Note on nodeName:** `PodProvider.ExtractFinding` must be updated (as part of this story)
 to populate `Finding.NodeName` from `pod.Spec.NodeName` (requires adding `NodeName string`
 to `domain.Finding` in `internal/domain/provider.go`). The `SourceProviderReconciler`
-writes this into `RemediationJob` annotations as `mendabot.io/node-name` only when the
+writes this into `RemediationJob` annotations as `mechanic.io/node-name` only when the
 value is non-empty. Pods in `Pending` state will have no annotation and will be excluded
 from this rule's grouping.
 
@@ -213,13 +213,13 @@ from this rule's grouping.
       `NodeName` from `pod.Spec.NodeName` in the returned `domain.Finding` (empty for
       unscheduled/pending pods — that is correct). Add `NodeName: pod.Spec.NodeName` to the
       `domain.Finding{}` literal at line 122.
-- [x] Update `SourceProviderReconciler` to write the `mendabot.io/node-name` annotation on
+- [x] Update `SourceProviderReconciler` to write the `mechanic.io/node-name` annotation on
       the `RemediationJob` when `finding.NodeName != ""`. The exact location is the
       `Annotations` map in the `RemediationJob` construction block at line 436 of
       `internal/provider/provider.go`. Add:
       ```go
       if finding.NodeName != "" {
-          rjob.ObjectMeta.Annotations["mendabot.io/node-name"] = finding.NodeName
+          rjob.ObjectMeta.Annotations["mechanic.io/node-name"] = finding.NodeName
       }
       ```
       This must be done after the `RemediationJob` struct literal is constructed (line 428)

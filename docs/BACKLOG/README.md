@@ -28,8 +28,8 @@ the epic and individual story files for each unit of work.
 | epic07 — Technical Debt | [epic07-technical-debt/](epic07-technical-debt/) | Issues and improvements discovered during implementation | — | Ongoing |
 | epic08 — Pluggable Agent | [epic08-pluggable-agent/](epic08-pluggable-agent/) | Replace hardcoded opencode invocation with a pluggable AgentProvider abstraction | epic02, epic03, epic05 | Not Started |
 | epic09 — Native Provider | [epic09-native-provider/](epic09-native-provider/) | Replace k8sgpt dependency with a native cluster watcher; move Fingerprint to domain | epic01 | Complete |
-| epic10 — Helm Chart | [epic10-helm-chart/](epic10-helm-chart/) | Package mendabot as a Helm chart with fully custom templates, CRD upgrade hook, and metrics support | epic04, epic05 | In Progress |
-| epic11 — Self-Remediation Cascade Prevention | [epic11-self-remediation-cascade/](epic11-self-remediation-cascade/) | Prevent infinite cascades where mendabot analyzes its own failures | epic01, epic02, epic04 | Complete |
+| epic10 — Helm Chart | [epic10-helm-chart/](epic10-helm-chart/) | Package mechanic as a Helm chart with fully custom templates, CRD upgrade hook, and metrics support | epic04, epic05 | In Progress |
+| epic11 — Self-Remediation Cascade Prevention | [epic11-self-remediation-cascade/](epic11-self-remediation-cascade/) | Prevent infinite cascades where mechanic analyzes its own failures | epic01, epic02, epic04 | Complete |
 | epic12 — Security Review | [epic12-security-review/](epic12-security-review/) | Secret redaction, network policy, audit log, RBAC scoping, prompt injection hardening | epic01, epic02, epic04, epic05, epic09 | Not Started |
 | epic13 — Multi-Signal Correlation | [epic13-multi-signal-correlation/](epic13-multi-signal-correlation/) | Correlate related findings into a single investigation via a CorrelationWindow | epic01, epic02, epic09, epic11 | Not Started |
 | epic14 — Test Infrastructure Correctness | [epic14-test-infrastructure/](epic14-test-infrastructure/) | Fix CRD schema drift and envtest isolation defects; document rules to prevent recurrence | epic13 | Not Started |

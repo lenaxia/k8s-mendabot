@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **mendabot developer**, I want a reproducible security toolchain and test cluster
+As a **mechanic developer**, I want a reproducible security toolchain and test cluster
 in place before any engineering security stories are executed, so that every story in
 this epic has a consistent, verifiable baseline to build against and test against.
 
@@ -26,8 +26,8 @@ test cluster setup:
 - There is no `gosec` run against the Go source code. Static analysis would catch
   issues like unsafe shell construction, weak crypto usage, and hardcoded credentials
   before they reach a running cluster.
-- There is no `trivy` image scan of `ghcr.io/lenaxia/mendabot-watcher` or
-  `ghcr.io/lenaxia/mendabot-agent`. A CVE in the base image (`debian:bookworm-slim` or
+- There is no `trivy` image scan of `ghcr.io/lenaxia/mechanic-watcher` or
+  `ghcr.io/lenaxia/mechanic-agent`. A CVE in the base image (`debian:bookworm-slim` or
   `golang:1.23-bookworm`) would undermine all the code-level controls in stories 01–05.
 - STORY_06 (pentest) requires a running cluster with a NetworkPolicy-aware CNI, but no
   script or configuration exists to provision one reproducibly. Each person running the
@@ -48,9 +48,9 @@ epic depend on or produce results for.
       and exits non-zero on CRITICAL CVEs
 - [ ] `make scan-agent` runs `trivy image` against the locally-built agent image
       and exits non-zero on CRITICAL CVEs
-- [ ] `make dev-cluster` provisions a `kind` cluster named `mendabot-dev` with Cilium
+- [ ] `make dev-cluster` provisions a `kind` cluster named `mechanic-dev` with Cilium
       as the CNI (required for NetworkPolicy enforcement in STORY_06 TC-03)
-- [ ] `make dev-cluster-destroy` tears down the `mendabot-dev` cluster cleanly
+- [ ] `make dev-cluster-destroy` tears down the `mechanic-dev` cluster cleanly
 - [ ] `make scan-watcher` and `make scan-agent` are added as steps to
       `.github/workflows/build-watcher.yaml` and `.github/workflows/build-agent.yaml`
       respectively, running after the existing push step
@@ -66,12 +66,12 @@ epic depend on or produce results for.
 ### New file: `Makefile`
 
 ```makefile
-# mendabot — developer convenience targets
+# mechanic — developer convenience targets
 # All targets are intended to be run from the repository root.
 
-WATCHER_IMAGE ?= mendabot-watcher:dev
-AGENT_IMAGE   ?= mendabot-agent:dev
-KIND_CLUSTER  ?= mendabot-dev
+WATCHER_IMAGE ?= mechanic-watcher:dev
+AGENT_IMAGE   ?= mechanic-agent:dev
+KIND_CLUSTER  ?= mechanic-dev
 
 .PHONY: build test lint lint-security lint-security-report \
         scan-watcher scan-agent \
@@ -142,7 +142,7 @@ The kind config disables the default CNI so Cilium can be installed instead:
 
 ```yaml
 # hack/kind-config.yaml
-# kind cluster configuration for mendabot security testing.
+# kind cluster configuration for mechanic security testing.
 # Disables the default kindnet CNI so Cilium can be installed,
 # which is required for NetworkPolicy enforcement in STORY_06 TC-03.
 kind: Cluster
@@ -163,7 +163,7 @@ Add a `trivy` scan step after the existing `Build and push` step:
 - name: Scan watcher image for CVEs
   uses: aquasecurity/trivy-action@0.20.0
   with:
-    image-ref: ghcr.io/lenaxia/mendabot-watcher:sha-${{ steps.sha.outputs.short }}
+    image-ref: ghcr.io/lenaxia/mechanic-watcher:sha-${{ steps.sha.outputs.short }}
     format: table
     exit-code: '1'
     severity: CRITICAL
@@ -178,7 +178,7 @@ Add the same step after the `Build and push` step:
 - name: Scan agent image for CVEs
   uses: aquasecurity/trivy-action@0.20.0
   with:
-    image-ref: ghcr.io/lenaxia/mendabot-agent:sha-${{ steps.sha.outputs.short }}
+    image-ref: ghcr.io/lenaxia/mechanic-agent:sha-${{ steps.sha.outputs.short }}
     format: table
     exit-code: '1'
     severity: CRITICAL

@@ -8,7 +8,7 @@
 
 ## Objective
 
-Implement the tool-call output redaction layer for the mendabot-agent image. All tool
+Implement the tool-call output redaction layer for the mechanic-agent image. All tool
 output from the LLM agent (kubectl, helm, flux, gh, and 8 more) must pass through the
 `redact` filter before being returned to the LLM context, preventing raw credentials
 from reaching the external LLM API.

@@ -1,4 +1,4 @@
-# Contributing to k8s-mendabot
+# Contributing to k8s-mechanic
 
 Thank you for your interest in contributing. This document covers how to work
 within this project effectively and what is expected of contributors.
@@ -66,9 +66,9 @@ Pull requests with missing sign-offs will not be merged.
 
 If you are new to the project, the best entry points are:
 
-- Issues labelled [`good first issue`](https://github.com/lenaxia/k8s-mendabot/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+- Issues labelled [`good first issue`](https://github.com/lenaxia/k8s-mechanic/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
   — curated, self-contained tasks with clear acceptance criteria
-- Issues labelled [`help wanted`](https://github.com/lenaxia/k8s-mendabot/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
+- Issues labelled [`help wanted`](https://github.com/lenaxia/k8s-mechanic/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
   — open for any contributor, varying complexity
 - Documentation improvements — fixing typos, clarifying examples, or expanding
   the Quick Start are all valued contributions
@@ -109,14 +109,14 @@ genuine emergencies.
 
 ```sh
 # Clone the repository
-git clone git@github.com:lenaxia/k8s-mendabot.git
-cd k8s-mendabot
+git clone git@github.com:lenaxia/k8s-mechanic.git
+cd k8s-mechanic
 
 # Tidy dependencies
 go mod tidy
 
 # Build the watcher binary
-go build -o bin/mendabot-watcher ./cmd/watcher/
+go build -o bin/mechanic-watcher ./cmd/watcher/
 
 # Run all tests
 make test

@@ -26,8 +26,8 @@ labels: bug
 
 | Field | Value |
 |---|---|
-| mendabot chart version | <!-- e.g. 0.3.12 --> |
-| mendabot image tag | <!-- e.g. v0.3.12 --> |
+| mechanic chart version | <!-- e.g. 0.3.12 --> |
+| mechanic image tag | <!-- e.g. v0.3.12 --> |
 | Kubernetes version | <!-- kubectl version --short --> |
 | CNI | <!-- e.g. Cilium 1.15.5, Calico 3.27 --> |
 | `agentType` | <!-- opencode / claude --> |
@@ -35,7 +35,7 @@ labels: bug
 
 ## Relevant logs
 
-<!-- Watcher logs: kubectl logs -n <namespace> deployment/mendabot-watcher --tail=100 -->
+<!-- Watcher logs: kubectl logs -n <namespace> deployment/mechanic-watcher --tail=100 -->
 <!-- Agent logs:   kubectl logs -n <namespace> <agent-job-pod> -->
 
 ```

@@ -1,0 +1,24 @@
+{{- if .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "mechanic.fullname" . }}-agent
+  labels:
+    {{- include "mechanic.labels" . | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: ["pods", "nodes", "persistentvolumeclaims", "namespaces", "events", "services", "endpoints"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "statefulsets", "replicasets", "daemonsets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["batch"]
+  resources: ["jobs", "cronjobs"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["remediation.mechanic.io"]
+  resources: ["remediationjobs"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["remediation.mechanic.io"]
+  resources: ["remediationjobs/status"]
+  verbs: ["get", "patch"]
+{{- end }}

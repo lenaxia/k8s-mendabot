@@ -10,7 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/lenaxia/k8s-mendabot/internal/domain"
+	"github.com/lenaxia/k8s-mechanic/internal/domain"
 )
 
 // Compile-time assertion: pvcProvider satisfies domain.SourceProvider.

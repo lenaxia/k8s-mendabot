@@ -16,10 +16,10 @@ so I can do a one-shot install without pre-creating it manually.
 
 ## Acceptance Criteria
 
-- [ ] `charts/mendabot/templates/namespace.yaml` exists
+- [ ] `charts/mechanic/templates/namespace.yaml` exists
 - [ ] The namespace resource is only rendered when `createNamespace: true` in values
 - [ ] The namespace name is `{{ .Release.Namespace }}`
-- [ ] Standard chart labels applied via `include "mendabot.labels"`
+- [ ] Standard chart labels applied via `include "mechanic.labels"`
 - [ ] When `createNamespace: false` (the default), the template renders nothing —
   no empty YAML document
 
@@ -53,5 +53,5 @@ so I can do a one-shot install without pre-creating it manually.
 
 ## Definition of Done
 
-- [ ] `helm lint charts/mendabot/` exits 0
+- [ ] `helm lint charts/mechanic/` exits 0
 - [ ] Template guard verified manually with `helm template --set createNamespace=true`

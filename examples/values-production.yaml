@@ -1,11 +1,11 @@
-# mendabot — production-hardened values
+# mechanic — production-hardened values
 # Recommended settings for a production cluster.
 # Adjust namespace lists and severity threshold to your environment.
 #
 # Install:
-#   kubectl create namespace mendabot
+#   kubectl create namespace mechanic
 #   # Create required secrets first — see NOTES.txt in the chart
-#   helm install mendabot charts/mendabot/ -n mendabot -f values-production.yaml
+#   helm install mechanic charts/mechanic/ -n mechanic -f values-production.yaml
 
 gitops:
   repo: "myorg/my-gitops-repo"

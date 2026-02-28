@@ -8,7 +8,7 @@
 
 ## Objective
 
-Implement epic15-namespace-filtering in full: add operator-configurable namespace allowlist and denylist so mendabot ignores high-volume system namespace noise (cert-manager, kube-system, flux-system) and only generates RemediationJobs for workload namespaces the operator cares about.
+Implement epic15-namespace-filtering in full: add operator-configurable namespace allowlist and denylist so mechanic ignores high-volume system namespace noise (cert-manager, kube-system, flux-system) and only generates RemediationJobs for workload namespaces the operator cares about.
 
 ---
 
@@ -19,7 +19,7 @@ Implement epic15-namespace-filtering in full: add operator-configurable namespac
 - Added `WatchNamespaces []string` and `ExcludeNamespaces []string` to `config.Config` after `AgentWatchNamespaces`, with doc comments.
 - Added `FromEnv` parsing for `WATCH_NAMESPACES` and `EXCLUDE_NAMESPACES` using the same comma-split/trim/skip-empty pattern as `AgentWatchNamespaces`. Both default to `nil` (not empty slice) when absent or whitespace-only. Neither returns an error when unset.
 - Added 12 table-driven test functions to `internal/config/config_test.go` covering: default (nil), blank, single, multiple, whitespace-trimming, whitespace-only, and both-coexist cases for each field.
-- Added two commented-out env var documentation entries to `charts/mendabot/templates/deployment-watcher.yaml` (kustomize manifests were superseded by the Helm chart in epic10 — story doc was corrected to reference the Helm path).
+- Added two commented-out env var documentation entries to `charts/mechanic/templates/deployment-watcher.yaml` (kustomize manifests were superseded by the Helm chart in epic10 — story doc was corrected to reference the Helm path).
 
 ### 2. STORY_02 — Reconciler namespace filter gate
 
@@ -33,7 +33,7 @@ Implement epic15-namespace-filtering in full: add operator-configurable namespac
 
 ### 3. Gap remediation
 
-- STORY_01 GAP-1: corrected `deploy/kustomize/deployment-watcher.yaml` reference in story Tasks and DoD to `charts/mendabot/templates/deployment-watcher.yaml`.
+- STORY_01 GAP-1: corrected `deploy/kustomize/deployment-watcher.yaml` reference in story Tasks and DoD to `charts/mechanic/templates/deployment-watcher.yaml`.
 - STORY_02 GAP-1: added Debug log emission test and nil-log guard no-panic test.
 - STORY_02 GAP-2: refactored 9 individual `TestNSFilter_*` functions into a single `TestNSFilter` table-driven test per project testing standards.
 
@@ -72,7 +72,7 @@ Epic15 is complete. Branch `feature/epic15-namespace-filtering` is pushed; ready
 
 - `internal/config/config.go`
 - `internal/config/config_test.go`
-- `charts/mendabot/templates/deployment-watcher.yaml`
+- `charts/mechanic/templates/deployment-watcher.yaml`
 - `internal/provider/provider.go`
 - `internal/provider/provider_test.go`
 - `docs/BACKLOG/epic15-namespace-filtering/STORY_01_config.md`

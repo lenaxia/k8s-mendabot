@@ -21,21 +21,21 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"go.uber.org/zap"
 
-	"github.com/lenaxia/k8s-mendabot/api/v1alpha1"
-	"github.com/lenaxia/k8s-mendabot/internal/circuitbreaker"
-	"github.com/lenaxia/k8s-mendabot/internal/config"
-	"github.com/lenaxia/k8s-mendabot/internal/controller"
-	"github.com/lenaxia/k8s-mendabot/internal/correlator"
-	"github.com/lenaxia/k8s-mendabot/internal/domain"
-	igithub "github.com/lenaxia/k8s-mendabot/internal/github"
-	"github.com/lenaxia/k8s-mendabot/internal/jobbuilder"
-	"github.com/lenaxia/k8s-mendabot/internal/logging"
-	"github.com/lenaxia/k8s-mendabot/internal/provider"
-	"github.com/lenaxia/k8s-mendabot/internal/provider/native"
-	"github.com/lenaxia/k8s-mendabot/internal/readiness"
-	"github.com/lenaxia/k8s-mendabot/internal/readiness/llm"
-	"github.com/lenaxia/k8s-mendabot/internal/readiness/sink"
-	sinkhub "github.com/lenaxia/k8s-mendabot/internal/sink/github"
+	"github.com/lenaxia/k8s-mechanic/api/v1alpha1"
+	"github.com/lenaxia/k8s-mechanic/internal/circuitbreaker"
+	"github.com/lenaxia/k8s-mechanic/internal/config"
+	"github.com/lenaxia/k8s-mechanic/internal/controller"
+	"github.com/lenaxia/k8s-mechanic/internal/correlator"
+	"github.com/lenaxia/k8s-mechanic/internal/domain"
+	igithub "github.com/lenaxia/k8s-mechanic/internal/github"
+	"github.com/lenaxia/k8s-mechanic/internal/jobbuilder"
+	"github.com/lenaxia/k8s-mechanic/internal/logging"
+	"github.com/lenaxia/k8s-mechanic/internal/provider"
+	"github.com/lenaxia/k8s-mechanic/internal/provider/native"
+	"github.com/lenaxia/k8s-mechanic/internal/readiness"
+	"github.com/lenaxia/k8s-mechanic/internal/readiness/llm"
+	"github.com/lenaxia/k8s-mechanic/internal/readiness/sink"
+	sinkhub "github.com/lenaxia/k8s-mechanic/internal/sink/github"
 )
 
 // Version is embedded at build time via ldflags:
@@ -169,7 +169,7 @@ func main() {
 		Log:        logger,
 		JobBuilder: jb,
 		Cfg:        cfg,
-		Recorder:   mgr.GetEventRecorderFor("mendabot-watcher"),
+		Recorder:   mgr.GetEventRecorderFor("mechanic-watcher"),
 		APIReader:  mgr.GetAPIReader(),
 		Correlator: corr,
 	}).SetupWithManager(mgr); err != nil {
@@ -234,7 +234,7 @@ func main() {
 			Log:              logger,
 			Cfg:              cfg,
 			Provider:         p,
-			EventRecorder:    mgr.GetEventRecorderFor("mendabot-watcher"),
+			EventRecorder:    mgr.GetEventRecorderFor("mechanic-watcher"),
 			ReadinessChecker: combinedChecker,
 			CircuitBreaker:   cb,
 			SinkCloser:       sinkCloser,

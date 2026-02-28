@@ -8,9 +8,9 @@
 
 ## Objective
 
-Implement epic08: allow mendabot-watcher to swap which AI agent binary runs inside
+Implement epic08: allow mechanic-watcher to swap which AI agent binary runs inside
 Kubernetes Jobs, controlled by a single `AGENT_TYPE` env var. Zero maintenance burden
-for new providers — the opaque config blob pattern means mendabot never interprets
+for new providers — the opaque config blob pattern means mechanic never interprets
 LLM provider details.
 
 ---
@@ -19,7 +19,7 @@ LLM provider details.
 
 - `AGENT_TYPE` env var on watcher deployment (default: `opencode`, fully backwards compatible)
 - **Opaque config blob pattern**: Secret contains ONE key: `provider-config` (full
-  agent-runner config JSON) — mendabot never interprets provider details, `model` key
+  agent-runner config JSON) — mechanic never interprets provider details, `model` key
   removed as unused dead weight
 - Per-agent secrets: `llm-credentials-opencode`, `llm-credentials-claude`
   — **breaking change** from `llm-credentials`
@@ -98,31 +98,31 @@ LLM provider details.
 
 - COPY + chmod for all three entrypoint scripts
 
-### Helm: charts/mendabot/values.yaml
+### Helm: charts/mechanic/values.yaml
 
 - Added `agentType: opencode` field with full documentation
 - Replaced `prompt.name`/`prompt.override` with `prompt.coreOverride`/`prompt.agentOverride`
 - Updated secrets comment block to reflect new per-agent naming
 
-### Helm: charts/mendabot/templates/deployment-watcher.yaml
+### Helm: charts/mechanic/templates/deployment-watcher.yaml
 
 - Added `AGENT_TYPE` env var injection from `.Values.agentType`
 
-### Helm: charts/mendabot/templates/configmap-prompt.yaml
+### Helm: charts/mechanic/templates/configmap-prompt.yaml
 
 - Replaced single `opencode-prompt` CM with two CMs:
   - `agent-prompt-core` (key: `core.txt`) — from `files/prompts/core.txt`
   - `agent-prompt-<agentType>` (key: `agent.txt`) — from `files/prompts/<agentType>.txt`
 - Supports `coreOverride` and `agentOverride` values
 
-### Helm: charts/mendabot/files/prompts/
+### Helm: charts/mechanic/files/prompts/
 
 - `core.txt` — shared SRE investigation instructions (content from old `default.txt`)
 - `opencode.txt` — opencode-specific preamble (OPENCODE_CONFIG_CONTENT, tool notes)
 - `claude.txt` — stub with TODO note
 - `default.txt` — **deleted** (breaking change)
 
-### Helm: charts/mendabot/templates/NOTES.txt
+### Helm: charts/mechanic/templates/NOTES.txt
 
 - Updated with new secret names and key schema
 - Added breaking change migration guide

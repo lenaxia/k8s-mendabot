@@ -8,7 +8,7 @@
 
 ## Objective
 
-Implement epic 11 from scratch: allow the watcher to investigate a failing mendabot agent job
+Implement epic 11 from scratch: allow the watcher to investigate a failing mechanic agent job
 up to a configurable depth limit (`SELF_REMEDIATION_MAX_DEPTH`) with a cooldown circuit breaker
 (`SELF_REMEDIATION_COOLDOWN_SECONDS`), replacing the unconditional silent guard that previously
 blocked all self-remediation.
@@ -38,12 +38,12 @@ blocked all self-remediation.
 - Code review found 6 gaps (all Go source additions were missing); fixed directly
 
 ### 4. STORY_02 — jobProvider depth detection
-- Replaced unconditional guard `if managed-by == mendabot-watcher { return nil, nil }` with `isMendabotJob` flag
+- Replaced unconditional guard `if managed-by == mechanic-watcher { return nil, nil }` with `isMechanicJob` flag
 - Added `getChainDepthFromOwner(ctx, job)` helper: looks up owning `RemediationJob` via owner references, returns `depth+1`; returns `(1, nil)` for 404 or missing owner
-- `ChainDepth` populated in `domain.Finding` struct literal; zero for non-mendabot jobs
+- `ChainDepth` populated in `domain.Finding` struct literal; zero for non-mechanic jobs
 - Added imports: `apierrors "k8s.io/apimachinery/pkg/api/errors"` and `v1alpha1`
-- Deleted `TestJobProvider_ExtractFinding_ExcludesMendabotManagedJobs` (old behaviour test)
-- Added 9 new test cases: all depth branches + all skip-condition branches with mendabot label
+- Deleted `TestJobProvider_ExtractFinding_ExcludesMechanicManagedJobs` (old behaviour test)
+- Added 9 new test cases: all depth branches + all skip-condition branches with mechanic label
 - Code review found all gaps already present in job.go (the review agent had stale state); confirmed correct
 
 ### 5. STORY_03 — Reconciler wiring, config, main.go
@@ -77,20 +77,20 @@ None.
 ```
 go test -timeout 60s -race ./...
 
-ok  github.com/lenaxia/k8s-mendabot/api/v1alpha1
-ok  github.com/lenaxia/k8s-mendabot/cmd/redact
-ok  github.com/lenaxia/k8s-mendabot/cmd/watcher
-ok  github.com/lenaxia/k8s-mendabot/internal/circuitbreaker
-ok  github.com/lenaxia/k8s-mendabot/internal/config
-ok  github.com/lenaxia/k8s-mendabot/internal/controller
-ok  github.com/lenaxia/k8s-mendabot/internal/domain
-ok  github.com/lenaxia/k8s-mendabot/internal/jobbuilder
-ok  github.com/lenaxia/k8s-mendabot/internal/logging
-ok  github.com/lenaxia/k8s-mendabot/internal/provider
-ok  github.com/lenaxia/k8s-mendabot/internal/provider/native
-ok  github.com/lenaxia/k8s-mendabot/internal/readiness
-ok  github.com/lenaxia/k8s-mendabot/internal/readiness/llm
-ok  github.com/lenaxia/k8s-mendabot/internal/readiness/sink
+ok  github.com/lenaxia/k8s-mechanic/api/v1alpha1
+ok  github.com/lenaxia/k8s-mechanic/cmd/redact
+ok  github.com/lenaxia/k8s-mechanic/cmd/watcher
+ok  github.com/lenaxia/k8s-mechanic/internal/circuitbreaker
+ok  github.com/lenaxia/k8s-mechanic/internal/config
+ok  github.com/lenaxia/k8s-mechanic/internal/controller
+ok  github.com/lenaxia/k8s-mechanic/internal/domain
+ok  github.com/lenaxia/k8s-mechanic/internal/jobbuilder
+ok  github.com/lenaxia/k8s-mechanic/internal/logging
+ok  github.com/lenaxia/k8s-mechanic/internal/provider
+ok  github.com/lenaxia/k8s-mechanic/internal/provider/native
+ok  github.com/lenaxia/k8s-mechanic/internal/readiness
+ok  github.com/lenaxia/k8s-mechanic/internal/readiness/llm
+ok  github.com/lenaxia/k8s-mechanic/internal/readiness/sink
 ```
 
 All 14 packages pass with `-race`.
@@ -118,8 +118,8 @@ All 14 packages pass with `-race`.
 | `testdata/crds/remediationjob_crd.yaml` | Add `chainDepth: {type: integer}` to finding.properties |
 | `internal/provider/provider.go` | Add CircuitBreaker field; depth gate block; ChainDepth mapping; circuitbreaker import |
 | `internal/provider/provider_test.go` | Add fakeGater + 8 depth/CB gate tests; add circuitbreaker and native imports |
-| `internal/provider/native/job.go` | Replace unconditional guard with isMendabotJob flag; add getChainDepthFromOwner; set ChainDepth in Finding |
-| `internal/provider/native/job_test.go` | Delete old ExcludesMendabotManagedJobs test; add 9 new depth/skip tests |
+| `internal/provider/native/job.go` | Replace unconditional guard with isMechanicJob flag; add getChainDepthFromOwner; set ChainDepth in Finding |
+| `internal/provider/native/job_test.go` | Delete old ExcludesMechanicManagedJobs test; add 9 new depth/skip tests |
 | `internal/config/config.go` | Add SelfRemediationMaxDepth and SelfRemediationCooldown fields + parsing |
 | `internal/config/config_test.go` | Add 9 tests for both new config fields |
 | `cmd/watcher/main.go` | Construct CircuitBreaker; inject into all provider reconcilers; add circuitbreaker import |

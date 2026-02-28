@@ -10,7 +10,7 @@
 ## User Story
 
 As a **cluster operator**, I want the chart to create all necessary RBAC resources
-so mendabot can watch cluster resources and create Jobs, without needing to apply
+so mechanic can watch cluster resources and create Jobs, without needing to apply
 separate RBAC manifests.
 
 ---
@@ -20,18 +20,18 @@ separate RBAC manifests.
 All eight templates exist and are gated by `{{- if .Values.rbac.create }}`:
 
 - [ ] `templates/clusterrole-watcher.yaml` — mirrors `deploy/kustomize/clusterrole-watcher.yaml`
-- [ ] `templates/clusterrolebinding-watcher.yaml` — subject is `mendabot.watcherSAName`
+- [ ] `templates/clusterrolebinding-watcher.yaml` — subject is `mechanic.watcherSAName`
 - [ ] `templates/clusterrole-agent.yaml` — mirrors `deploy/kustomize/clusterrole-agent.yaml`
-- [ ] `templates/clusterrolebinding-agent.yaml` — subject is `mendabot.agentSAName`
+- [ ] `templates/clusterrolebinding-agent.yaml` — subject is `mechanic.agentSAName`
 - [ ] `templates/role-watcher.yaml` — mirrors `deploy/kustomize/role-watcher.yaml`
   (namespace-scoped; namespace is `{{ .Release.Namespace }}`)
-- [ ] `templates/rolebinding-watcher.yaml` — subject is `mendabot.watcherSAName`
+- [ ] `templates/rolebinding-watcher.yaml` — subject is `mechanic.watcherSAName`
 - [ ] `templates/role-agent.yaml` — mirrors `deploy/kustomize/role-agent.yaml`
-- [ ] `templates/rolebinding-agent.yaml` — subject is `mendabot.agentSAName`
+- [ ] `templates/rolebinding-agent.yaml` — subject is `mechanic.agentSAName`
 
-All resources carry standard labels via `include "mendabot.labels"`.
-ClusterRole and ClusterRoleBinding names are `{{ include "mendabot.fullname" . }}-watcher`
-and `{{ include "mendabot.fullname" . }}-agent` to avoid name collision across installs.
+All resources carry standard labels via `include "mechanic.labels"`.
+ClusterRole and ClusterRoleBinding names are `{{ include "mechanic.fullname" . }}-watcher`
+and `{{ include "mechanic.fullname" . }}-agent` to avoid name collision across installs.
 
 ---
 
@@ -67,7 +67,7 @@ them exactly.
   block even though ClusterRoleBindings are cluster-scoped. This is correct Kubernetes
   behaviour: the subject ServiceAccount lives in a namespace.
 - RoleBindings are namespace-scoped and reference `{{ .Release.Namespace }}`.
-- Binding names should match role names (e.g. `{{ include "mendabot.fullname" . }}-watcher`)
+- Binding names should match role names (e.g. `{{ include "mechanic.fullname" . }}-watcher`)
   for consistency.
 
 ---
@@ -81,6 +81,6 @@ them exactly.
 
 ## Definition of Done
 
-- [ ] `helm lint charts/mendabot/` exits 0
+- [ ] `helm lint charts/mechanic/` exits 0
 - [ ] `helm template ... | grep -A5 "kind: ClusterRole"` shows correct rule sets
 - [ ] `rbac.create: false` produces zero RBAC resources in rendered output

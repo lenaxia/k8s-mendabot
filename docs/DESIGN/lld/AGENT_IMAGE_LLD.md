@@ -11,7 +11,7 @@
 
 ### 1.1 Purpose
 
-The `mendabot-agent` Docker image is a self-contained investigation environment. It contains
+The `mechanic-agent` Docker image is a self-contained investigation environment. It contains
 every CLI tool the OpenCode agent needs to inspect a Kubernetes cluster, read and modify a
 Flux/Helm GitOps repository, and open a pull request — all from inside a Kubernetes Job.
 
@@ -214,10 +214,10 @@ RUN useradd -u 1000 -m -s /bin/bash agent
 
 # Git identity for commits made by the agent
 # Use a GitHub noreply address format: <app-id>+<slug>@users.noreply.github.com
-ENV GIT_AUTHOR_NAME="mendabot-agent"
-ENV GIT_AUTHOR_EMAIL="mendabot-agent@users.noreply.github.com"
-ENV GIT_COMMITTER_NAME="mendabot-agent"
-ENV GIT_COMMITTER_EMAIL="mendabot-agent@users.noreply.github.com"
+ENV GIT_AUTHOR_NAME="mechanic-agent"
+ENV GIT_AUTHOR_EMAIL="mechanic-agent@users.noreply.github.com"
+ENV GIT_COMMITTER_NAME="mechanic-agent"
+ENV GIT_COMMITTER_EMAIL="mechanic-agent@users.noreply.github.com"
 
 # GitHub App token helper (writes token to stdout)
 COPY scripts/get-github-app-token.sh /usr/local/bin/get-github-app-token.sh
@@ -385,23 +385,23 @@ The Dockerfile uses `ARG TARGETARCH` so `docker buildx` can produce `linux/amd64
 After each image build, a smoke test step in CI runs:
 
 ```bash
-docker run --rm ghcr.io/lenaxia/mendabot-agent:<tag> opencode --version
-docker run --rm ghcr.io/lenaxia/mendabot-agent:<tag> kubectl version --client
-docker run --rm ghcr.io/lenaxia/mendabot-agent:<tag> k8sgpt version
-docker run --rm ghcr.io/lenaxia/mendabot-agent:<tag> helm version
-docker run --rm ghcr.io/lenaxia/mendabot-agent:<tag> flux version --client
-docker run --rm ghcr.io/lenaxia/mendabot-agent:<tag> talosctl version --client
-docker run --rm ghcr.io/lenaxia/mendabot-agent:<tag> kustomize version
-docker run --rm ghcr.io/lenaxia/mendabot-agent:<tag> yq --version
-docker run --rm ghcr.io/lenaxia/mendabot-agent:<tag> gh --version
-docker run --rm ghcr.io/lenaxia/mendabot-agent:<tag> jq --version
-docker run --rm ghcr.io/lenaxia/mendabot-agent:<tag> sops --version
-docker run --rm ghcr.io/lenaxia/mendabot-agent:<tag> age --version
-docker run --rm ghcr.io/lenaxia/mendabot-agent:<tag> stern --version
-docker run --rm ghcr.io/lenaxia/mendabot-agent:<tag> kubeconform -v
-docker run --rm ghcr.io/lenaxia/mendabot-agent:<tag> envsubst --version
-docker run --rm ghcr.io/lenaxia/mendabot-agent:<tag> test -x /usr/local/bin/agent-entrypoint.sh
-docker run --rm ghcr.io/lenaxia/mendabot-agent:<tag> test -x /usr/local/bin/get-github-app-token.sh
+docker run --rm ghcr.io/lenaxia/mechanic-agent:<tag> opencode --version
+docker run --rm ghcr.io/lenaxia/mechanic-agent:<tag> kubectl version --client
+docker run --rm ghcr.io/lenaxia/mechanic-agent:<tag> k8sgpt version
+docker run --rm ghcr.io/lenaxia/mechanic-agent:<tag> helm version
+docker run --rm ghcr.io/lenaxia/mechanic-agent:<tag> flux version --client
+docker run --rm ghcr.io/lenaxia/mechanic-agent:<tag> talosctl version --client
+docker run --rm ghcr.io/lenaxia/mechanic-agent:<tag> kustomize version
+docker run --rm ghcr.io/lenaxia/mechanic-agent:<tag> yq --version
+docker run --rm ghcr.io/lenaxia/mechanic-agent:<tag> gh --version
+docker run --rm ghcr.io/lenaxia/mechanic-agent:<tag> jq --version
+docker run --rm ghcr.io/lenaxia/mechanic-agent:<tag> sops --version
+docker run --rm ghcr.io/lenaxia/mechanic-agent:<tag> age --version
+docker run --rm ghcr.io/lenaxia/mechanic-agent:<tag> stern --version
+docker run --rm ghcr.io/lenaxia/mechanic-agent:<tag> kubeconform -v
+docker run --rm ghcr.io/lenaxia/mechanic-agent:<tag> envsubst --version
+docker run --rm ghcr.io/lenaxia/mechanic-agent:<tag> test -x /usr/local/bin/agent-entrypoint.sh
+docker run --rm ghcr.io/lenaxia/mechanic-agent:<tag> test -x /usr/local/bin/get-github-app-token.sh
 ```
 
 All binaries must be present and exit 0 (or with `--version` output) for the build to pass.

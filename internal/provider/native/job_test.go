@@ -11,8 +11,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
-	"github.com/lenaxia/k8s-mendabot/internal/domain"
+	v1alpha1 "github.com/lenaxia/k8s-mechanic/api/v1alpha1"
+	"github.com/lenaxia/k8s-mechanic/internal/domain"
 )
 
 // newExhaustedJob returns a Job in the backoff-exhausted state:
@@ -396,8 +396,8 @@ func TestJobErrorText_Format(t *testing.T) {
 	}
 }
 
-// TestJobChainDepth_NonMendabotJob: non-mendabot failed job → ChainDepth = 0, finding != nil.
-func TestJobChainDepth_NonMendabotJob(t *testing.T) {
+// TestJobChainDepth_NonMechanicJob: non-mechanic failed job → ChainDepth = 0, finding != nil.
+func TestJobChainDepth_NonMechanicJob(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
 	p := NewJobProvider(c)
@@ -409,21 +409,21 @@ func TestJobChainDepth_NonMendabotJob(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if finding == nil {
-		t.Fatal("expected non-nil finding for non-mendabot job")
+		t.Fatal("expected non-nil finding for non-mechanic job")
 	}
 	if finding.ChainDepth != 0 {
-		t.Errorf("ChainDepth = %d, want 0 for non-mendabot job", finding.ChainDepth)
+		t.Errorf("ChainDepth = %d, want 0 for non-mechanic job", finding.ChainDepth)
 	}
 }
 
-// TestJobChainDepth_MendabotOwnerDepth0: mendabot job, owner RJob has ChainDepth=0 → Finding.ChainDepth = 1.
-func TestJobChainDepth_MendabotOwnerDepth0(t *testing.T) {
+// TestJobChainDepth_MechanicOwnerDepth0: mechanic job, owner RJob has ChainDepth=0 → Finding.ChainDepth = 1.
+func TestJobChainDepth_MechanicOwnerDepth0(t *testing.T) {
 	s := newTestScheme()
 
 	rjob := &v1alpha1.RemediationJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "rjob-abc123",
-			Namespace: "mendabot-system",
+			Namespace: "mechanic-system",
 			UID:       "rjob-uid-1",
 		},
 		Spec: v1alpha1.RemediationJobSpec{
@@ -433,8 +433,8 @@ func TestJobChainDepth_MendabotOwnerDepth0(t *testing.T) {
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(rjob).Build()
 	p := NewJobProvider(c)
 
-	job := newExhaustedJob("mendabot-agent-abc123456789", "mendabot-system", 2)
-	job.Labels = map[string]string{"app.kubernetes.io/managed-by": "mendabot-watcher"}
+	job := newExhaustedJob("mechanic-agent-abc123456789", "mechanic-system", 2)
+	job.Labels = map[string]string{"app.kubernetes.io/managed-by": "mechanic-watcher"}
 	job.OwnerReferences = []metav1.OwnerReference{
 		ownerRef("RemediationJob", "rjob-abc123", "rjob-uid-1"),
 	}
@@ -444,21 +444,21 @@ func TestJobChainDepth_MendabotOwnerDepth0(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if finding == nil {
-		t.Fatal("expected non-nil finding for mendabot job")
+		t.Fatal("expected non-nil finding for mechanic job")
 	}
 	if finding.ChainDepth != 1 {
 		t.Errorf("ChainDepth = %d, want 1", finding.ChainDepth)
 	}
 }
 
-// TestJobChainDepth_MendabotOwnerDepth1: mendabot job, owner RJob has ChainDepth=1 → Finding.ChainDepth = 2.
-func TestJobChainDepth_MendabotOwnerDepth1(t *testing.T) {
+// TestJobChainDepth_MechanicOwnerDepth1: mechanic job, owner RJob has ChainDepth=1 → Finding.ChainDepth = 2.
+func TestJobChainDepth_MechanicOwnerDepth1(t *testing.T) {
 	s := newTestScheme()
 
 	rjob := &v1alpha1.RemediationJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "rjob-abc123",
-			Namespace: "mendabot-system",
+			Namespace: "mechanic-system",
 			UID:       "rjob-uid-2",
 		},
 		Spec: v1alpha1.RemediationJobSpec{
@@ -468,8 +468,8 @@ func TestJobChainDepth_MendabotOwnerDepth1(t *testing.T) {
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(rjob).Build()
 	p := NewJobProvider(c)
 
-	job := newExhaustedJob("mendabot-agent-abc123456789", "mendabot-system", 3)
-	job.Labels = map[string]string{"app.kubernetes.io/managed-by": "mendabot-watcher"}
+	job := newExhaustedJob("mechanic-agent-abc123456789", "mechanic-system", 3)
+	job.Labels = map[string]string{"app.kubernetes.io/managed-by": "mechanic-watcher"}
 	job.OwnerReferences = []metav1.OwnerReference{
 		ownerRef("RemediationJob", "rjob-abc123", "rjob-uid-2"),
 	}
@@ -479,21 +479,21 @@ func TestJobChainDepth_MendabotOwnerDepth1(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if finding == nil {
-		t.Fatal("expected non-nil finding for mendabot job")
+		t.Fatal("expected non-nil finding for mechanic job")
 	}
 	if finding.ChainDepth != 2 {
 		t.Errorf("ChainDepth = %d, want 2", finding.ChainDepth)
 	}
 }
 
-// TestJobChainDepth_MendabotOwnerNotFound: mendabot job, owner RJob not in cluster → ChainDepth = 1, finding != nil.
-func TestJobChainDepth_MendabotOwnerNotFound(t *testing.T) {
+// TestJobChainDepth_MechanicOwnerNotFound: mechanic job, owner RJob not in cluster → ChainDepth = 1, finding != nil.
+func TestJobChainDepth_MechanicOwnerNotFound(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
 	p := NewJobProvider(c)
 
-	job := newExhaustedJob("mendabot-agent-abc123456789", "mendabot-system", 2)
-	job.Labels = map[string]string{"app.kubernetes.io/managed-by": "mendabot-watcher"}
+	job := newExhaustedJob("mechanic-agent-abc123456789", "mechanic-system", 2)
+	job.Labels = map[string]string{"app.kubernetes.io/managed-by": "mechanic-watcher"}
 	job.OwnerReferences = []metav1.OwnerReference{
 		ownerRef("RemediationJob", "rjob-missing", "rjob-uid-missing"),
 	}
@@ -510,14 +510,14 @@ func TestJobChainDepth_MendabotOwnerNotFound(t *testing.T) {
 	}
 }
 
-// TestJobChainDepth_MendabotNoOwnerRef: mendabot job, no owner reference → ChainDepth = 1, finding != nil.
-func TestJobChainDepth_MendabotNoOwnerRef(t *testing.T) {
+// TestJobChainDepth_MechanicNoOwnerRef: mechanic job, no owner reference → ChainDepth = 1, finding != nil.
+func TestJobChainDepth_MechanicNoOwnerRef(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
 	p := NewJobProvider(c)
 
-	job := newExhaustedJob("mendabot-agent-abc123456789", "mendabot-system", 2)
-	job.Labels = map[string]string{"app.kubernetes.io/managed-by": "mendabot-watcher"}
+	job := newExhaustedJob("mechanic-agent-abc123456789", "mechanic-system", 2)
+	job.Labels = map[string]string{"app.kubernetes.io/managed-by": "mechanic-watcher"}
 	job.OwnerReferences = nil
 
 	finding, err := p.ExtractFinding(job)
@@ -525,26 +525,26 @@ func TestJobChainDepth_MendabotNoOwnerRef(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if finding == nil {
-		t.Fatal("expected non-nil finding when mendabot job has no owner reference")
+		t.Fatal("expected non-nil finding when mechanic job has no owner reference")
 	}
 	if finding.ChainDepth != 1 {
 		t.Errorf("ChainDepth = %d, want 1 (default when no owner reference)", finding.ChainDepth)
 	}
 }
 
-// TestJobChainDepth_MendabotMalformedOwnerRef: mendabot job with Kind=RemediationJob but
+// TestJobChainDepth_MechanicMalformedOwnerRef: mechanic job with Kind=RemediationJob but
 // empty Name → client.Get called with empty name returns NotFound → ChainDepth = 1 (safe fallback).
-func TestJobChainDepth_MendabotMalformedOwnerRef(t *testing.T) {
+func TestJobChainDepth_MechanicMalformedOwnerRef(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
 	p := NewJobProvider(c)
 
-	job := newExhaustedJob("mendabot-agent-abc123456789", "mendabot-system", 2)
-	job.Labels = map[string]string{"app.kubernetes.io/managed-by": "mendabot-watcher"}
+	job := newExhaustedJob("mechanic-agent-abc123456789", "mechanic-system", 2)
+	job.Labels = map[string]string{"app.kubernetes.io/managed-by": "mechanic-watcher"}
 	// ownerReference has the right Kind but an empty Name — simulates a malformed ref.
 	job.OwnerReferences = []metav1.OwnerReference{
 		{
-			APIVersion: "remediation.mendabot.io/v1alpha1",
+			APIVersion: "remediation.mechanic.io/v1alpha1",
 			Kind:       "RemediationJob",
 			Name:       "", // empty — malformed
 			UID:        "some-uid",
@@ -556,24 +556,24 @@ func TestJobChainDepth_MendabotMalformedOwnerRef(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if finding == nil {
-		t.Fatal("expected non-nil finding for malformed ownerRef mendabot job")
+		t.Fatal("expected non-nil finding for malformed ownerRef mechanic job")
 	}
 	if finding.ChainDepth != 1 {
 		t.Errorf("ChainDepth = %d, want 1 (safe fallback for malformed ownerRef)", finding.ChainDepth)
 	}
 }
 
-// TestJobChainDepth_MendabotStillActive: mendabot job, Active=1, Failed=0 → (nil, nil).
-func TestJobChainDepth_MendabotStillActive(t *testing.T) {
+// TestJobChainDepth_MechanicStillActive: mechanic job, Active=1, Failed=0 → (nil, nil).
+func TestJobChainDepth_MechanicStillActive(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
 	p := NewJobProvider(c)
 
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-agent-abc123456789",
-			Namespace: "mendabot-system",
-			Labels:    map[string]string{"app.kubernetes.io/managed-by": "mendabot-watcher"},
+			Name:      "mechanic-agent-abc123456789",
+			Namespace: "mechanic-system",
+			Labels:    map[string]string{"app.kubernetes.io/managed-by": "mechanic-watcher"},
 		},
 		Status: batchv1.JobStatus{
 			Active: 1,
@@ -586,12 +586,12 @@ func TestJobChainDepth_MendabotStillActive(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if finding != nil {
-		t.Errorf("expected nil finding for still-active mendabot job, got %+v", finding)
+		t.Errorf("expected nil finding for still-active mechanic job, got %+v", finding)
 	}
 }
 
-// TestJobChainDepth_MendabotSucceeded: mendabot job with CompletionTime set → (nil, nil).
-func TestJobChainDepth_MendabotSucceeded(t *testing.T) {
+// TestJobChainDepth_MechanicSucceeded: mechanic job with CompletionTime set → (nil, nil).
+func TestJobChainDepth_MechanicSucceeded(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
 	p := NewJobProvider(c)
@@ -599,9 +599,9 @@ func TestJobChainDepth_MendabotSucceeded(t *testing.T) {
 	now := metav1.NewTime(time.Now())
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mendabot-agent-abc123456789",
-			Namespace: "mendabot-system",
-			Labels:    map[string]string{"app.kubernetes.io/managed-by": "mendabot-watcher"},
+			Name:      "mechanic-agent-abc123456789",
+			Namespace: "mechanic-system",
+			Labels:    map[string]string{"app.kubernetes.io/managed-by": "mechanic-watcher"},
 		},
 		Status: batchv1.JobStatus{
 			Succeeded:      1,
@@ -614,18 +614,18 @@ func TestJobChainDepth_MendabotSucceeded(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if finding != nil {
-		t.Errorf("expected nil finding for succeeded mendabot job, got %+v", finding)
+		t.Errorf("expected nil finding for succeeded mechanic job, got %+v", finding)
 	}
 }
 
-// TestJobChainDepth_MendabotCronJobOwned: CronJob-owned mendabot job → (nil, nil).
-func TestJobChainDepth_MendabotCronJobOwned(t *testing.T) {
+// TestJobChainDepth_MechanicCronJobOwned: CronJob-owned mechanic job → (nil, nil).
+func TestJobChainDepth_MechanicCronJobOwned(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
 	p := NewJobProvider(c)
 
-	job := newExhaustedJob("mendabot-agent-abc123456789", "mendabot-system", 2)
-	job.Labels = map[string]string{"app.kubernetes.io/managed-by": "mendabot-watcher"}
+	job := newExhaustedJob("mechanic-agent-abc123456789", "mechanic-system", 2)
+	job.Labels = map[string]string{"app.kubernetes.io/managed-by": "mechanic-watcher"}
 	job.OwnerReferences = []metav1.OwnerReference{
 		ownerRef("CronJob", "my-cronjob", "cj-uid-1"),
 	}
@@ -635,18 +635,18 @@ func TestJobChainDepth_MendabotCronJobOwned(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if finding != nil {
-		t.Errorf("expected nil finding for CronJob-owned mendabot job, got %+v", finding)
+		t.Errorf("expected nil finding for CronJob-owned mechanic job, got %+v", finding)
 	}
 }
 
-// TestJobChainDepth_MendabotSuspended: suspended mendabot job → (nil, nil).
-func TestJobChainDepth_MendabotSuspended(t *testing.T) {
+// TestJobChainDepth_MechanicSuspended: suspended mechanic job → (nil, nil).
+func TestJobChainDepth_MechanicSuspended(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
 	p := NewJobProvider(c)
 
-	job := newExhaustedJob("mendabot-agent-abc123456789", "mendabot-system", 2)
-	job.Labels = map[string]string{"app.kubernetes.io/managed-by": "mendabot-watcher"}
+	job := newExhaustedJob("mechanic-agent-abc123456789", "mechanic-system", 2)
+	job.Labels = map[string]string{"app.kubernetes.io/managed-by": "mechanic-watcher"}
 	job.Status.Conditions = []batchv1.JobCondition{
 		{
 			Type:   batchv1.JobSuspended,
@@ -659,11 +659,11 @@ func TestJobChainDepth_MendabotSuspended(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if finding != nil {
-		t.Errorf("expected nil finding for suspended mendabot job, got %+v", finding)
+		t.Errorf("expected nil finding for suspended mechanic job, got %+v", finding)
 	}
 }
 
-// TestJobAnnotationEnabled_False: exhausted job (BackoffLimitExceeded) with mendabot.io/enabled=false → (nil, nil).
+// TestJobAnnotationEnabled_False: exhausted job (BackoffLimitExceeded) with mechanic.io/enabled=false → (nil, nil).
 // Uses an unhealthy object to prove the gate fires on an object that would otherwise produce
 // a non-nil finding.
 func TestJobAnnotationEnabled_False(t *testing.T) {
@@ -684,7 +684,7 @@ func TestJobAnnotationEnabled_False(t *testing.T) {
 	}
 }
 
-// TestJobAnnotationSkipUntilFuture: exhausted job with mendabot.io/skip-until=2099-12-31 → (nil, nil).
+// TestJobAnnotationSkipUntilFuture: exhausted job with mechanic.io/skip-until=2099-12-31 → (nil, nil).
 func TestJobAnnotationSkipUntilFuture(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()

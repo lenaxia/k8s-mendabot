@@ -13,9 +13,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
-	"github.com/lenaxia/k8s-mendabot/internal/correlator"
-	"github.com/lenaxia/k8s-mendabot/internal/domain"
+	v1alpha1 "github.com/lenaxia/k8s-mechanic/api/v1alpha1"
+	"github.com/lenaxia/k8s-mechanic/internal/correlator"
+	"github.com/lenaxia/k8s-mechanic/internal/domain"
 )
 
 // fakeRule is a test double for domain.CorrelationRule.

@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **mendabot developer**, I want all integration tests in `internal/controller/` to
+As a **mechanic developer**, I want all integration tests in `internal/controller/` to
 pass deterministically regardless of how many times they have run previously in the same
 envtest process, so that `-count=N` invocations and parallel CI pipelines do not
 produce false failures.
@@ -26,7 +26,7 @@ lifetime of the envtest process.
 
 Five tests create `batch/v1` Jobs with deterministic names derived from fixed
 fingerprint constants. Each test then uses `waitFor` to poll until a job appears in
-the namespace matching the test's label (`remediation.mendabot.io/remediation-job:
+the namespace matching the test's label (`remediation.mechanic.io/remediation-job:
 <rjob-name>`). If a stale job from a previous run is still present — with the same
 label (because both the prior and current runs use the same `rjob` name) — the
 `waitFor` condition is satisfied immediately using the *old* job. That old job's
@@ -37,11 +37,11 @@ The five affected tests and their deterministic job names:
 
 | Test | fp (first 12 chars) | Job name | rjob name |
 |------|---------------------|----------|-----------|
-| `TestRemediationJobReconciler_CreatesJob` | `aaaa0000bbbb` | `mendabot-agent-aaaa0000bbbb` | `rjob-creates-job` |
-| `TestRemediationJobReconciler_SyncsStatus_Running` | `bbbb1111cccc` | `mendabot-agent-bbbb1111cccc` | `rjob-syncs-running` |
-| `TestRemediationJobReconciler_SyncsStatus_Succeeded` | `cccc2222dddd` | `mendabot-agent-cccc2222dddd` | `rjob-syncs-succeeded` |
-| `TestRemediationJobReconciler_SyncsStatus_Failed` | `dddd3333eeee` | `mendabot-agent-dddd3333eeee` | `rjob-syncs-failed` |
-| `TestRemediationJobReconciler_OwnerReference` | `ffff5555aaaa` | `mendabot-agent-ffff5555aaaa` | `rjob-ownerref` |
+| `TestRemediationJobReconciler_CreatesJob` | `aaaa0000bbbb` | `mechanic-agent-aaaa0000bbbb` | `rjob-creates-job` |
+| `TestRemediationJobReconciler_SyncsStatus_Running` | `bbbb1111cccc` | `mechanic-agent-bbbb1111cccc` | `rjob-syncs-running` |
+| `TestRemediationJobReconciler_SyncsStatus_Succeeded` | `cccc2222dddd` | `mechanic-agent-cccc2222dddd` | `rjob-syncs-succeeded` |
+| `TestRemediationJobReconciler_SyncsStatus_Failed` | `dddd3333eeee` | `mechanic-agent-dddd3333eeee` | `rjob-syncs-failed` |
+| `TestRemediationJobReconciler_OwnerReference` | `ffff5555aaaa` | `mechanic-agent-ffff5555aaaa` | `rjob-ownerref` |
 
 The correct fix is **pre-test cleanup**: delete any pre-existing job with the
 deterministic name *at the start of each test*, before creating the `RemediationJob`
@@ -79,7 +79,7 @@ In each of the five affected tests, add a pre-test cleanup block immediately aft
 // Pre-test cleanup: delete any stale job from a previous run so the waitFor
 // loop below sees only the job created by this test.
 _ = c.Delete(ctx, &batchv1.Job{ObjectMeta: metav1.ObjectMeta{
-    Name:      "mendabot-agent-<fp[:12]>",
+    Name:      "mechanic-agent-<fp[:12]>",
     Namespace: integrationCtrlNamespace,
 }})
 ```
@@ -113,7 +113,7 @@ const fp = "aaaa0000bbbb1111cccc2222dddd3333aaaa0000bbbb1111cccc2222dddd3333"
 Insert after line 155 (`c := newIntegrationClient(t)`):
 ```go
 _ = c.Delete(ctx, &batchv1.Job{ObjectMeta: metav1.ObjectMeta{
-    Name:      "mendabot-agent-aaaa0000bbbb",
+    Name:      "mechanic-agent-aaaa0000bbbb",
     Namespace: integrationCtrlNamespace,
 }})
 ```
@@ -133,7 +133,7 @@ const fp = "bbbb1111cccc2222dddd3333eeee4444bbbb1111cccc2222dddd3333eeee4444"
 Insert after line 226 (`c := newIntegrationClient(t)`):
 ```go
 _ = c.Delete(ctx, &batchv1.Job{ObjectMeta: metav1.ObjectMeta{
-    Name:      "mendabot-agent-bbbb1111cccc",
+    Name:      "mechanic-agent-bbbb1111cccc",
     Namespace: integrationCtrlNamespace,
 }})
 ```
@@ -153,7 +153,7 @@ const fp = "cccc2222dddd3333eeee4444ffff5555cccc2222dddd3333eeee4444ffff5555"
 Insert after line 283 (`c := newIntegrationClient(t)`):
 ```go
 _ = c.Delete(ctx, &batchv1.Job{ObjectMeta: metav1.ObjectMeta{
-    Name:      "mendabot-agent-cccc2222dddd",
+    Name:      "mechanic-agent-cccc2222dddd",
     Namespace: integrationCtrlNamespace,
 }})
 ```
@@ -173,7 +173,7 @@ const fp = "dddd3333eeee4444ffff5555aaaa6666dddd3333eeee4444ffff5555aaaa6666"
 Insert after line 340 (`c := newIntegrationClient(t)`):
 ```go
 _ = c.Delete(ctx, &batchv1.Job{ObjectMeta: metav1.ObjectMeta{
-    Name:      "mendabot-agent-dddd3333eeee",
+    Name:      "mechanic-agent-dddd3333eeee",
     Namespace: integrationCtrlNamespace,
 }})
 ```
@@ -193,7 +193,7 @@ const fp = "ffff5555aaaa6666bbbb7777cccc8888ffff5555aaaa6666bbbb7777cccc8888"
 Insert after line 483 (`c := newIntegrationClient(t)`):
 ```go
 _ = c.Delete(ctx, &batchv1.Job{ObjectMeta: metav1.ObjectMeta{
-    Name:      "mendabot-agent-ffff5555aaaa",
+    Name:      "mechanic-agent-ffff5555aaaa",
     Namespace: integrationCtrlNamespace,
 }})
 ```

@@ -65,7 +65,7 @@ input, while retaining native providers as an opinionated fallback.
 
 **1. Monitoring stacks already solved alert deduplication and filtering.**
 Prometheus Alertmanager's `for:` duration, inhibition rules, and grouping are the right
-place to decide "is this worth acting on?" Mendabot should not re-implement this. External
+place to decide "is this worth acting on?" Mechanic should not re-implement this. External
 alert sources should bypass the stabilisation window — the monitoring stack already waited.
 
 **2. One RemediationJob per unhealthy resource at a time.**
@@ -205,14 +205,14 @@ without CRD changes — adding a new adapter requires only (1) implementing the 
 ## 5. AlertSource CRD
 
 External alert sources are configured via the `AlertSource` CRD
-(`alertsources.mendabot.io/v1alpha1`). Each CR represents one configured integration.
+(`alertsources.mechanic.io/v1alpha1`). Each CR represents one configured integration.
 
 ```yaml
-apiVersion: mendabot.io/v1alpha1
+apiVersion: mechanic.io/v1alpha1
 kind: AlertSource
 metadata:
   name: alertmanager
-  namespace: mendabot       # must be in the mendabot namespace
+  namespace: mechanic       # must be in the mechanic namespace
 spec:
   type: alertmanager        # adapter type; determines payload parsing
   priority: 90              # higher wins in cross-source dedup; mutable
@@ -260,7 +260,7 @@ The `AlertSourceReconciler` watches `AlertSource` CRDs and:
 - Updates `status` with health and throughput metrics
 
 The `AlertSourceReconciler` also watches `RemediationJob` objects. When an RJ it created
-reaches a terminal state with a `mendabot.io/pending-alert` annotation present, it handles
+reaches a terminal state with a `mechanic.io/pending-alert` annotation present, it handles
 the pending finding directly — no channel sharing with `RemediationJobReconciler` is required.
 See §11 for the pending-alert annotation pattern and §8 for the reconciler internals.
 
@@ -286,7 +286,7 @@ a new finding for that Deployment from any source is handled via the priority re
 path (§7), not by creating a second RJ.
 
 **Error texts are still stored and surfaced to the agent.** `RemediationJob.Spec.Finding.Errors`
-continues to hold the raw error JSON. A new annotation `mendabot.io/error-summary` is added
+continues to hold the raw error JSON. A new annotation `mechanic.io/error-summary` is added
 to the RJ for quick human inspection. The agent receives error texts via `FINDING_ERRORS`.
 
 **A new RJ is created when:** the existing RJ is in a terminal state (Succeeded or Failed)
@@ -324,8 +324,8 @@ The architecture imposes no hard ordering between external sources.
 When a finding arrives for resource R with resource fingerprint F and source priority P:
 
 ```
-1. Query RemediationJobs with label mendabot.io/resource-fingerprint=F[:12]
-   and full annotation mendabot.io/resource-fingerprint-full=F
+1. Query RemediationJobs with label mechanic.io/resource-fingerprint=F[:12]
+   and full annotation mechanic.io/resource-fingerprint-full=F
 
 2. If no active (non-Failed, non-Succeeded) RJ exists:
    → Proceed through the normal pipeline (stabilisation, cascade, readiness, create RJ)
@@ -348,10 +348,10 @@ When a finding arrives for resource R with resource fingerprint F and source pri
 The active RJ records its source priority so the resolution algorithm can compare:
 
 ```
-label:      mendabot.io/source-priority: "90"       # string form of int; indexed
-annotation: mendabot.io/source-type: "alertmanager"
-annotation: mendabot.io/resource-fingerprint-full: "<64-char sha256>"
-label:      mendabot.io/resource-fingerprint: "<fp[:12]>"   # existing pattern
+label:      mechanic.io/source-priority: "90"       # string form of int; indexed
+annotation: mechanic.io/source-type: "alertmanager"
+annotation: mechanic.io/resource-fingerprint-full: "<64-char sha256>"
+label:      mechanic.io/resource-fingerprint: "<fp[:12]>"   # existing pattern
 ```
 
 ---
@@ -371,7 +371,7 @@ Responsibilities:
   shared buffered channel
 - Drain the channel and run the priority resolution + dedup + create pipeline for each finding
 - Watch `RemediationJob` objects; when an RJ reaches a terminal state with a
-  `mendabot.io/pending-alert` annotation, create the new RJ from the pending finding directly
+  `mechanic.io/pending-alert` annotation, create the new RJ from the pending finding directly
   (no `FindingCh` is wired into `RemediationJobReconciler`)
 - Update `AlertSource.Status` with health and throughput information
 
@@ -414,7 +414,7 @@ intermittent `503`s and dropped alerts with no visible error.
 **Resolution options (choose one and document in Helm chart):**
 
 Option A (recommended): **Enable leader election.** Set `LeaderElection: true` and
-`LeaderElectionID: "mendabot-watcher"` in the manager options. Non-leader replicas will have
+`LeaderElectionID: "mechanic-watcher"` in the manager options. Non-leader replicas will have
 the webhook server running but the drain loop waiting. The `FindingCh` buffer (default 500)
 absorbs any burst between election and drain-start. The `503` risk is bounded to the leader
 failover window (typically <10s).
@@ -448,7 +448,7 @@ Native providers are configured via Helm values only. No `AlertSource` CRD is cr
 them. This keeps the zero-config getting-started experience intact.
 
 ```yaml
-# charts/mendabot/values.yaml
+# charts/mechanic/values.yaml
 nativeProviders:
   enabled: true          # global kill switch; false disables all six providers
   priority: 10           # source priority for all native findings
@@ -478,7 +478,7 @@ lower-priority RemediationJob, the incoming finding is stored as an annotation o
 active RJ rather than being silently dropped or triggering a second RJ.
 
 ```
-annotation key:   mendabot.io/pending-alert
+annotation key:   mechanic.io/pending-alert
 annotation value: <JSON-encoded Finding>
 ```
 
@@ -491,7 +491,7 @@ Higher-priority finding arrives
 Active lower-priority RJ found
         │
         ▼
-Serialize Finding → set annotation mendabot.io/pending-alert on active RJ
+Serialize Finding → set annotation mechanic.io/pending-alert on active RJ
         │
 Active RJ reaches terminal state (Succeeded or Failed)
         │
@@ -513,7 +513,7 @@ AlertSourceReconciler.handlePendingAlert(ctx, rj):
 pending-alert logic does not belong there. The `AlertSourceReconciler` already holds all
 necessary dependencies (dedup logic, readiness gate, `client.Client`). It uses a `Watches()`
 registration on `RemediationJob` objects with a predicate that fires only when an RJ with the
-`mendabot.io/pending-alert` annotation reaches a terminal phase. No `FindingCh` is wired
+`mechanic.io/pending-alert` annotation reaches a terminal phase. No `FindingCh` is wired
 into `RemediationJobReconciler` — it remains unchanged.
 
 **Annotation idempotency guarantee:**
@@ -608,7 +608,7 @@ type RemediationJobSpec struct {
     // ... existing fields unchanged ...
 
     // SourcePriority is the priority of the source that created this RJ.
-    // Used for cross-source deduplication. Stored as label mendabot.io/source-priority.
+    // Used for cross-source deduplication. Stored as label mechanic.io/source-priority.
     // +optional
     // +kubebuilder:default=0
     // +kubebuilder:validation:Minimum=0
@@ -664,7 +664,7 @@ sentinel value:
 ```go
 SourceResultRef: v1alpha1.ResultRef{
     Name:      as.Name,         // AlertSource CR name, e.g. "alertmanager"
-    Namespace: as.Namespace,    // AlertSource namespace, e.g. "mendabot"
+    Namespace: as.Namespace,    // AlertSource namespace, e.g. "mechanic"
 }
 ```
 
@@ -686,8 +686,8 @@ cleanup (see `ALERT_SOURCE_RECONCILER_LLD.md §3.2`).
 
 **Naming constraint:** `AlertSourceReconciler.Reconcile` disambiguates incoming reconcile
 requests by trying `Get(RemediationJob)` before `Get(AlertSource)`. Since `RemediationJob`
-names are always prefixed with `"mendabot-"` (e.g. `"mendabot-abc123def456"`), AlertSource
-CR names must not use the `"mendabot-"` prefix. This prefix is reserved for system-generated
+names are always prefixed with `"mechanic-"` (e.g. `"mechanic-abc123def456"`), AlertSource
+CR names must not use the `"mechanic-"` prefix. This prefix is reserved for system-generated
 `RemediationJob` names and is safe to enforce as a naming convention — human-configured
 AlertSource CRs like `"alertmanager"`, `"prod-alerts"`, or `"staging-pagerduty"` will never
 collide with it.
@@ -698,21 +698,21 @@ New labels on `RemediationJob`:
 
 | Label | Value | Purpose |
 |---|---|---|
-| `mendabot.io/resource-fingerprint` | `rfp[:12]` | Fast label-selector query for resource-level dedup |
-| `mendabot.io/source-priority` | `"90"` | Cross-source priority comparison |
+| `mechanic.io/resource-fingerprint` | `rfp[:12]` | Fast label-selector query for resource-level dedup |
+| `mechanic.io/source-priority` | `"90"` | Cross-source priority comparison |
 
 New annotations on `RemediationJob`:
 
 | Annotation | Value | Purpose |
 |---|---|---|
-| `mendabot.io/resource-fingerprint-full` | 64-char SHA256 | Exact resource fingerprint match |
-| `mendabot.io/source-type` | `"alertmanager"` | Human-readable source identification |
-| `mendabot.io/error-summary` | plain text | Quick human inspection without parsing JSON |
-| `mendabot.io/pending-alert` | JSON Finding | Higher-priority finding waiting for this RJ to complete |
+| `mechanic.io/resource-fingerprint-full` | 64-char SHA256 | Exact resource fingerprint match |
+| `mechanic.io/source-type` | `"alertmanager"` | Human-readable source identification |
+| `mechanic.io/error-summary` | plain text | Quick human inspection without parsing JSON |
+| `mechanic.io/pending-alert` | JSON Finding | Higher-priority finding waiting for this RJ to complete |
 
-The existing `remediation.mendabot.io/fingerprint` label and `spec.Fingerprint` field are
+The existing `remediation.mechanic.io/fingerprint` label and `spec.Fingerprint` field are
 **retained unchanged** for backward compatibility during migration. Both fingerprints are set
-on every new RJ. The v2 dedup query uses the new `mendabot.io/resource-fingerprint` label
+on every new RJ. The v2 dedup query uses the new `mechanic.io/resource-fingerprint` label
 first, with a fallback to the old label for RJs created before v2. See `FINGERPRINT_LLD.md §6`
 for the full migration strategy.
 
@@ -728,12 +728,12 @@ the `AlertSource` CR and note that correlation operates on the RJ level, not the
 
 ## 15. RBAC Changes
 
-### New ClusterRole additions for mendabot-watcher
+### New ClusterRole additions for mechanic-watcher
 
 | Resource | Verbs | Reason |
 |---|---|---|
-| `alertsources.mendabot.io` | `get`, `list`, `watch`, `update`, `patch` | AlertSourceReconciler watches CRs and updates status |
-| `alertsources.mendabot.io/status` | `get`, `patch`, `update` | Status subresource updates |
+| `alertsources.mechanic.io` | `get`, `list`, `watch`, `update`, `patch` | AlertSourceReconciler watches CRs and updates status |
+| `alertsources.mechanic.io/status` | `get`, `patch`, `update` | Status subresource updates |
 
 ### New Service
 
@@ -760,7 +760,7 @@ webhookService:
 
 ```
 1. Alertmanager fires KubeDeploymentReplicasMismatch for deployment=test-broken-image
-   → POST http://mendabot.mendabot.svc:8082/webhook/v1/alertmanager
+   → POST http://mechanic.mechanic.svc:8082/webhook/v1/alertmanager
      body: { "alerts": [{ "labels": { "alertname": "KubeDeploymentReplicasMismatch",
                                        "namespace": "default",
                                        "deployment": "test-broken-image", ... },
@@ -786,18 +786,18 @@ webhookService:
 
 3. AlertSourceReconciler drains channel
    → resource fingerprint = SHA256("default" + "Deployment" + "Deployment/test-broken-image")
-   → query RemediationJobs with label mendabot.io/resource-fingerprint=<fp[:12]>
+   → query RemediationJobs with label mechanic.io/resource-fingerprint=<fp[:12]>
    → none found
    → cascade check (node healthy, namespace not saturated) → pass
    → readiness gate (GitHub secret + LLM) → pass
-   → create RemediationJob "mendabot-<fp[:12]>"
+   → create RemediationJob "mechanic-<fp[:12]>"
        labels:
-         mendabot.io/resource-fingerprint: <fp[:12]>
-         mendabot.io/source-priority: "90"
+         mechanic.io/resource-fingerprint: <fp[:12]>
+         mechanic.io/source-priority: "90"
        annotations:
-         mendabot.io/resource-fingerprint-full: <64-char fp>
-         mendabot.io/source-type: "alertmanager"
-         mendabot.io/error-summary: "KubeDeploymentReplicasMismatch: deployment=test-broken-image"
+         mechanic.io/resource-fingerprint-full: <64-char fp>
+         mechanic.io/source-type: "alertmanager"
+         mechanic.io/error-summary: "KubeDeploymentReplicasMismatch: deployment=test-broken-image"
        spec:
          fingerprint: <same fp>           ← backward compat
          sourcePriority: 90
@@ -832,7 +832,7 @@ webhookService:
 2. 30s later, Alertmanager fires for same deployment
    → AlertSourceReconciler: resource fingerprint found → active RJ with priority 10 exists
    → incoming priority 90 > 10
-   → annotate active RJ: mendabot.io/pending-alert = <JSON of alert Finding>
+   → annotate active RJ: mechanic.io/pending-alert = <JSON of alert Finding>
 
 3. Active RJ (native, priority 10) runs to completion
    → agent opens PR (or fails)
@@ -936,16 +936,16 @@ The following components are **unchanged** in v2. The v1 LLDs remain authoritati
 
 1. **Generate `AlertSource` CRD YAML** from kubebuilder markers in `api/v1alpha1/alertsource_types.go`.
    Run `make generate manifests` to produce the CRD YAML. Add the CRD YAML to
-   `charts/mendabot/crds/` and commit it. The `AlertSourceReconciler` cannot be registered
+   `charts/mechanic/crds/` and commit it. The `AlertSourceReconciler` cannot be registered
    with the manager until this CRD is installed in the cluster.
 
-2. **Register `mendabot.io/v1alpha1` scheme** in `main.go`. The `AlertSource` type lives under
-   the `mendabot.io` API group (distinct from `remediation.mendabot.io` used by `RemediationJob`).
+2. **Register `mechanic.io/v1alpha1` scheme** in `main.go`. The `AlertSource` type lives under
+   the `mechanic.io` API group (distinct from `remediation.mechanic.io` used by `RemediationJob`).
    A separate `AddAlertSourceToScheme` function must be called at startup. If omitted,
    controller-runtime will panic when setting up the `AlertSourceReconciler`.
 
 3. **Enable leader election** in `main.go`. Change `LeaderElection: false` →
-   `LeaderElection: true, LeaderElectionID: "mendabot-watcher"`. Required for correct
+   `LeaderElection: true, LeaderElectionID: "mechanic-watcher"`. Required for correct
    multi-replica behavior (webhook server runs on all replicas; drain loop runs on leader only).
    See §9 for the full rationale.
 
@@ -981,12 +981,12 @@ The following components are **unchanged** in v2. The v1 LLDs remain authoritati
 7. **Add new constants file** `api/v1alpha1/annotations.go` with:
    ```go
    const (
-       AnnotationPendingAlert            = "mendabot.io/pending-alert"
-       AnnotationResourceFingerprintFull = "mendabot.io/resource-fingerprint-full"
-       AnnotationSourceType              = "mendabot.io/source-type"
-       AnnotationErrorSummary            = "mendabot.io/error-summary"
-       LabelResourceFingerprint          = "mendabot.io/resource-fingerprint"
-       LabelSourcePriority               = "mendabot.io/source-priority"
+       AnnotationPendingAlert            = "mechanic.io/pending-alert"
+       AnnotationResourceFingerprintFull = "mechanic.io/resource-fingerprint-full"
+       AnnotationSourceType              = "mechanic.io/source-type"
+       AnnotationErrorSummary            = "mechanic.io/error-summary"
+       LabelResourceFingerprint          = "mechanic.io/resource-fingerprint"
+       LabelSourcePriority               = "mechanic.io/source-priority"
    )
    ```
    These are referenced throughout `AlertSourceReconciler` and `SourceProviderReconciler`.
@@ -995,10 +995,10 @@ The following components are **unchanged** in v2. The v1 LLDs remain authoritati
 8. **Update `SourceProviderReconciler` (`internal/provider/provider.go`)** to:
    - Rename the existing `FindingFingerprint` call to `FindingFingerprintV1` (for `Spec.Fingerprint`)
    - Call the new `FindingFingerprint` (resource-only) for `Spec.ResourceFingerprint`
-   - Add `mendabot.io/resource-fingerprint`, `mendabot.io/source-priority` labels and
-     `mendabot.io/resource-fingerprint-full` annotation to every created RJ
-   - Update the dedup query to use `mendabot.io/resource-fingerprint` label first, with
-     fallback to `remediation.mendabot.io/fingerprint` for pre-v2 RJs
+   - Add `mechanic.io/resource-fingerprint`, `mechanic.io/source-priority` labels and
+     `mechanic.io/resource-fingerprint-full` annotation to every created RJ
+   - Update the dedup query to use `mechanic.io/resource-fingerprint` label first, with
+     fallback to `remediation.mechanic.io/fingerprint` for pre-v2 RJs
    See `FINGERPRINT_LLD.md §4.1` for the full pseudocode.
 
    **CRITICAL — this step MUST be committed in the same commit as step 4 above (extending
@@ -1026,22 +1026,22 @@ Step 0f: *** MUST BE IN THE SAME COMMIT AS STEP 0b ***
          Update internal/provider/provider.go:
            - Rename FindingFingerprint call → FindingFingerprintV1 (for Spec.Fingerprint)
            - Call new FindingFingerprint (resource-only) for Spec.ResourceFingerprint
-           - Update dedup query to use mendabot.io/resource-fingerprint label (v2 primary)
-             with v1 fallback query (remediation.mendabot.io/fingerprint label)
-           - Add mendabot.io/resource-fingerprint, mendabot.io/source-priority labels
-             and mendabot.io/resource-fingerprint-full annotation to every created RJ
+           - Update dedup query to use mechanic.io/resource-fingerprint label (v2 primary)
+             with v1 fallback query (remediation.mechanic.io/fingerprint label)
+           - Add mechanic.io/resource-fingerprint, mechanic.io/source-priority labels
+             and mechanic.io/resource-fingerprint-full annotation to every created RJ
          CRITICAL: Steps 0b and 0f MUST be a single atomic commit. If Step 0b (which
          renames domain.FindingFingerprint → FindingFingerprintV1 and adds the new
          resource-only FindingFingerprint) is committed without 0f, then provider.go:162
          silently calls the new resource-only FindingFingerprint. The dedup query at
          provider.go:254 then uses the v2 resource fingerprint prefix to query a label
-         (remediation.mendabot.io/fingerprint) that holds v1 fingerprint prefixes on
+         (remediation.mechanic.io/fingerprint) that holds v1 fingerprint prefixes on
          existing RJs. The query finds nothing. Active native RJs are invisible to dedup
          and duplicate RJs are created for every reconcile until 0f is applied. This
          regression is silent — no compile error, no panic, just silent duplicate creation.
 
 Step 1a: Write alertsource_types.go (AlertSource CRD Go types) and AddAlertSourceToScheme
-Step 1b: Run make generate manifests → add CRD YAML to charts/mendabot/crds/
+Step 1b: Run make generate manifests → add CRD YAML to charts/mechanic/crds/
 
 Step 2a: Write internal/provider/alertsource/dynamic_mux.go
 Step 2b: Write internal/provider/alertsource/resource.go (resolveResource helper)
@@ -1063,7 +1063,7 @@ Step 6:  Update agent-entrypoint.sh and prompt template
 ### In scope for v2
 
 - `AlertSource` CRD definition and schema (kubebuilder markers + generated YAML)
-- Scheme registration for `mendabot.io/v1alpha1`
+- Scheme registration for `mechanic.io/v1alpha1`
 - `AlertSourceReconciler` (CR lifecycle, webhook registration, polling, finding channel drain,
   pending-alert handling via RemediationJob Watch)
 - `DynamicMux` — thread-safe custom HTTP handler for dynamic webhook path registration

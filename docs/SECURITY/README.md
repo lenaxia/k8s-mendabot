@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This folder contains the security review process for mendabot. Every review is
+This folder contains the security review process for mechanic. Every review is
 repeatable, consistent, and produces an evidence-based report. The process is
 designed to be run periodically, after major changes, or before any production
 deployment.
@@ -12,7 +12,7 @@ deployment.
 | File / Folder | Purpose |
 |---------------|---------|
 | [README.md](README.md) | This file — overview and quick-start |
-| [THREAT_MODEL.md](THREAT_MODEL.md) | Authoritative threat model for mendabot |
+| [THREAT_MODEL.md](THREAT_MODEL.md) | Authoritative threat model for mechanic |
 | [PROCESS.md](PROCESS.md) | Step-by-step repeatable review process |
 | [CHECKLIST.md](CHECKLIST.md) | Tick-off checklist — one copy per review run |
 | [REPORT_TEMPLATE/](REPORT_TEMPLATE/) | Template folder — copy to start a new report |

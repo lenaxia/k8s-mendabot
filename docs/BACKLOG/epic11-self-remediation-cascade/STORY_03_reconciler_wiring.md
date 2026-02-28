@@ -9,7 +9,7 @@
 
 ## User Story
 
-As a **mendabot operator**, I want the watcher to respect a maximum
+As a **mechanic operator**, I want the watcher to respect a maximum
 self-remediation depth and a cooldown period, so that a broken agent image
 cannot loop indefinitely or exhaust my LLM quota.
 
@@ -202,7 +202,7 @@ if cfg.SelfRemediationCooldown > 0 {
 Add `CircuitBreaker: cb` to every `SourceProviderReconciler` literal in the
 provider loop.
 
-Add the import `"github.com/lenaxia/k8s-mendabot/internal/circuitbreaker"`.
+Add the import `"github.com/lenaxia/k8s-mechanic/internal/circuitbreaker"`.
 
 ---
 

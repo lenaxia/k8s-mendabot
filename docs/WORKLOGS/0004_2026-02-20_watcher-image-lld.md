@@ -51,7 +51,7 @@ Verified WATCHER_IMAGE_LLD against HLD §4.1 and DEPLOY_LLD §8:
 
 | Check | Result |
 |---|---|
-| Image name `ghcr.io/lenaxia/mendabot-watcher:latest` | ✅ Match |
+| Image name `ghcr.io/lenaxia/mechanic-watcher:latest` | ✅ Match |
 | Ports 8080 (metrics) and 8081 (healthz/readyz) | ✅ Match |
 | securityContext fields (runAsUser 1000, readOnlyRootFilesystem, allowPrivilegeEscalation false, capabilities ALL drop) | ✅ Match |
 | Configuration via env vars (no flags) | ✅ Consistent with DEPLOY_LLD §8 env block |

@@ -8,7 +8,7 @@
 
 ## User Story
 
-As a **mendabot operator**, I want the CI pipeline to verify after every agent image
+As a **mechanic operator**, I want the CI pipeline to verify after every agent image
 build that all wrappers are present, that output containing known secret patterns is
 redacted, and that the original tool exit codes are preserved, so that any regression
 in the wrapper layer is caught in CI.
@@ -210,7 +210,7 @@ Add after the existing smoke test step:
 - name: Wrapper test
   run: |
     chmod +x docker/scripts/wrapper-test.sh
-    docker/scripts/wrapper-test.sh ghcr.io/lenaxia/mendabot-agent:sha-${{ steps.sha.outputs.short }}
+    docker/scripts/wrapper-test.sh ghcr.io/lenaxia/mechanic-agent:sha-${{ steps.sha.outputs.short }}
 ```
 
 ---

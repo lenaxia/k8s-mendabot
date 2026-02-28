@@ -15,17 +15,17 @@ through env vars (`GITHUB_APP_ID`, `GITHUB_APP_INSTALLATION_ID`, `GITHUB_APP_PRI
 The watcher Deployment currently does NOT mount this Secret — it has no need to call
 GitHub today. After epic26, the watcher needs these credentials to auto-close PRs.
 
-The Helm chart (`charts/mendabot/templates/deployment-watcher.yaml`) is the canonical
+The Helm chart (`charts/mechanic/templates/deployment-watcher.yaml`) is the canonical
 deployment path. Kustomize overlays in `deploy/overlays/` are secondary.
 
 ## Acceptance Criteria
 
-- [x] `charts/mendabot/templates/deployment-watcher.yaml` adds:
+- [x] `charts/mechanic/templates/deployment-watcher.yaml` adds:
       - `PR_AUTO_CLOSE` env var from `values.yaml`
       - `GITHUB_APP_ID`, `GITHUB_APP_INSTALLATION_ID`, `GITHUB_APP_PRIVATE_KEY` env
-        vars sourced from `secretRef: { name: mendabot-github-app }` (same Secret the
+        vars sourced from `secretRef: { name: mechanic-github-app }` (same Secret the
         agent uses)
-- [x] `charts/mendabot/values.yaml` adds `watcher.prAutoClose: true`
+- [x] `charts/mechanic/values.yaml` adds `watcher.prAutoClose: true`
 - [x] Secret mount is **required** (no `optional: true`): watcher pod will not start if
       the Secret is absent — this is a hard misconfiguration, not a graceful degradation
 - [x] `main.go` wiring does NOT include a graceful fallback for missing credentials:
@@ -36,7 +36,7 @@ deployment path. Kustomize overlays in `deploy/overlays/` are secondary.
 
 ## Implementation Notes
 
-### charts/mendabot/values.yaml
+### charts/mechanic/values.yaml
 
 Add under `watcher:`:
 
@@ -46,7 +46,7 @@ Add under `watcher:`:
   prAutoClose: true
 ```
 
-### charts/mendabot/templates/deployment-watcher.yaml
+### charts/mechanic/templates/deployment-watcher.yaml
 
 After the existing `DISABLE_CASCADE_CHECK` env var block, add:
 
@@ -55,7 +55,7 @@ After the existing `DISABLE_CASCADE_CHECK` env var block, add:
           value: {{ .Values.watcher.prAutoClose | quote }}
         envFrom:
         - secretRef:
-            name: mendabot-github-app
+            name: mechanic-github-app
 ```
 
 Wait — `envFrom` must be a sibling of `env` on the container spec, not nested inside
@@ -71,10 +71,10 @@ Wait — `envFrom` must be a sibling of `env` on the container spec, not nested 
             value: {{ .Values.watcher.prAutoClose | quote }}
         envFrom:
         - secretRef:
-            name: mendabot-github-app
+            name: mechanic-github-app
 ```
 
-The Secret `mendabot-github-app` must contain these keys (same as used by the agent):
+The Secret `mechanic-github-app` must contain these keys (same as used by the agent):
 - `GITHUB_APP_ID`
 - `GITHUB_APP_INSTALLATION_ID`
 - `GITHUB_APP_PRIVATE_KEY`
@@ -147,8 +147,8 @@ Fail fast; let the operator fix the Secret.
 
 | File | Change |
 |------|--------|
-| `charts/mendabot/templates/deployment-watcher.yaml` | Add `PR_AUTO_CLOSE` env var; add `envFrom` for GitHub App Secret |
-| `charts/mendabot/values.yaml` | Add `watcher.prAutoClose: true` |
+| `charts/mechanic/templates/deployment-watcher.yaml` | Add `PR_AUTO_CLOSE` env var; add `envFrom` for GitHub App Secret |
+| `charts/mechanic/values.yaml` | Add `watcher.prAutoClose: true` |
 | `cmd/watcher/main.go` | Wire `GitHubAppTokenProvider` + `GitHubSinkCloser`; pass `SinkCloser` to reconciler |
 
 ## TDD Sequence
@@ -157,7 +157,7 @@ This story is primarily manifest and wiring work, not business logic. There are 
 unit tests for the YAML itself. Validate with:
 
 ```bash
-helm template charts/mendabot | kubectl apply --dry-run=client -f -
+helm template charts/mechanic | kubectl apply --dry-run=client -f -
 go build ./...
 ```
 

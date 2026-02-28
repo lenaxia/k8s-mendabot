@@ -9,7 +9,7 @@
 ## Objective
 
 Update the public README to reflect the post-epic09 native provider architecture, and
-design the Helm chart that will allow external users to deploy mendabot — including all
+design the Helm chart that will allow external users to deploy mechanic — including all
 configuration knobs, the bjw-s common library integration strategy, CRD upgrade
 automation, prompt file management, and self-remediation capabilities.
 
@@ -36,7 +36,7 @@ Commits: `6a5eb1b`, `af8f845`, `8e3e28c`, `7da8842`
 
 ### 2. Helm chart architecture design
 
-Decided to create a Helm chart at `charts/mendabot/` using the bjw-s common library
+Decided to create a Helm chart at `charts/mechanic/` using the bjw-s common library
 (`common` v4.6.2) as a dependency.
 
 **Integration strategy:**
@@ -96,8 +96,8 @@ metrics.serviceMonitor.enabled / interval / scrapeTimeout / labels
 
 ### 4. Self-remediation capability design
 
-Mendabot can analyze its own component failures up to a configurable depth, and open
-upstream PRs to the mendabot repository when it identifies a mendabot bug vs. a user
+Mechanic can analyze its own component failures up to a configurable depth, and open
+upstream PRs to the mechanic repository when it identifies a mechanic bug vs. a user
 config issue.
 
 **New env vars injected into watcher:**
@@ -106,15 +106,15 @@ config issue.
 |---|---|---|
 | `SELF_REMEDIATION_ENABLED` | `selfRemediation.enabled` | `false` |
 | `SELF_REMEDIATION_MAX_DEPTH` | `selfRemediation.maxDepth` | `1` |
-| `SELF_REMEDIATION_UPSTREAM_REPO` | `selfRemediation.upstreamRepo` | `lenaxia/k8s-mendabot` |
+| `SELF_REMEDIATION_UPSTREAM_REPO` | `selfRemediation.upstreamRepo` | `lenaxia/k8s-mechanic` |
 
-**Depth semantics:** depth 1 means mendabot can investigate and fix mendabot, but any
-agent Job spawned for a mendabot failure will not itself spawn further Jobs for
-mendabot failures. This prevents infinite investigation loops.
+**Depth semantics:** depth 1 means mechanic can investigate and fix mechanic, but any
+agent Job spawned for a mechanic failure will not itself spawn further Jobs for
+mechanic failures. This prevents infinite investigation loops.
 
-**Two-target model for agent:** when handling a mendabot failure, the agent determines
+**Two-target model for agent:** when handling a mechanic failure, the agent determines
 whether the root cause is a user configuration error (→ PR on user's GitOps repo) or a
-mendabot bug (→ PR on `SELF_REMEDIATION_UPSTREAM_REPO`). This requires the agent prompt
+mechanic bug (→ PR on `SELF_REMEDIATION_UPSTREAM_REPO`). This requires the agent prompt
 to be aware of the distinction; a dedicated `self-remediation` prompt variant is the
 right long-term approach.
 
@@ -122,10 +122,10 @@ right long-term approach.
 
 ## Key Decisions
 
-- **`charts/mendabot/` not `deploy/helm/`**: charts live in `charts/` for Helm repository
+- **`charts/mechanic/` not `deploy/helm/`**: charts live in `charts/` for Helm repository
   packaging conventions (Chart Releaser Action expects this layout).
 - **bjw-s common v4.6.2**: latest stable; requires Kubernetes ≥ 1.28.0 which aligns with
-  mendabot's own requirement.
+  mechanic's own requirement.
 - **Custom RBAC templates over bjw-s `rbac`**: the dual-SA setup (watcher ClusterRole +
   namespaced Role; agent ClusterRole + namespaced Role) is complex enough that raw YAML
   templates are clearer than the bjw-s RBAC DSL.
@@ -143,10 +143,10 @@ None. Design is complete. Implementation deferred to next session.
 
 ## Next Steps
 
-- Create `charts/mendabot/` directory structure
+- Create `charts/mechanic/` directory structure
 - Write `Chart.yaml`, `values.yaml`, `_helpers.tpl`
-- Copy CRD to `charts/mendabot/crds/`
-- Move prompt to `charts/mendabot/files/prompts/default.txt`
+- Copy CRD to `charts/mechanic/crds/`
+- Move prompt to `charts/mechanic/files/prompts/default.txt`
 - Write all templates (Deployment via bjw-s, custom RBAC, prompt ConfigMap, CRD hook)
 - Run `helm dep update` and `helm lint`
 - Update README with Helm install instructions

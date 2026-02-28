@@ -1,4 +1,4 @@
-# mendabot Feature Tracker
+# mechanic Feature Tracker
 
 **Last Updated:** 2026-02-25
 **Purpose:** Product-level backlog for features beyond the current epic roadmap. Covers
@@ -78,7 +78,7 @@ enumerate all workload namespaces.
 - Filtering happens at the reconciler level, not the provider level, so providers remain
   namespace-unaware (consistent with the existing design)
 
-**Acceptance signal:** Operator can deploy mendabot with
+**Acceptance signal:** Operator can deploy mechanic with
 `EXCLUDE_NAMESPACES=kube-system,cert-manager,monitoring` and see zero noise from those
 namespaces.
 
@@ -93,13 +93,13 @@ or resources under active manual investigation.
 **Proposed solution:** Two annotations checked by `ExtractFinding` in each provider:
 
 ```yaml
-mendabot.io/enabled: "false"         # suppress all findings for this resource
-mendabot.io/skip-until: "2026-03-01" # suppress until ISO-8601 date (time-boxed suppression)
-mendabot.io/priority: "critical"     # skip stabilisation window; dispatch immediately
+mechanic.io/enabled: "false"         # suppress all findings for this resource
+mechanic.io/skip-until: "2026-03-01" # suppress until ISO-8601 date (time-boxed suppression)
+mechanic.io/priority: "critical"     # skip stabilisation window; dispatch immediately
 ```
 
-`mendabot.io/enabled: "false"` causes `ExtractFinding` to return `(nil, nil)`
-immediately. `mendabot.io/priority: "critical"` is checked by `SourceProviderReconciler`
+`mechanic.io/enabled: "false"` causes `ExtractFinding` to return `(nil, nil)`
+immediately. `mechanic.io/priority: "critical"` is checked by `SourceProviderReconciler`
 before the stabilisation window logic — if present, the window is bypassed.
 
 **Implementation notes:**
@@ -187,7 +187,7 @@ a new `RemediationJob` is created for a fingerprint that previously had a
 the new object's annotations:
 
 ```yaml
-mendabot.io/prior-investigations: |
+mechanic.io/prior-investigations: |
   [{"fingerprint":"a3f9c...","prRef":"https://github.com/.../pull/42","phase":"Succeeded","completedAt":"2026-02-20T10:00:00Z"}]
 ```
 
@@ -249,28 +249,28 @@ providers.
 The `Finding.Kind` would be `"HelmRelease"` or `"Kustomization"`. The agent already
 has `flux` and `helm` available for investigation.
 
-This makes mendabot useful for GitOps hygiene, not just runtime failures — a distinct
+This makes mechanic useful for GitOps hygiene, not just runtime failures — a distinct
 new category of value.
 
 ---
 
 ### FT-A8 — False-positive feedback annotation
 
-**Problem:** With no feedback mechanism, mendabot has no way to learn which findings
+**Problem:** With no feedback mechanism, mechanic has no way to learn which findings
 produce useful investigations and which are noise. Operators manually closing PRs is
 invisible to the system.
 
 **Proposed solution:** Two kubectl-settable annotations on `RemediationJob`:
 
 ```
-mendabot.io/feedback: "false-positive"   # this finding was noise; suppress similar
-mendabot.io/feedback: "incorrect-fix"    # finding was real but fix was wrong
-mendabot.io/feedback: "correct"          # finding and fix were both right
+mechanic.io/feedback: "false-positive"   # this finding was noise; suppress similar
+mechanic.io/feedback: "incorrect-fix"    # finding was real but fix was wrong
+mechanic.io/feedback: "correct"          # finding and fix were both right
 ```
 
 When `false-positive` is set:
 - The `SourceProviderReconciler` stores the fingerprint in a `SuppressedFingerprints`
-  ConfigMap in the `mendabot` namespace
+  ConfigMap in the `mechanic` namespace
 - Future findings with the same fingerprint are suppressed without creating a
   `RemediationJob`
 
@@ -288,7 +288,7 @@ can be removed to re-enable future investigations.
 
 **Status: Complete (epic18, 2026-02-25)**
 
-HARD RULE 10 added to `charts/mendabot/files/prompts/core.txt`. Validation is mandatory
+HARD RULE 10 added to `charts/mechanic/files/prompts/core.txt`. Validation is mandatory
 before any `git commit`, covering three cases: plain YAML (Case A), Kustomize overlays
 (Case B), and Helm values (Case C). Fallback when kubeconform exits non-zero: empty-commit
 placeholder PR with `## Validation Errors` section, labels `validation-failed` +
@@ -377,7 +377,7 @@ patch conflicts.
 ```go
 ctrl.Options{
     LeaderElection:          true,
-    LeaderElectionID:        "mendabot-watcher-leader",
+    LeaderElectionID:        "mechanic-watcher-leader",
     LeaderElectionNamespace: cfg.AgentNamespace,
 }
 ```
@@ -440,7 +440,7 @@ to one full window duration after each restart.
 watched object itself:
 
 ```
-mendabot.io/first-seen: "2026-02-22T10:00:00Z"
+mechanic.io/first-seen: "2026-02-22T10:00:00Z"
 ```
 
 `SourceProviderReconciler` reads this annotation on reconcile instead of consulting
@@ -474,7 +474,7 @@ this time.
 - If exit code is a known LLM-timeout pattern and 3 consecutive Jobs have failed
   within the last 30 minutes: open the circuit
 - While circuit is open: stop dispatching new Jobs; set a
-  `mendabot.io/circuit-open-until` annotation on the watcher Deployment; emit a
+  `mechanic.io/circuit-open-until` annotation on the watcher Deployment; emit a
   Kubernetes Event on the watcher Deployment
 - After `CIRCUIT_BREAKER_COOLDOWN` seconds (default: 300), close the circuit and
   resume dispatch
@@ -487,20 +487,20 @@ internal error). The entrypoint script needs to be updated to use structured exi
 
 ### FT-R7 — Self-remediation cascade prevention
 
-**Problem:** When mendabot's own agent jobs fail, they trigger new investigations into why
-mendabot failed. These investigations can themselves fail, creating an infinite cascade
+**Problem:** When mechanic's own agent jobs fail, they trigger new investigations into why
+mechanic failed. These investigations can themselves fail, creating an infinite cascade
 that burns LLM quota and fills the namespace with failed Jobs.
 
 **Proposed solution:** A multi-layered cascade prevention system:
 
-1. **Self-remediation detection:** Identify mendabot agent jobs via label
-   `app.kubernetes.io/managed-by: mendabot-watcher`
+1. **Self-remediation detection:** Identify mechanic agent jobs via label
+   `app.kubernetes.io/managed-by: mechanic-watcher`
 2. **Chain depth tracking:** Increment depth counter on each self-remediation level,
    enforce configurable maximum depth (`SELF_REMEDIATION_MAX_DEPTH`)
 3. **Circuit breaker:** Persistent cooldown between self-remediations using ConfigMap
    state (`SELF_REMEDIATION_COOLDOWN_SECONDS`)
-4. **Upstream routing:** Self-remediations at depth ≥ 2 target upstream mendabot
-   repository for bug reporting (`MENDABOT_UPSTREAM_REPO`)
+4. **Upstream routing:** Self-remediations at depth ≥ 2 target upstream mechanic
+   repository for bug reporting (`MECHANIC_UPSTREAM_REPO`)
 
 **Implementation status:** Complete in epic11. Includes:
 - Thread-safe circuit breaker with ConfigMap persistence
@@ -520,7 +520,7 @@ that burns LLM quota and fills the namespace with failed Jobs.
 | FT-U3 | Kubernetes Events on RemediationJob | ★★ | ● | Complete (epic21) |
 | FT-U4 | Prompt version annotation on RemediationJob | ★★ | ● | Evaluated |
 | FT-U5 | Slack / webhook notification on PR open | ★★ | ●● | Evaluated |
-| FT-U6 | kubectl plugin (`kubectl mendabot`) | ★ | ●●● | Deferred |
+| FT-U6 | kubectl plugin (`kubectl mechanic`) | ★ | ●●● | Deferred |
 | FT-U7 | Operator documentation site | ★★ | ●● | Idea |
 | FT-U8 | Dry-run mode (investigate but do not open PRs) | ★★★ | ● | Complete (epic20) |
 
@@ -554,9 +554,9 @@ detect un-regenerated CRDs. A drift in generated files fails the CI build.
 
 ### FT-U2 — Prometheus metrics for watcher
 
-**Problem:** There is currently no observability into mendabot's operation beyond
-Kubernetes Events and log lines. Operators running mendabot in production cannot
-build dashboards or alerts on mendabot's own health.
+**Problem:** There is currently no observability into mechanic's operation beyond
+Kubernetes Events and log lines. Operators running mechanic in production cannot
+build dashboards or alerts on mechanic's own health.
 
 **Proposed solution:** Add controller-runtime metrics registration to the watcher.
 controller-runtime already exposes its default metrics on `:8080`. Register custom
@@ -564,15 +564,15 @@ counters alongside them:
 
 | Metric | Type | Labels | Description |
 |---|---|---|---|
-| `mendabot_findings_total` | Counter | `provider`, `kind`, `severity` | Findings extracted by providers |
-| `mendabot_findings_suppressed_total` | Counter | `provider`, `reason` | Findings suppressed (dedup, annotation, cascade) |
-| `mendabot_stabilisation_window_active` | Gauge | `provider` | Findings currently in the stabilisation window |
-| `mendabot_remediationjobs_created_total` | Counter | `source_type` | RemediationJobs created |
-| `mendabot_remediationjobs_terminal_total` | Counter | `phase` | RemediationJobs reaching a terminal phase |
-| `mendabot_agent_jobs_active` | Gauge | — | Currently active batch/v1 agent Jobs |
-| `mendabot_agent_job_duration_seconds` | Histogram | `phase` | Job duration from Dispatched to terminal |
-| `mendabot_pr_opened_total` | Counter | — | PRs successfully opened by the agent |
-| `mendabot_circuit_breaker_open` | Gauge | — | 1 if circuit breaker is open, 0 otherwise |
+| `mechanic_findings_total` | Counter | `provider`, `kind`, `severity` | Findings extracted by providers |
+| `mechanic_findings_suppressed_total` | Counter | `provider`, `reason` | Findings suppressed (dedup, annotation, cascade) |
+| `mechanic_stabilisation_window_active` | Gauge | `provider` | Findings currently in the stabilisation window |
+| `mechanic_remediationjobs_created_total` | Counter | `source_type` | RemediationJobs created |
+| `mechanic_remediationjobs_terminal_total` | Counter | `phase` | RemediationJobs reaching a terminal phase |
+| `mechanic_agent_jobs_active` | Gauge | — | Currently active batch/v1 agent Jobs |
+| `mechanic_agent_job_duration_seconds` | Histogram | `phase` | Job duration from Dispatched to terminal |
+| `mechanic_pr_opened_total` | Counter | — | PRs successfully opened by the agent |
+| `mechanic_circuit_breaker_open` | Gauge | — | 1 if circuit breaker is open, 0 otherwise |
 
 A `ServiceMonitor` CRD resource in the deploy manifests (optional, gated by a
 `metrics/` kustomize overlay) allows Prometheus Operator to scrape these metrics.
@@ -592,11 +592,11 @@ reconcilers to emit structured Events:
 | Event | Reason | Message |
 |---|---|---|
 | RemediationJob created | `FindingDetected` | `Provider native detected Pod/my-app in namespace default` |
-| Job dispatched | `JobDispatched` | `Created agent Job mendabot-agent-a3f9c2b14d8e` |
+| Job dispatched | `JobDispatched` | `Created agent Job mechanic-agent-a3f9c2b14d8e` |
 | Job completed | `JobSucceeded` | `Agent Job completed; PR opened: https://github.com/.../pull/42` |
 | Job failed | `JobFailed` | `Agent Job failed after 2 attempts: deadline exceeded` |
 | Cancelled | `SourceDeleted` | `Source object deleted; investigation cancelled` |
-| Dedup skip | `DuplicateFingerprint` | `Existing RemediationJob mendabot-a3f9c2b14d8e already covers this finding` |
+| Dedup skip | `DuplicateFingerprint` | `Existing RemediationJob mechanic-a3f9c2b14d8e already covers this finding` |
 
 After this change, `kubectl describe rjob` shows the full lifecycle timeline in the
 Events section — no log diving required for routine diagnosis.
@@ -616,8 +616,8 @@ reads the `opencode-prompt` ConfigMap's `resourceVersion` and records it on the
 
 ```yaml
 annotations:
-  mendabot.io/prompt-configmap-version: "12345"   # ConfigMap resourceVersion at dispatch time
-  mendabot.io/agent-image: "ghcr.io/lenaxia/mendabot-agent:sha-abc1234"
+  mechanic.io/prompt-configmap-version: "12345"   # ConfigMap resourceVersion at dispatch time
+  mechanic.io/agent-image: "ghcr.io/lenaxia/mechanic-agent:sha-abc1234"
 ```
 
 These annotations are immutable after the Job is dispatched. This makes the
@@ -638,7 +638,7 @@ payload:
 
 ```json
 {
-  "text": "mendabot opened PR #42: fix(Pod/my-app): CrashLoopBackOff in production",
+  "text": "mechanic opened PR #42: fix(Pod/my-app): CrashLoopBackOff in production",
   "pr_url": "https://github.com/.../pull/42",
   "finding": {"kind": "Pod", "parent": "my-app", "namespace": "production", "severity": "high"},
   "fingerprint": "a3f9c2b14d8e...",
@@ -658,14 +658,14 @@ prompt free of notification logic.
 
 ### FT-U8 — Dry-run mode (investigate but do not open PRs)
 
-**Problem:** Operators evaluating mendabot on a production cluster, or testing a new
-prompt version, need a way to see what mendabot would do without opening PRs. There is
+**Problem:** Operators evaluating mechanic on a production cluster, or testing a new
+prompt version, need a way to see what mechanic would do without opening PRs. There is
 currently no such mode.
 
 **Proposed solution:** A `DRY_RUN=true` env var on the watcher Deployment. When set:
 - `RemediationJob` objects are created as normal (so dedup works and the investigation
   runs)
-- A `mendabot.io/dry-run: "true"` annotation is added to the `RemediationJob`
+- A `mechanic.io/dry-run: "true"` annotation is added to the `RemediationJob`
 - The agent Job's prompt is augmented with an additional HARD RULE:
   `HARD RULE 0 — DRY RUN MODE: Do NOT open a PR and do NOT comment on any PR. Complete
    your investigation and write your full findings to /workspace/investigation-report.txt
@@ -673,7 +673,7 @@ currently no such mode.
 - The watcher reads `/workspace/investigation-report.txt` from the Job's logs (via
   `kubectl logs`) and stores it in `RemediationJob.status.message` (truncated to 4KB)
 
-This lets operators run mendabot in shadow mode: they can `kubectl get rjob` and read
+This lets operators run mechanic in shadow mode: they can `kubectl get rjob` and read
 `status.message` to see exactly what the agent would have proposed, before enabling
 live PR creation.
 
@@ -721,7 +721,7 @@ by `PR_AUTO_CLOSE` env var (default: `true`).
 **Status: Planned (epic27, 2026-02-25)**
 
 **Problem:** When the agent opens a PR or issue, human reviewers leave comments,
-request changes, or point out that the fix is wrong. Today mendabot is deaf to all of
+request changes, or point out that the fix is wrong. Today mechanic is deaf to all of
 this. A reviewed PR sits with unaddressed comments until a human manually intervenes.
 
 See [`docs/BACKLOG/epic27-pr-feedback-iteration/README.md`](epic27-pr-feedback-iteration/README.md)
@@ -755,10 +755,10 @@ pluggable pattern as `SourceProvider`. Three reference backends:
 
 1. **WebhookTrigger** — `POST /trigger` with bearer-token auth; works with any HTTP
    caller (scripts, PagerDuty, Grafana, CI pipelines)
-2. **GitHubIssueTrigger** — polls a repo for issues labelled `mendabot-investigate`;
-   acknowledges by commenting and applying a `mendabot-dispatched` label
+2. **GitHubIssueTrigger** — polls a repo for issues labelled `mechanic-investigate`;
+   acknowledges by commenting and applying a `mechanic-dispatched` label
 3. **SlackTrigger** — Slack Events API; supports `/investigate Kind/ns/name` slash
-   commands and `@mendabot` app mentions; HMAC-signed request validation
+   commands and `@mechanic` app mentions; HMAC-signed request validation
 
 All backends are disabled by default and independently enabled via env vars. The
 `TriggerProviderLoop` converts any trigger event into a `RemediationJob` using the
@@ -788,7 +788,7 @@ STEP 1's existing PR check logic.
 ### FT-I3 — GitLab and Gitea sink support
 
 **Problem:** The agent is hardcoded to use `gh` (GitHub CLI). Teams using GitLab or
-Gitea for their GitOps repository cannot use mendabot today.
+Gitea for their GitOps repository cannot use mechanic today.
 
 **Proposed solution:** The `SinkType` field already exists on `RemediationJobSpec`.
 The implementation requires:
@@ -857,7 +857,7 @@ Zero Go code. Adds demonstrable value to each PR by closing the feedback loop.
 ### FT-I6 — Multi-cluster support
 
 **Problem:** Large organisations run tens to hundreds of Kubernetes clusters. Running a
-mendabot watcher instance per cluster is operationally expensive and produces PRs with
+mechanic watcher instance per cluster is operationally expensive and produces PRs with
 no cluster identification.
 
 **Proposed solution:** A `CLUSTER_NAME` env var injected into the watcher Deployment.
@@ -876,7 +876,7 @@ running one watcher per cluster.
 
 ### FT-I8 — GitOps tooling abstraction (Flux, ArgoCD, Helm-only)
 
-**Problem:** mendabot is tightly coupled to Flux as the only supported GitOps tool.
+**Problem:** mechanic is tightly coupled to Flux as the only supported GitOps tool.
 The agent image bundles the `flux` CLI unconditionally, Step 5 of the investigation
 prompt runs Flux-specific commands (`flux get all`, `kubectl get helmreleases`, `flux logs
 --kind=HelmRelease`) that fail or produce misleading output on non-Flux clusters, and the
@@ -970,7 +970,7 @@ Job Pod egress to:
    port 443 if not specified — operators with known LLM endpoint IPs can restrict this)
 
 The `NetworkPolicy` selector matches Pods with label
-`app.kubernetes.io/managed-by: mendabot-watcher` — the same label applied to all
+`app.kubernetes.io/managed-by: mechanic-watcher` — the same label applied to all
 agent Jobs today.
 
 **Operator note:** This is an optional manifest (`deploy/kustomize/network-policy-agent.yaml`)
@@ -981,7 +981,7 @@ their overlay. Required: a CNI that enforces `NetworkPolicy` (Cilium, Calico, et
 
 ### FT-S3 — Structured audit log for all remediation decisions
 
-**Problem:** There is no audit trail for mendabot's decisions: why was a finding
+**Problem:** There is no audit trail for mechanic's decisions: why was a finding
 suppressed? Why was a `RemediationJob` not created? Why did the stabilisation window
 trigger? This makes security audits and debugging opaque.
 
@@ -990,9 +990,9 @@ consistent `audit` field to distinguish them from operational logs:
 
 ```json
 {"level":"info","audit":true,"event":"finding_suppressed","provider":"native","kind":"Pod","namespace":"kube-system","reason":"namespace_excluded","fingerprint":""}
-{"level":"info","audit":true,"event":"remediationjob_created","provider":"native","kind":"Pod","namespace":"production","fingerprint":"a3f9c2b14d8e","name":"mendabot-a3f9c2b14d8e"}
-{"level":"info","audit":true,"event":"job_dispatched","remediationJob":"mendabot-a3f9c2b14d8e","agentJob":"mendabot-agent-a3f9c2b14d8e"}
-{"level":"info","audit":true,"event":"pr_opened","remediationJob":"mendabot-a3f9c2b14d8e","prRef":"https://github.com/.../pull/42"}
+{"level":"info","audit":true,"event":"remediationjob_created","provider":"native","kind":"Pod","namespace":"production","fingerprint":"a3f9c2b14d8e","name":"mechanic-a3f9c2b14d8e"}
+{"level":"info","audit":true,"event":"job_dispatched","remediationJob":"mechanic-a3f9c2b14d8e","agentJob":"mechanic-agent-a3f9c2b14d8e"}
+{"level":"info","audit":true,"event":"pr_opened","remediationJob":"mechanic-a3f9c2b14d8e","prRef":"https://github.com/.../pull/42"}
 ```
 
 These log lines can be aggregated by any log management system (Loki, Elasticsearch,
@@ -1003,9 +1003,9 @@ Zero changes to logic; only log statement additions.
 
 ### FT-S4 — Agent RBAC scoping by namespace
 
-**Problem:** The `mendabot-agent` ClusterRole grants `get/list/watch` on all resources
+**Problem:** The `mechanic-agent` ClusterRole grants `get/list/watch` on all resources
 cluster-wide. This is equivalent to the permissions granted to `k8sgpt-operator` and
-is a conscious accepted risk per HLD §11. However, for operators running mendabot in
+is a conscious accepted risk per HLD §11. However, for operators running mechanic in
 security-sensitive clusters, a namespace-scoped agent Role is more appropriate.
 
 **Proposed solution:** A `AGENT_RBAC_SCOPE` env var on the watcher Deployment:
@@ -1079,7 +1079,7 @@ the field. Document the residual risk explicitly.
 in resource status fields. Application-level failures — high error rates, elevated
 latency, business metric anomalies — are invisible to them. These are the signals that
 Prometheus AlertManager was built for, and they represent a large class of real
-incidents mendabot currently cannot act on.
+incidents mechanic currently cannot act on.
 
 **Proposed solution:** A `PrometheusSourceProvider` that watches `PrometheusRule` CRDs
 for firing alerts, **or** a webhook receiver that accepts Alertmanager webhook
@@ -1186,7 +1186,7 @@ product, the recommended implementation sequence (after epic09 is complete):
 |---|---|---|
 | 1 | FT-A1 | Namespace filtering eliminates the largest source of noise immediately |
 | 2 | FT-A9 | Mandatory validation prevents schema-invalid PRs — **Complete (epic18)** |
-| 3 | FT-R7 | Self-remediation cascade prevention stops infinite mendabot failure loops |
+| 3 | FT-R7 | Self-remediation cascade prevention stops infinite mechanic failure loops |
 | 4 | FT-R1 | Dead-letter queue prevents infinite retry loops that burn LLM quota |
 | 5 | FT-A2 | Annotation opt-out gives operators per-resource escape hatches |
 | 6 | FT-A3 | Severity tiers enable proportional response and MIN_SEVERITY filtering |

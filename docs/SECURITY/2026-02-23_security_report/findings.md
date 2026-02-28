@@ -203,7 +203,7 @@ Accepted — operator is a trusted party; exploiting this requires write access 
 
 #### Description
 
-The `mendabot-watcher` ClusterRole grants `create`, `update`, and `patch` on `configmaps` at the cluster level (via ClusterRole). A compromised watcher process could overwrite ConfigMaps in any namespace — including sensitive ones like `kube-system` ConfigMaps.
+The `mechanic-watcher` ClusterRole grants `create`, `update`, and `patch` on `configmaps` at the cluster level (via ClusterRole). A compromised watcher process could overwrite ConfigMaps in any namespace — including sensitive ones like `kube-system` ConfigMaps.
 
 #### Evidence
 
@@ -224,11 +224,11 @@ rules:
 
 #### Impact
 
-Cluster-wide ConfigMap write. The watcher only legitimately needs to write ConfigMaps in the `mendabot` namespace (for status/reporting). The cluster-wide scope is wider than necessary.
+Cluster-wide ConfigMap write. The watcher only legitimately needs to write ConfigMaps in the `mechanic` namespace (for status/reporting). The cluster-wide scope is wider than necessary.
 
 #### Recommendation
 
-Restrict ConfigMap write to a Role (namespace-scoped, `mendabot` namespace only). The ClusterRole should retain only `get`, `list`, `watch` on ConfigMaps for cross-namespace observation, and delegate write to a namespace-scoped Role.
+Restrict ConfigMap write to a Role (namespace-scoped, `mechanic` namespace only). The ClusterRole should retain only `get`, `list`, `watch` on ConfigMaps for cross-namespace observation, and delegate write to a namespace-scoped Role.
 
 #### Resolution
 

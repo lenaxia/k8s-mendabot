@@ -1,4 +1,4 @@
-module github.com/lenaxia/k8s-mendabot
+module github.com/lenaxia/k8s-mechanic
 
 go 1.24.0
 

@@ -10,7 +10,7 @@ can succeed), STORY_02 (wrapper scripts must exist before `COPY docker/scripts/r
 
 ## User Story
 
-As a **mendabot operator**, I want the agent Docker image to be built with the `redact`
+As a **mechanic operator**, I want the agent Docker image to be built with the `redact`
 binary and all wrapper scripts in place, so that every container started from the image
 has output redaction active without any runtime configuration.
 

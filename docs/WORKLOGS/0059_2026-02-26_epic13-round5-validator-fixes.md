@@ -104,7 +104,7 @@ silently get threshold=3 instead of an error, masking misconfiguration.
 
 **File:** `internal/correlator/correlator_test.go:272,284,296,308,320`
 
-**Bug:** Five test cases used the raw string `"mendabot.io/node-name"` instead of
+**Bug:** Five test cases used the raw string `"mechanic.io/node-name"` instead of
 `domain.NodeNameAnnotation`. If the constant is ever renamed, these tests would silently
 pass (the annotation key wouldn't match; rule returns no match; test expects no match).
 

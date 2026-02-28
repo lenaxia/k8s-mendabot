@@ -3,10 +3,10 @@
 ## Purpose
 
 Implement the Area S security hardening backlog and execute a structured penetration
-testing plan against mendabot's attack surface. This epic covers five defensive
+testing plan against mechanic's attack surface. This epic covers five defensive
 engineering stories (FT-S1 through FT-S5) plus a dedicated penetration test story.
 
-mendabot's threat surface is non-trivial:
+mechanic's threat surface is non-trivial:
 - The watcher holds a ClusterRole granting `get/list/watch` on all resources
   (including Secrets) cluster-wide — see `deploy/kustomize/clusterrole-agent.yaml`
 - Agent Jobs run LLM-driven shell commands inside the cluster using that same RBAC
@@ -79,7 +79,7 @@ it into the prompt via `envsubst`. The LLM sees the raw text.
 **Risk:** A pod whose startup error message contains a database URL with credentials
 (e.g. `DATABASE_URL=postgres://user:pass@host/db`) will have that string in the agent's
 context. The `FINDING_ERRORS` env var is set in the Job spec — it is readable by
-anyone who can `kubectl describe job` or `kubectl get job -o yaml` in the `mendabot`
+anyone who can `kubectl describe job` or `kubectl get job -o yaml` in the `mechanic`
 namespace.
 
 **Control:** STORY_01.
@@ -104,7 +104,7 @@ and circuit breaker decisions at `Info`/`Warn` level without a stable `audit` fi
 has no audit-specific logging. There is no way to query "why was this finding suppressed?"
 from logs.
 
-**Risk:** Post-incident forensics and security audits cannot determine what mendabot
+**Risk:** Post-incident forensics and security audits cannot determine what mechanic
 decided and why.
 
 **Control:** STORY_03.
@@ -205,7 +205,7 @@ STORY_00 (infrastructure) ─┐
 
 ```bash
 # STORY_04 — RBAC scoping
-AGENT_RBAC_SCOPE=cluster      # default; uses mendabot-agent ClusterRole (current behaviour)
+AGENT_RBAC_SCOPE=cluster      # default; uses mechanic-agent ClusterRole (current behaviour)
 AGENT_RBAC_SCOPE=namespace    # uses namespace-scoped Role; requires AGENT_WATCH_NAMESPACES
 AGENT_WATCH_NAMESPACES=default,production  # required when AGENT_RBAC_SCOPE=namespace
 

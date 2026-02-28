@@ -47,7 +47,7 @@ Summary of findings before fixes:
 | Hard Rule 3 ("exactly one PR") conflicted with Decision Tree ("exit after comment, no PR") | Hard Rule 3 reworded to two mutually exclusive outcomes: (a) existing PR found → comment + exit; (b) no existing PR → open exactly one. Decision Tree updated to reference Rule 3a/3b. |
 | `FINDING_NAME` inconsistently shown with and without `namespace/` prefix | Defined as plain name (no prefix). `FINDING_NAMESPACE` is the separate variable. All docs updated. |
 | Two incompatible `get-github-app-token.sh` scripts | Single script: bash + jq, outputs to stdout. Init container calls it and writes output to `/workspace/github-token`. Main container reads the file. AGENT_IMAGE_LLD §4 is now the sole definition. |
-| `MAX_CONCURRENT_JOBS` loaded into Config but enforcement mechanism never described | CONTROLLER_LLD §5 now specifies: list Jobs with `managed-by: mendabot-watcher` label, count active/pending, requeue 30s if at limit. |
+| `MAX_CONCURRENT_JOBS` loaded into Config but enforcement mechanism never described | CONTROLLER_LLD §5 now specifies: list Jobs with `managed-by: mechanic-watcher` label, count active/pending, requeue 30s if at limit. |
 | Secret key names (`api-key`, `app-id`) differed from env var names (`OPENAI_API_KEY`, `GITHUB_APP_ID`) with no mapping documented | JOBBUILDER_LLD §4 now explicitly documents the mapping and notes that `secretKeyRef.key` must use Secret key names. |
 | `GITOPS_MANIFEST_ROOT` missing — manifest search path hardcoded to `/repo/kubernetes/` | Added `GITOPS_MANIFEST_ROOT` as a required watcher env var. Added to HLD config table, CONTROLLER_LLD Config struct, JOBBUILDER_LLD Config struct + env injection, DEPLOY_LLD Deployment manifest, STORY_02_config.md, PROMPT_LLD variable table, and prompt template. |
 | PR dedup used unreliable `--search` text match; TTL vulnerability undocumented | Step 1 now uses `gh pr list --json --jq` with exact `headRefName` match. TTL window documented in PROMPT_LLD §3. |
@@ -108,7 +108,7 @@ The design is now ready for implementation. Begin with **epic00-foundation**:
 3. Continue through epic00 stories in order before touching epic01
 
 **Reminder:** `AGENT_NAMESPACE` must equal the watcher's own namespace (default:
-`mendabot-watcher`). Enforce this with a validation check in `FromEnv()` or document
+`mechanic-watcher`). Enforce this with a validation check in `FromEnv()` or document
 clearly that setting it to a different value will break Job creation.
 
 ---
