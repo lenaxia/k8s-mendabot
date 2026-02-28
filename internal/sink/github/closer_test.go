@@ -56,6 +56,11 @@ func newCloser(t *testing.T, token string, mux *routeHandler) (*sinkhub.GitHubSi
 func TestGitHubSinkCloser_HappyPath_PR(t *testing.T) {
 	t.Parallel()
 	mux := &routeHandler{handlers: map[string]http.HandlerFunc{
+		"GET /repos/org/repo/issues/42": func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"state":"open"}`))
+		},
 		"POST /repos/org/repo/issues/42/comments": func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusCreated)
 		},
@@ -88,6 +93,11 @@ func TestGitHubSinkCloser_HappyPath_PR(t *testing.T) {
 func TestGitHubSinkCloser_HappyPath_Issue(t *testing.T) {
 	t.Parallel()
 	mux := &routeHandler{handlers: map[string]http.HandlerFunc{
+		"GET /repos/org/repo/issues/99": func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"state":"open"}`))
+		},
 		"POST /repos/org/repo/issues/99/comments": func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusCreated)
 		},
@@ -114,6 +124,11 @@ func TestGitHubSinkCloser_HappyPath_Issue(t *testing.T) {
 func TestGitHubSinkCloser_Idempotent_422OnClose(t *testing.T) {
 	t.Parallel()
 	mux := &routeHandler{handlers: map[string]http.HandlerFunc{
+		"GET /repos/org/repo/issues/42": func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"state":"open"}`))
+		},
 		"POST /repos/org/repo/issues/42/comments": func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusCreated)
 		},
@@ -179,6 +194,11 @@ func TestGitHubSinkCloser_CommentFailure_StillCloses(t *testing.T) {
 	t.Parallel()
 	closeCalled := false
 	mux := &routeHandler{handlers: map[string]http.HandlerFunc{
+		"GET /repos/org/repo/issues/42": func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"state":"open"}`))
+		},
 		"POST /repos/org/repo/issues/42/comments": func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusUnprocessableEntity) // comment fails
 		},
@@ -205,6 +225,11 @@ func TestGitHubSinkCloser_Comment500_StillCloses(t *testing.T) {
 	t.Parallel()
 	closeCalled := false
 	mux := &routeHandler{handlers: map[string]http.HandlerFunc{
+		"GET /repos/org/repo/issues/42": func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"state":"open"}`))
+		},
 		"POST /repos/org/repo/issues/42/comments": func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 		},
@@ -279,6 +304,11 @@ func TestGitHubSinkCloser_InvalidRepo_Empty(t *testing.T) {
 func TestGitHubSinkCloser_UnexpectedStatusOnClose(t *testing.T) {
 	t.Parallel()
 	mux := &routeHandler{handlers: map[string]http.HandlerFunc{
+		"GET /repos/org/repo/issues/42": func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"state":"open"}`))
+		},
 		"POST /repos/org/repo/issues/42/comments": func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusCreated)
 		},
@@ -303,11 +333,7 @@ func TestGitHubSinkCloser_UnexpectedStatusOnClose(t *testing.T) {
 
 func TestGitHubSinkCloser_CancelledContext(t *testing.T) {
 	t.Parallel()
-	mux := &routeHandler{handlers: map[string]http.HandlerFunc{
-		"POST /repos/org/repo/issues/42/comments": func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusCreated)
-		},
-	}}
+	mux := &routeHandler{handlers: map[string]http.HandlerFunc{}}
 	closer, _ := newCloser(t, "tok", mux)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -321,5 +347,76 @@ func TestGitHubSinkCloser_CancelledContext(t *testing.T) {
 	err := closer.Close(ctx, rjob, "reason")
 	if err == nil {
 		t.Fatal("expected error for cancelled context")
+	}
+}
+
+// TestGitHubSinkCloser_AlreadyClosed_NoCommentNoClose verifies that Close is
+// fully idempotent when the GitHub API reports the item is already closed:
+// neither a comment nor a PATCH call is made.
+func TestGitHubSinkCloser_AlreadyClosed_NoCommentNoClose(t *testing.T) {
+	t.Parallel()
+	commentCalled := false
+	closeCalled := false
+	mux := &routeHandler{handlers: map[string]http.HandlerFunc{
+		"GET /repos/org/repo/issues/42": func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"state":"closed"}`))
+		},
+		"POST /repos/org/repo/issues/42/comments": func(w http.ResponseWriter, r *http.Request) {
+			commentCalled = true
+			w.WriteHeader(http.StatusCreated)
+		},
+		"PATCH /repos/org/repo/pulls/42": func(w http.ResponseWriter, r *http.Request) {
+			closeCalled = true
+			w.WriteHeader(http.StatusOK)
+		},
+	}}
+	closer, _ := newCloser(t, "tok", mux)
+	rjob := &v1alpha1.RemediationJob{
+		Status: v1alpha1.RemediationJobStatus{
+			SinkRef: v1alpha1.SinkRef{Type: "pr", URL: "u", Number: 42, Repo: "org/repo"},
+		},
+	}
+	if err := closer.Close(context.Background(), rjob, "reason"); err != nil {
+		t.Fatalf("expected nil for already-closed item, got: %v", err)
+	}
+	if commentCalled {
+		t.Error("comment was posted on an already-closed PR — duplicate comment bug")
+	}
+	if closeCalled {
+		t.Error("PATCH was called on an already-closed PR — wasted API call")
+	}
+}
+
+// TestGitHubSinkCloser_IsClosedError_FallsThrough verifies that a failure in
+// the isClosed GET call is treated as non-fatal: Close proceeds to post the
+// comment and close the item anyway.
+func TestGitHubSinkCloser_IsClosedError_FallsThrough(t *testing.T) {
+	t.Parallel()
+	closeCalled := false
+	mux := &routeHandler{handlers: map[string]http.HandlerFunc{
+		"GET /repos/org/repo/issues/42": func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError) // isClosed fails
+		},
+		"POST /repos/org/repo/issues/42/comments": func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusCreated)
+		},
+		"PATCH /repos/org/repo/pulls/42": func(w http.ResponseWriter, r *http.Request) {
+			closeCalled = true
+			w.WriteHeader(http.StatusOK)
+		},
+	}}
+	closer, _ := newCloser(t, "tok", mux)
+	rjob := &v1alpha1.RemediationJob{
+		Status: v1alpha1.RemediationJobStatus{
+			SinkRef: v1alpha1.SinkRef{Type: "pr", URL: "u", Number: 42, Repo: "org/repo"},
+		},
+	}
+	if err := closer.Close(context.Background(), rjob, "reason"); err != nil {
+		t.Fatalf("expected nil when isClosed GET fails (non-fatal), got: %v", err)
+	}
+	if !closeCalled {
+		t.Error("PATCH was not called despite isClosed error — Close should fall through")
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	v1alpha1 "github.com/lenaxia/k8s-mendabot/api/v1alpha1"
@@ -29,7 +30,8 @@ type GitHubSinkCloser struct {
 // rjob.Status.SinkRef.
 //
 // Returns nil if SinkRef.URL is empty (no sink to close).
-// Returns nil if GitHub responds with 422 on the close step (already closed — idempotent).
+// Returns nil if the item is already closed (fully idempotent — no duplicate comment).
+// Returns nil if GitHub responds with 422 on the close step (already closed).
 // Returns an error for any other non-2xx response, or if SinkRef fields are invalid.
 //
 // Comment failure is non-fatal: the comment error is discarded and Close proceeds to
@@ -60,11 +62,57 @@ func (c *GitHubSinkCloser) Close(ctx context.Context, rjob *v1alpha1.Remediation
 		hc = http.DefaultClient
 	}
 
+	// Check whether the item is already closed before doing anything.
+	// This makes Close fully idempotent: repeated calls on an already-closed
+	// PR/issue produce no side-effects (no duplicate comment, no wasted API call).
+	already, err := c.isClosed(ctx, hc, base, token, ref.Repo, ref.Number)
+	if err != nil {
+		// Non-fatal: if we can't determine state, proceed optimistically.
+		already = false
+	}
+	if already {
+		return nil
+	}
+
 	// Step 1: post the closure comment. Failure is non-fatal — fall through.
 	_ = c.postComment(ctx, hc, base, token, ref.Repo, ref.Number, reason)
 
 	// Step 2: close the PR or issue.
 	return c.closeItem(ctx, hc, base, token, ref.Repo, ref.Number, ref.Type)
+}
+
+// isClosed returns true if the GitHub issue/PR is already in "closed" state.
+// It uses the issues API (works for both PRs and plain issues).
+// Errors are returned to the caller, which treats them as non-fatal.
+func (c *GitHubSinkCloser) isClosed(
+	ctx context.Context, hc *http.Client, base, token, repo string, number int,
+) (bool, error) {
+	url := fmt.Sprintf("%s/repos/%s/issues/%d", base, repo, number)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return false, fmt.Errorf("building state request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("fetching issue state: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		return false, fmt.Errorf("fetching issue state: unexpected status %d", resp.StatusCode)
+	}
+
+	var payload struct {
+		State string `json:"state"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return false, fmt.Errorf("decoding issue state: %w", err)
+	}
+	return payload.State == "closed", nil
 }
 
 func (c *GitHubSinkCloser) postComment(
