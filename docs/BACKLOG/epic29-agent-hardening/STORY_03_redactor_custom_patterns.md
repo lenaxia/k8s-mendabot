@@ -2,7 +2,7 @@
 
 **Epic:** [epic29-agent-hardening](README.md)
 **Priority:** High
-**Status:** Not Started
+**Status:** Complete
 **Depends on:** STORY_02 (new built-in patterns — `Redactor` struct wraps them)
 
 ---

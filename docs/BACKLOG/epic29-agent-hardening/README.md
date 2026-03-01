@@ -29,7 +29,7 @@ This epic hardens the agent at three independent layers:
    struct that supports user-defined custom patterns at runtime, and propagation of custom
    patterns through to the `redact` binary inside agent Jobs via `EXTRA_REDACT_PATTERNS`.
 
-## Status: Not Started
+## Status: Complete
 
 ## Dependencies
 

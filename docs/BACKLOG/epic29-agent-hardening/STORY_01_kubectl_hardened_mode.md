@@ -2,7 +2,7 @@
 
 **Epic:** [epic29-agent-hardening](README.md)
 **Priority:** High
-**Status:** Not Started
+**Status:** Complete
 **Depends on:** STORY_00 (kubectl wrapper Tier 1), STORY_04 (config + jobbuilder wiring)
 
 ---

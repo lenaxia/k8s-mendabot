@@ -2,7 +2,7 @@
 
 **Epic:** [epic29-agent-hardening](README.md)
 **Priority:** Medium
-**Status:** Not Started
+**Status:** Complete
 **Depends on:** None (independent; references the agent ServiceAccount and Job labels
 produced by the Helm chart)
 
