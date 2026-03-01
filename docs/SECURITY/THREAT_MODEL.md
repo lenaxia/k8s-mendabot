@@ -1,7 +1,7 @@
 # Threat Model: mechanic
 
-**Version:** 1.3
-**Date:** 2026-02-26
+**Version:** 1.4
+**Date:** 2026-02-27
 **Status:** Authoritative
 
 This document is the single source of truth for mechanic's threat model. It is
@@ -275,8 +275,8 @@ namespace-scope opt-in (`AGENT_RBAC_SCOPE=namespace`).
    **Open — operator action required.**
 
 **Residual risk:** NetworkPolicy (P-009) not applied; agent can reach arbitrary external
-endpoints. Watcher ClusterRole secrets regression (P-005) means watcher can still read
-cluster-wide Secrets until `helm upgrade` is run. Without NetworkPolicy, a successful
+endpoints. Watcher cluster-wide Secret read is an accepted risk (AR-08) — the permission
+is required for startup and cannot be removed. Without NetworkPolicy, a successful
 prompt injection can exfiltrate Secrets to attacker-controlled infrastructure.
 
 ---
@@ -381,7 +381,7 @@ unaffected).
 
 ---
 
-### AV-08: RBAC Over-Permission on Watcher (MEDIUM risk)
+### AV-08: Watcher Cluster-Wide Secret Read (MEDIUM risk — Accepted as AR-08)
 
 **Entry point:** `ClusterRole: mechanic-watcher`.
 
@@ -402,9 +402,42 @@ succeeded (bootstrap tokens, Helm release secrets visible). Root cause: finding
 (P-005, HIGH, Chart-fixed/Upgrade-pending). `helm upgrade mechanic charts/mechanic/ -n default --reuse-values`
 will apply the fix. Chart source has `"secrets"` removed from ClusterRole resource list.
 
-**Residual risk:** ConfigMap write in ClusterRole — confirmed NOT present (namespace
-Role handles ConfigMap access; ClusterRole does not grant ConfigMap write). P-005
-(watcher secrets) is the only active over-permission; cluster upgrade resolves it.
+**History and root-cause analysis (2026-02-27):**
+
+Finding 2026-02-24-002 (MEDIUM) and pentest finding P-005 (HIGH) both identified
+`"secrets"` in the watcher ClusterRole as over-permission. A remediation attempt in
+commit `cd7d53b` (2026-02-24) removed `"secrets"` from the ClusterRole, but the watcher
+failed to start within 7 minutes and the permission was restored in commit `a3b5994`.
+
+The commit message for `a3b5994` attributed the failure to controller-runtime requiring
+a cluster-wide permission for the Secret informer. However, fuller git history analysis
+reveals the actual root cause was more specific:
+
+- Commit `86fb076` (2026-02-23, the day before) added `cache.ByObject` to restrict the
+  Secret informer to `cfg.AgentNamespace` only, and added `secrets: get` to the
+  namespace-scoped `Role: mendabot-watcher`. It did **not** add `list` or `watch`.
+- When `cd7d53b` removed `"secrets"` from the ClusterRole, the namespace Role had only
+  `secrets: get` — insufficient for controller-runtime to initialise the informer, which
+  requires `list` and `watch` to perform the initial list and subsequent watch stream.
+- Later, commit `d2d4e4e` (2026-02-25) updated the namespace Role to `get, list, watch`
+  — but by this point the ClusterRole entry had already been restored and the connection
+  between the two changes was not recognised.
+
+**Current state:** The namespace Role (`role-watcher.yaml`) now has `secrets: get, list,
+watch`. The `cache.ByObject` config in `main.go` restricts the Secret informer to
+`cfg.AgentNamespace`. Together these satisfy all controller-runtime requirements for
+namespace-scoped Secret access. The ClusterRole `"secrets"` entry is therefore redundant
+in the current codebase — the namespace Role is now sufficient.
+
+**Why the ClusterRole entry is retained pending live cluster verification:** The removal
+has failed once with incomplete understanding. The code-level analysis now explains why
+it failed and why it should be safe to remove. However, the fix has not been verified
+against a live cluster. The ClusterRole entry is retained until a controlled `helm upgrade`
+test confirms the watcher starts and passes readiness checks with only the namespace Role
+covering Secrets. Once verified, the ClusterRole entry should be removed and AR-08
+closed. See finding 2026-02-27-001 for the verification plan.
+
+**Residual risk:** Accepted as AR-08 pending live verification. See §8.
 
 ---
 
@@ -621,3 +654,4 @@ Each step is a control point. A failure at any step propagates to all downstream
 | AR-05 | GitHub token in shared emptyDir | MEDIUM | Required by init container pattern; 1-hour TTL limits exposure window. Pentest phase06 verified isolation — no findings. |
 | AR-06 | HARD RULEs are prompt instructions, not technical controls | MEDIUM | GitHub branch protection is the external technical control; human review required to merge. Prompt envelope verified present and intact (pentest phase02). Epic20 adds deterministic wrapper enforcement (AV-13) as the technical control for dry-run mode specifically. |
 | AR-07 | `curl` can bypass `gh`/`git` dry-run wrappers to push to GitHub API directly | LOW | Requires LLM to know GitHub REST API format, installation token location (`/workspace/github-token`), and target repo. Bounded by network egress (AV-03) and 1-hour token TTL (AV-10). Accepted — no practical mitigation without wrapping `curl` (which would break the init container). **Note:** A simpler bypass (`unset DRY_RUN && gh pr create`) was confirmed live on 2026-02-26 (PR #1263 opened on production repo). Remediated in v0.3.18 by three-layer wrapper hardening (sentinel file + `/proc/1/environ` + env var fallback). See AV-13. |
+| AR-08 | Watcher ClusterRole grants cluster-wide `secrets: get, list, watch` | MEDIUM | **Redundant but retained pending live cluster verification.** The namespace Role (`role-watcher.yaml`) now has `get, list, watch` on Secrets, and `cache.ByObject` in `main.go` restricts the Secret informer to `AgentNamespace` — together these are sufficient for controller-runtime. The ClusterRole entry is therefore redundant. The previous removal attempt (commit `cd7d53b`) failed only because the namespace Role had only `get` at the time (not `list, watch`), not because a ClusterRole grant is inherently required. Code-level analysis indicates removal is now safe, but this has not been verified against a live cluster. Retained until a controlled `helm upgrade` confirms the watcher starts cleanly. See AV-08 and finding 2026-02-27-001. |

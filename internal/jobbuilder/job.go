@@ -6,6 +6,7 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/lenaxia/k8s-mechanic/api/v1alpha1"
@@ -22,6 +23,12 @@ type Config struct {
 	// Zero means use the default (86400 = 24h).
 	TTLSeconds int32
 	DryRun     bool
+	// Resource limits applied to all three Job containers.
+	// Empty strings fall back to the package defaults (100m/128Mi/500m/512Mi).
+	CPURequest string
+	MemRequest string
+	CPULimit   string
+	MemLimit   string
 }
 
 const defaultTTLSeconds int32 = 86400
@@ -40,7 +47,36 @@ func New(cfg Config) (*Builder, error) {
 	if cfg.TTLSeconds == 0 {
 		cfg.TTLSeconds = defaultTTLSeconds
 	}
+	// Apply resource limit defaults.
+	if cfg.CPURequest == "" {
+		cfg.CPURequest = "100m"
+	}
+	if cfg.MemRequest == "" {
+		cfg.MemRequest = "128Mi"
+	}
+	if cfg.CPULimit == "" {
+		cfg.CPULimit = "500m"
+	}
+	if cfg.MemLimit == "" {
+		cfg.MemLimit = "512Mi"
+	}
 	return &Builder{cfg: cfg}, nil
+}
+
+// containerResources returns a ResourceRequirements using the configured limits.
+// A panic here means the calling code supplied an invalid quantity string; this
+// is a programmer error that should be caught in tests before production.
+func (b *Builder) containerResources() corev1.ResourceRequirements {
+	return corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse(b.cfg.CPURequest),
+			corev1.ResourceMemory: resource.MustParse(b.cfg.MemRequest),
+		},
+		Limits: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse(b.cfg.CPULimit),
+			corev1.ResourceMemory: resource.MustParse(b.cfg.MemLimit),
+		},
+	}
 }
 
 func ptr[T any](v T) *T { return &v }
@@ -115,6 +151,7 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 				MountPath: "/workspace",
 			},
 		},
+		Resources: b.containerResources(),
 		SecurityContext: &corev1.SecurityContext{
 			AllowPrivilegeEscalation: ptr(false),
 			Capabilities: &corev1.Capabilities{
@@ -172,6 +209,7 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 				ReadOnly:  true,
 			},
 		},
+		Resources: b.containerResources(),
 		SecurityContext: &corev1.SecurityContext{
 			AllowPrivilegeEscalation: ptr(false),
 			Capabilities: &corev1.Capabilities{
@@ -273,6 +311,7 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 			VolumeMounts: []corev1.VolumeMount{
 				{Name: "mechanic-cfg", MountPath: "/mechanic-cfg"},
 			},
+			Resources: b.containerResources(),
 			SecurityContext: &corev1.SecurityContext{
 				AllowPrivilegeEscalation: ptr(false),
 				Capabilities: &corev1.Capabilities{

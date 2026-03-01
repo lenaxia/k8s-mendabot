@@ -103,6 +103,8 @@ const (
 // +kubebuilder:validation:XValidation:rule="!has(oldSelf.fingerprint) || self.fingerprint == oldSelf.fingerprint",message="spec.fingerprint is immutable"
 // +kubebuilder:validation:XValidation:rule="!has(oldSelf.sourceType) || self.sourceType == oldSelf.sourceType",message="spec.sourceType is immutable"
 // +kubebuilder:validation:XValidation:rule="!has(oldSelf.sinkType) || self.sinkType == oldSelf.sinkType",message="spec.sinkType is immutable"
+// +kubebuilder:validation:XValidation:rule="!has(oldSelf.agentImage) || self.agentImage == oldSelf.agentImage",message="spec.agentImage is immutable"
+// +kubebuilder:validation:XValidation:rule="!has(oldSelf.agentSA) || self.agentSA == oldSelf.agentSA",message="spec.agentSA is immutable"
 type RemediationJobSpec struct {
 	// SourceResultRef identifies the source object that triggered this remediation.
 	// +kubebuilder:validation:Required
@@ -196,7 +198,9 @@ type SinkRef struct {
 	// Type is "pr" or "issue".
 	Type string `json:"type"`
 	// URL is the full HTML URL (e.g. https://github.com/org/repo/pull/42).
-	// Used in log messages and closure comments.
+	// Must be a valid GitHub URL.
+	// +kubebuilder:validation:Pattern=`^https://github\.com/`
+	// +optional
 	URL string `json:"url"`
 	// Number is the PR or issue number. Required for GitHub REST API calls.
 	Number int `json:"number"`

@@ -45,6 +45,29 @@ if [ "$_dry_run" = "true" ]; then
             echo "[DRY_RUN] git $* blocked — write operations are disabled in dry-run mode" >&2
             exit 0
             ;;
+        reset|rm|clean|rebase)
+            echo "[DRY_RUN] git $* blocked — write operations are disabled in dry-run mode" >&2
+            exit 0
+            ;;
+        config)
+            # Block mutations to the global or system config; allow local config
+            # reads (--get, --list without --global/--system) which are read-only.
+            for _arg in "$@"; do
+                case "$_arg" in
+                    --global|--system)
+                        echo "[DRY_RUN] git $* blocked — write operations are disabled in dry-run mode" >&2
+                        exit 0
+                        ;;
+                esac
+            done
+            ;;
+        remote)
+            # Block set-url which can redirect pushes to an attacker-controlled repo.
+            if [ "${2:-}" = "set-url" ]; then
+                echo "[DRY_RUN] git $* blocked — write operations are disabled in dry-run mode" >&2
+                exit 0
+            fi
+            ;;
         tag)
             # Block annotated (-a) and signed (-s) tags; allow lightweight tags
             # (used internally by some tools for version queries).

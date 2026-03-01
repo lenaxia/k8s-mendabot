@@ -146,23 +146,30 @@ emit_dry_run_report() {
         : "${AGENT_NAMESPACE:?AGENT_NAMESPACE must be set for dry-run report}"
         : "${FINDING_FINGERPRINT:?FINDING_FINGERPRINT must be set for dry-run report}"
 
+        # Verify redact is available — abort rather than leak unredacted content.
+        if ! command -v redact > /dev/null 2>&1; then
+            echo "ERROR: redact binary not found in PATH — cannot write dry-run report safely" >&2
+            exit 1
+        fi
+
         CM_NAME="mechanic-dryrun-${FINDING_FINGERPRINT}"
 
-        # Section 1: investigation report
+        # Section 1: investigation report — piped through redact to strip secrets.
         if [ -f /workspace/investigation-report.txt ]; then
-            REPORT=$(cat /workspace/investigation-report.txt)
+            REPORT=$(redact < /workspace/investigation-report.txt)
         else
             REPORT="(investigation-report.txt not found — agent may have exited without writing the report)"
         fi
 
-        # Section 2: proposed patch — staged+unstaged changes plus untracked files
+        # Section 2: proposed patch — staged+unstaged changes plus untracked files,
+        # piped through redact to strip any accidentally committed secrets.
         PATCH=""
         if [ -d /workspace/repo ]; then
             PATCH=$(cd /workspace/repo && \
                 { git diff HEAD; \
                   git ls-files --others --exclude-standard | \
                       xargs -I{} git diff --no-index /dev/null {} 2>/dev/null || true; \
-                } 2>/dev/null)
+                } 2>/dev/null | redact)
         fi
 
         # Write ConfigMap. --from-literal handles arbitrary content safely.

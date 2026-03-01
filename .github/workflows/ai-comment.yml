@@ -9,8 +9,11 @@ on:
 jobs:
   respond:
     if: |
-      startsWith(github.event.comment.body, '/ai') ||
-      contains(github.event.comment.body, ' /ai')
+      (startsWith(github.event.comment.body, '/ai') ||
+       contains(github.event.comment.body, ' /ai')) &&
+      (github.event.comment.author_association == 'OWNER' ||
+       github.event.comment.author_association == 'MEMBER' ||
+       github.event.comment.author_association == 'COLLABORATOR')
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -25,7 +28,7 @@ jobs:
           persist-credentials: false
 
       - name: Run OpenCode
-        uses: anomalyco/opencode/github@latest
+        uses: anomalyco/opencode/github@0cf0294787322664c6d668fa5ab0a9ce26796f78 # github-v1.2.9
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}

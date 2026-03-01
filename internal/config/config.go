@@ -84,6 +84,14 @@ type Config struct {
 	// expires the tombstone is deleted and a fresh investigation is allowed.
 	// Default: 86400 (24 hours).  Must be < RemediationJobTTLSeconds.
 	RemediationJobShortTTLSeconds int // REMEDIATION_JOB_SHORT_TTL_SECONDS — default 86400
+
+	// Agent Job resource limits. Applied to all three Job containers
+	// (git-token-clone, dry-run-gate, mendabot-agent).
+	// Defaults are conservative; tune via Helm values or env vars.
+	AgentCPURequest string // AGENT_CPU_REQUEST    — default "100m"
+	AgentMemRequest string // AGENT_MEM_REQUEST    — default "128Mi"
+	AgentCPULimit   string // AGENT_CPU_LIMIT      — default "500m"
+	AgentMemLimit   string // AGENT_MEM_LIMIT      — default "512Mi"
 }
 
 // FromEnv reads configuration from environment variables and returns a Config.
@@ -387,6 +395,26 @@ func FromEnv() (Config, error) {
 			return Config{}, fmt.Errorf("REMEDIATION_JOB_SHORT_TTL_SECONDS must be at most %d, got %d", math.MaxInt32, n)
 		}
 		cfg.RemediationJobShortTTLSeconds = n
+	}
+
+	// Agent Job resource limits — applied to all Job containers.
+	// Values are passed verbatim to Kubernetes; invalid quantities cause a Job
+	// creation error at runtime, not a startup error here, to keep startup fast.
+	cfg.AgentCPURequest = os.Getenv("AGENT_CPU_REQUEST")
+	if cfg.AgentCPURequest == "" {
+		cfg.AgentCPURequest = "100m"
+	}
+	cfg.AgentMemRequest = os.Getenv("AGENT_MEM_REQUEST")
+	if cfg.AgentMemRequest == "" {
+		cfg.AgentMemRequest = "128Mi"
+	}
+	cfg.AgentCPULimit = os.Getenv("AGENT_CPU_LIMIT")
+	if cfg.AgentCPULimit == "" {
+		cfg.AgentCPULimit = "500m"
+	}
+	cfg.AgentMemLimit = os.Getenv("AGENT_MEM_LIMIT")
+	if cfg.AgentMemLimit == "" {
+		cfg.AgentMemLimit = "512Mi"
 	}
 
 	return cfg, nil

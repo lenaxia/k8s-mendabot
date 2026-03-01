@@ -77,7 +77,7 @@ jobs:
 
       - name: Analyze with OpenCode
         if: steps.pre-check.outputs.skip != 'true'
-        uses: anomalyco/opencode/github@latest
+        uses: anomalyco/opencode/github@0cf0294787322664c6d668fa5ab0a9ce26796f78 # github-v1.2.9
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}

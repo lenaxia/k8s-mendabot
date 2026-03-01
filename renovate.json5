@@ -1,0 +1,100 @@
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: [
+    'config:recommended',
+    'docker:enableMajor',
+    ':disableRateLimiting',
+    ':dependencyDashboard',
+    ':semanticCommits',
+  ],
+  dependencyDashboard: true,
+  dependencyDashboardTitle: 'Renovate Dashboard 🤖',
+  suppressNotifications: [
+    'prEditedNotification',
+    'prIgnoreNotification',
+  ],
+  rebaseWhen: 'conflicted',
+  packageRules: [
+    {
+      description: ['Auto merge GitHub Actions digest/patch/minor updates'],
+      matchManagers: ['github-actions'],
+      automerge: true,
+      automergeType: 'branch',
+      ignoreTests: true,
+      matchUpdateTypes: ['digest', 'patch', 'minor'],
+    },
+    {
+      description: ['Group all kubernetes packages together'],
+      groupName: 'kubernetes packages',
+      matchDatasources: ['go'],
+      matchPackageNames: [
+        '/^k8s\\.io\\//,',
+        '/^sigs\\.k8s\\.io\\//,',
+      ],
+    },
+    {
+      matchDatasources: ['docker'],
+      matchUpdateTypes: ['major'],
+      commitMessagePrefix: 'feat(container)!: ',
+    },
+    {
+      matchDatasources: ['docker'],
+      matchUpdateTypes: ['minor'],
+      semanticCommitType: 'feat',
+      semanticCommitScope: 'container',
+    },
+    {
+      matchDatasources: ['docker'],
+      matchUpdateTypes: ['patch'],
+      semanticCommitType: 'fix',
+      semanticCommitScope: 'container',
+    },
+    {
+      matchDatasources: ['docker'],
+      matchUpdateTypes: ['digest'],
+      semanticCommitType: 'chore',
+      semanticCommitScope: 'container',
+    },
+    {
+      matchManagers: ['github-actions'],
+      matchUpdateTypes: ['major'],
+      commitMessagePrefix: 'feat(github-action)!: ',
+    },
+    {
+      matchManagers: ['github-actions'],
+      matchUpdateTypes: ['minor'],
+      semanticCommitType: 'feat',
+      semanticCommitScope: 'github-action',
+    },
+    {
+      matchManagers: ['github-actions'],
+      matchUpdateTypes: ['patch'],
+      semanticCommitType: 'fix',
+      semanticCommitScope: 'github-action',
+    },
+    {
+      matchUpdateTypes: ['major'],
+      labels: ['type/major'],
+    },
+    {
+      matchUpdateTypes: ['minor'],
+      labels: ['type/minor'],
+    },
+    {
+      matchUpdateTypes: ['patch'],
+      labels: ['type/patch'],
+    },
+    {
+      matchDatasources: ['docker'],
+      addLabels: ['renovate/container'],
+    },
+    {
+      matchManagers: ['github-actions'],
+      addLabels: ['renovate/github-action'],
+    },
+    {
+      matchManagers: ['gomod'],
+      addLabels: ['renovate/go'],
+    },
+  ],
+}

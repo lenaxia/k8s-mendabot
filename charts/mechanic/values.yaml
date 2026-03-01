@@ -17,6 +17,19 @@ agent:
     repository: ghcr.io/lenaxia/mechanic-agent
     # -- Agent image tag. Defaults to `Chart.appVersion` when empty.
     tag: ""
+  # -- Resource requests and limits applied to all three agent Job containers
+  # (git-token-clone, dry-run-gate, mendabot-agent).
+  resources:
+    requests:
+      # -- CPU request for each agent Job container.
+      cpu: 100m
+      # -- Memory request for each agent Job container.
+      memory: 128Mi
+    limits:
+      # -- CPU limit for each agent Job container.
+      cpu: 500m
+      # -- Memory limit for each agent Job container.
+      memory: 512Mi
 
 # @section GitOps repository
 gitops:

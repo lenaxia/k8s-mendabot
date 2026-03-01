@@ -112,3 +112,4 @@ else.
 | [0078](0054_2026-02-25_epic13-non-primary-requeue-fix.md) | 2026-02-25 | Epic 13 critical bug fix: non-primary requeue instead of self-suppress | Complete |
 | [0079](0055_2026-02-25_epic13-allfindings-ordering-gaps.md) | 2026-02-25 | Epic 13 gap fixes: AllFindings excludes primary, owned-jobs sync before correlation block, test inversion | Complete |
 | [0080](0056_2026-02-25_epic13-story03-validation.md) | 2026-02-25 | Epic 13 STORY_03 validation — confirmed complete, corrected stale story file checkboxes | Complete |
+| [0092](0092_2026-02-27_security-remediation-2026-02-27.md) | 2026-02-27 | Security remediation: 11 of 14 findings from 2026-02-27 audit (git/gh wrappers, CI pins, CRD validations, resource limits, private key volume mount) | Complete |

@@ -109,12 +109,15 @@ spec:
             secretKeyRef:
               name: github-app
               key: installation-id
-        - name: GITHUB_APP_PRIVATE_KEY
-          valueFrom:
-            secretKeyRef:
-              name: github-app
-              key: private-key
         {{- end }}
+        - name: AGENT_CPU_REQUEST
+          value: {{ .Values.agent.resources.requests.cpu | quote }}
+        - name: AGENT_MEM_REQUEST
+          value: {{ .Values.agent.resources.requests.memory | quote }}
+        - name: AGENT_CPU_LIMIT
+          value: {{ .Values.agent.resources.limits.cpu | quote }}
+        - name: AGENT_MEM_LIMIT
+          value: {{ .Values.agent.resources.limits.memory | quote }}
         ports:
         - name: metrics
           containerPort: 8080
@@ -146,3 +149,18 @@ spec:
           readOnlyRootFilesystem: true
           capabilities:
             drop: ["ALL"]
+        {{- if .Values.watcher.prAutoClose }}
+        volumeMounts:
+        - name: github-app-private-key
+          mountPath: /var/run/secrets/mendabot/github-app-private-key
+          readOnly: true
+        {{- end }}
+      {{- if .Values.watcher.prAutoClose }}
+      volumes:
+      - name: github-app-private-key
+        secret:
+          secretName: github-app
+          items:
+          - key: private-key
+            path: private-key
+      {{- end }}

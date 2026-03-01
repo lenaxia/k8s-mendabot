@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# gh wrapper — gh is installed by apt to /usr/bin/gh; call it by absolute path.
+# gh wrapper — allowlist approach for dry-run mode.
+# In dry-run mode only read-only operations are permitted.
+# Write operations are blocked fail-closed: anything not explicitly allowed is denied.
+# Outside dry-run mode, all commands pass through (stdout/stderr piped through redact).
 # Does NOT use set -e: the real binary may exit non-zero legitimately.
 
 if ! command -v redact > /dev/null 2>&1; then
@@ -44,16 +47,103 @@ if [ "$_dry_run" = "false" ] && [ "${DRY_RUN:-false}" = "true" ]; then
 fi
 
 if [ "$_dry_run" = "true" ]; then
-    case "${1:-}" in
-        pr|issue|release|gist|workflow)
-            case "${2:-}" in
-                create|edit|close|merge|delete|comment|reopen|label|lock|unlock|transfer|run|dispatch|enable|disable)
-                    echo "[DRY_RUN] gh $* blocked — write operations are disabled in dry-run mode" >&2
-                    exit 0
-                    ;;
+    # ---------------------------------------------------------------------------
+    # Allowlist enforcement (fail-closed).
+    # Only explicitly approved read-only operations are permitted.
+    # Everything else is blocked.
+    # ---------------------------------------------------------------------------
+
+    _cmd="${1:-}"
+    _sub="${2:-}"
+    _allowed="false"
+
+    # Check for write HTTP method in gh api calls.
+    # Scan all arguments for -X/--method followed by a write method.
+    _write_method="false"
+    _prev=""
+    for _arg in "$@"; do
+        case "$_prev" in
+            -X|--method)
+                case "$_arg" in
+                    POST|PUT|PATCH|DELETE|post|put|patch|delete)
+                        _write_method="true"
+                        ;;
+                esac
+                ;;
+        esac
+        # Also handle --method=VALUE form
+        case "$_arg" in
+            --method=POST|--method=PUT|--method=PATCH|--method=DELETE|\
+            --method=post|--method=put|--method=patch|--method=delete)
+                _write_method="true"
+                ;;
+        esac
+        _prev="$_arg"
+    done
+
+    case "$_cmd" in
+        # gh api: allow GET (explicit or implicit default); block everything with
+        # a write HTTP method.
+        api)
+            if [ "$_write_method" = "false" ]; then
+                _allowed="true"
+            fi
+            ;;
+
+        # auth: allow status and token queries (read-only credential inspection).
+        auth)
+            case "$_sub" in
+                status|token) _allowed="true" ;;
+            esac
+            ;;
+
+        # repo: allow view, list, clone only.
+        repo)
+            case "$_sub" in
+                view|list|clone) _allowed="true" ;;
+            esac
+            ;;
+
+        # pr: allow view, list, checks, diff, review (read-only inspect operations).
+        pr)
+            case "$_sub" in
+                view|list|checks|diff|review) _allowed="true" ;;
+            esac
+            ;;
+
+        # issue: allow view, list (read-only inspect operations).
+        issue)
+            case "$_sub" in
+                view|list) _allowed="true" ;;
+            esac
+            ;;
+
+        # run: allow view, list, watch (read-only CI inspection).
+        run)
+            case "$_sub" in
+                view|list|watch) _allowed="true" ;;
+            esac
+            ;;
+
+        # release: allow view, list, download (read-only artifact inspection).
+        release)
+            case "$_sub" in
+                view|list|download) _allowed="true" ;;
+            esac
+            ;;
+
+        # workflow: allow view, list (read-only workflow inspection).
+        workflow)
+            case "$_sub" in
+                view|list) _allowed="true" ;;
             esac
             ;;
     esac
+
+    if [ "$_allowed" = "false" ]; then
+        echo "[DRY_RUN] gh $* blocked — write operations are disabled in dry-run mode" >&2
+        exit 0
+    fi
 fi
 
 _tmpfile=$(mktemp) || { echo "[ERROR] mktemp failed — aborting" >&2; exit 1; }

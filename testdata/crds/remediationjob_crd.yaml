@@ -188,6 +188,10 @@ spec:
               rule: '!has(oldSelf.sourceType) || self.sourceType == oldSelf.sourceType'
             - message: spec.sinkType is immutable
               rule: '!has(oldSelf.sinkType) || self.sinkType == oldSelf.sinkType'
+            - message: spec.agentImage is immutable
+              rule: '!has(oldSelf.agentImage) || self.agentImage == oldSelf.agentImage'
+            - message: spec.agentSA is immutable
+              rule: '!has(oldSelf.agentSA) || self.agentSA == oldSelf.agentSA'
           status:
             description: RemediationJobStatus defines the observed state of a RemediationJob.
             properties:
@@ -329,13 +333,13 @@ spec:
                   url:
                     description: |-
                       URL is the full HTML URL (e.g. https://github.com/org/repo/pull/42).
-                      Used in log messages and closure comments.
+                      Must be a valid GitHub URL.
+                    pattern: ^https://github\.com/
                     type: string
                 required:
                 - number
                 - repo
                 - type
-                - url
                 type: object
             type: object
         required:

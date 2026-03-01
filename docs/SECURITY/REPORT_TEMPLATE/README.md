@@ -70,6 +70,8 @@
 | AR-04 | Prompt injection not fully preventable | yes / no | |
 | AR-05 | GitHub token in shared emptyDir | yes / no | |
 | AR-06 | HARD RULEs are prompt-only controls | yes / no | |
+| AR-07 | `curl` bypasses dry-run wrappers | yes / no | |
+| AR-08 | Watcher ClusterRole cluster-wide secrets read | yes / no | |
 
 **New accepted risks this review:**
 

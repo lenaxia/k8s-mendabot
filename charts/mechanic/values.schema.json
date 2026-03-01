@@ -5,18 +5,29 @@
   "properties": {
     "agentType": {
       "type": "string",
-      "enum": ["opencode", "claude"],
+      "enum": [
+        "opencode",
+        "claude"
+      ],
       "description": "Agent runner type. Controls which AI agent binary runs inside the Job."
     },
     "image": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "repository": { "type": "string" },
-        "tag": { "type": "string" },
+        "repository": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        },
         "pullPolicy": {
           "type": "string",
-          "enum": ["Always", "IfNotPresent", "Never"]
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
         }
       }
     },
@@ -28,8 +39,42 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "repository": { "type": "string" },
-            "tag": { "type": "string" }
+            "repository": {
+              "type": "string"
+            },
+            "tag": {
+              "type": "string"
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requests": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string"
+                },
+                "memory": {
+                  "type": "string"
+                }
+              }
+            },
+            "limits": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string"
+                },
+                "memory": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       }
@@ -38,34 +83,63 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "repo": { "type": "string" },
-        "manifestRoot": { "type": "string" }
+        "repo": {
+          "type": "string"
+        },
+        "manifestRoot": {
+          "type": "string"
+        }
       }
     },
     "watcher": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "stabilisationWindowSeconds": { "type": "integer", "minimum": 0 },
-        "maxConcurrentJobs": { "type": "integer", "minimum": 1 },
-        "remediationJobTTLSeconds": { "type": "integer", "minimum": 1 },
-        "sinkType": { "type": "string" },
+        "stabilisationWindowSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxConcurrentJobs": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "remediationJobTTLSeconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sinkType": {
+          "type": "string"
+        },
         "logLevel": {
           "type": "string",
-          "enum": ["debug", "info", "warn", "error"]
+          "enum": [
+            "debug",
+            "info",
+            "warn",
+            "error"
+          ]
         },
         "llmProvider": {
           "type": "string",
-          "enum": ["", "openai"],
+          "enum": [
+            "",
+            "openai"
+          ],
           "description": "LLM readiness gate. 'openai' enables it; empty disables."
         },
         "injectionDetectionAction": {
           "type": "string",
-          "enum": ["log", "suppress"]
+          "enum": [
+            "log",
+            "suppress"
+          ]
         },
         "agentRBACScope": {
           "type": "string",
-          "enum": ["cluster", "namespace"]
+          "enum": [
+            "cluster",
+            "namespace"
+          ]
         },
         "agentWatchNamespaces": {
           "type": "string",
@@ -111,31 +185,47 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "coreOverride": { "type": "string" },
-        "agentOverride": { "type": "string" }
+        "coreOverride": {
+          "type": "string"
+        },
+        "agentOverride": {
+          "type": "string"
+        }
       }
     },
     "networkPolicy": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "enabled": { "type": "boolean" },
-        "apiServerPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
-        "additionalEgressRules": { "type": "array" }
+        "enabled": {
+          "type": "boolean"
+        },
+        "apiServerPort": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "additionalEgressRules": {
+          "type": "array"
+        }
       }
     },
     "rbac": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "create": { "type": "boolean" }
+        "create": {
+          "type": "boolean"
+        }
       }
     },
     "secrets": {
       "type": "object",
-      "description": "Placeholder — no configurable fields; secret names are derived from agentType in job.go"
+      "description": "Placeholder \u2014 no configurable fields; secret names are derived from agentType in job.go"
     },
-    "createNamespace": { "type": "boolean" },
+    "createNamespace": {
+      "type": "boolean"
+    },
     "selfRemediation": {
       "type": "object",
       "additionalProperties": false,
@@ -180,15 +270,25 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "enabled": { "type": "boolean" },
+        "enabled": {
+          "type": "boolean"
+        },
         "serviceMonitor": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "enabled": { "type": "boolean" },
-            "interval": { "type": "string" },
-            "scrapeTimeout": { "type": "string" },
-            "labels": { "type": "object" }
+            "enabled": {
+              "type": "boolean"
+            },
+            "interval": {
+              "type": "string"
+            },
+            "scrapeTimeout": {
+              "type": "string"
+            },
+            "labels": {
+              "type": "object"
+            }
           }
         }
       }

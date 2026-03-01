@@ -22,6 +22,9 @@ paths = [
   # Redaction test files contain fixture strings to verify redaction patterns work
   '''internal/domain/redact_test\.go''',
   '''cmd/redact/main_test\.go''',
+  # Backlog story files contain fictional example credential strings in test-case tables
+  # to document what the redaction patterns are expected to match — not real credentials
+  '''docs/BACKLOG/''',
 ]
 regexTarget = "line"
 regexes = [

@@ -124,6 +124,10 @@ func main() {
 		AgentType:      cfg.AgentType,
 		TTLSeconds:     int32(cfg.RemediationJobTTLSeconds),
 		DryRun:         cfg.DryRun,
+		CPURequest:     cfg.AgentCPURequest,
+		MemRequest:     cfg.AgentMemRequest,
+		CPULimit:       cfg.AgentCPULimit,
+		MemLimit:       cfg.AgentMemLimit,
 	})
 	if err != nil {
 		logger.Fatal("jobbuilder init failed", zap.Error(err))
@@ -223,9 +227,14 @@ func main() {
 			logger.Fatal("GITHUB_APP_INSTALLATION_ID is missing or invalid; cannot start with PR_AUTO_CLOSE=true",
 				zap.Error(err))
 		}
-		privKey, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(os.Getenv("GITHUB_APP_PRIVATE_KEY")))
+		privKeyPEM, err := os.ReadFile("/var/run/secrets/mendabot/github-app-private-key/private-key")
 		if err != nil {
-			logger.Fatal("GITHUB_APP_PRIVATE_KEY is missing or invalid; cannot start with PR_AUTO_CLOSE=true",
+			logger.Fatal("failed to read GitHub App private key from volume — ensure github-app Secret is mounted at /var/run/secrets/mendabot/github-app-private-key",
+				zap.Error(err))
+		}
+		privKey, err := jwt.ParseRSAPrivateKeyFromPEM(privKeyPEM)
+		if err != nil {
+			logger.Fatal("GITHUB_APP_PRIVATE_KEY is invalid (PEM parse failed); cannot start with PR_AUTO_CLOSE=true",
 				zap.Error(err))
 		}
 		tp := &igithub.GitHubAppTokenProvider{
