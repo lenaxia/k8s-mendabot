@@ -59,7 +59,7 @@ jobs:
             WATCHER_VERSION=sha-${{ steps.sha.outputs.short }}
 
       - name: Scan watcher image for CVEs
-        uses: aquasecurity/trivy-action@b2933f565dbc598b29947660e66259e3c7bc8561 # 0.20.0
+        uses: aquasecurity/trivy-action@e368e328979b113139d6f9068e03accaed98a518 # 0.34.1
         with:
           image-ref: ghcr.io/lenaxia/mechanic-watcher:sha-${{ steps.sha.outputs.short }}
           format: table
