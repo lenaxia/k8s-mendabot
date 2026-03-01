@@ -16,7 +16,7 @@ import (
 func TestStatefulSetProviderName_IsNative(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewStatefulSetProvider(c)
+	p := NewStatefulSetProvider(c, testRedactor(t))
 
 	got := p.ProviderName()
 	if got != "native" {
@@ -28,7 +28,7 @@ func TestStatefulSetProviderName_IsNative(t *testing.T) {
 func TestStatefulSetObjectType_IsStatefulSet(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewStatefulSetProvider(c)
+	p := NewStatefulSetProvider(c, testRedactor(t))
 
 	obj := p.ObjectType()
 	if _, ok := obj.(*appsv1.StatefulSet); !ok {
@@ -40,7 +40,7 @@ func TestStatefulSetObjectType_IsStatefulSet(t *testing.T) {
 func TestHealthyStatefulSet_ReturnsNil(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewStatefulSetProvider(c)
+	p := NewStatefulSetProvider(c, testRedactor(t))
 
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -78,7 +78,7 @@ func TestHealthyStatefulSet_ReturnsNil(t *testing.T) {
 func TestReplicasMismatch_NotScaling(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewStatefulSetProvider(c)
+	p := NewStatefulSetProvider(c, testRedactor(t))
 
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -123,7 +123,7 @@ func TestReplicasMismatch_NotScaling(t *testing.T) {
 func TestReplicasMismatch_Scaling_ReturnsNil(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewStatefulSetProvider(c)
+	p := NewStatefulSetProvider(c, testRedactor(t))
 
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -153,7 +153,7 @@ func TestReplicasMismatch_Scaling_ReturnsNil(t *testing.T) {
 func TestAvailableFalse_Detected(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewStatefulSetProvider(c)
+	p := NewStatefulSetProvider(c, testRedactor(t))
 
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -197,7 +197,7 @@ func TestAvailableFalse_Detected(t *testing.T) {
 func TestNoAvailableCondition_ReturnsNil(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewStatefulSetProvider(c)
+	p := NewStatefulSetProvider(c, testRedactor(t))
 
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -228,7 +228,7 @@ func TestNoAvailableCondition_ReturnsNil(t *testing.T) {
 func TestNilReplicas_OneReplica_Healthy(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewStatefulSetProvider(c)
+	p := NewStatefulSetProvider(c, testRedactor(t))
 
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -259,7 +259,7 @@ func TestNilReplicas_OneReplica_Healthy(t *testing.T) {
 func TestStatefulSetAvailableFalseMessageRedacted(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewStatefulSetProvider(c)
+	p := NewStatefulSetProvider(c, testRedactor(t))
 
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -302,7 +302,7 @@ func TestStatefulSetAvailableFalseMessageRedacted(t *testing.T) {
 func TestStatefulSetWrongType_ReturnsError(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewStatefulSetProvider(c)
+	p := NewStatefulSetProvider(c, testRedactor(t))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: "my-pod", Namespace: "default"},
@@ -320,7 +320,7 @@ func TestStatefulSetWrongType_ReturnsError(t *testing.T) {
 func TestStatefulSetFindingErrors_IsValidJSON(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewStatefulSetProvider(c)
+	p := NewStatefulSetProvider(c, testRedactor(t))
 
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -361,7 +361,7 @@ func TestStatefulSetFindingErrors_IsValidJSON(t *testing.T) {
 func TestStatefulSetParentObject_IsSelf(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewStatefulSetProvider(c)
+	p := NewStatefulSetProvider(c, testRedactor(t))
 
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -398,7 +398,7 @@ func TestStatefulSetParentObject_IsSelf(t *testing.T) {
 func TestStatefulSetBothConditions_TwoEntries(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewStatefulSetProvider(c)
+	p := NewStatefulSetProvider(c, testRedactor(t))
 
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -454,7 +454,7 @@ func TestStatefulSetBothConditions_TwoEntries(t *testing.T) {
 func TestStatefulSetSeverity_Critical(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewStatefulSetProvider(c)
+	p := NewStatefulSetProvider(c, testRedactor(t))
 
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -485,7 +485,7 @@ func TestStatefulSetSeverity_Critical(t *testing.T) {
 func TestStatefulSetSeverity_High(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewStatefulSetProvider(c)
+	p := NewStatefulSetProvider(c, testRedactor(t))
 
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -516,7 +516,7 @@ func TestStatefulSetSeverity_High(t *testing.T) {
 func TestStatefulSetSeverity_Medium(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewStatefulSetProvider(c)
+	p := NewStatefulSetProvider(c, testRedactor(t))
 
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -545,7 +545,7 @@ func TestStatefulSetSeverity_Medium(t *testing.T) {
 func TestStatefulSetAnnotationEnabled_False(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewStatefulSetProvider(c)
+	p := NewStatefulSetProvider(c, testRedactor(t))
 
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -578,7 +578,7 @@ func TestStatefulSetAnnotationEnabled_False(t *testing.T) {
 func TestStatefulSetAnnotationSkipUntilFuture(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewStatefulSetProvider(c)
+	p := NewStatefulSetProvider(c, testRedactor(t))
 
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -611,7 +611,7 @@ func TestStatefulSetAnnotationSkipUntilFuture(t *testing.T) {
 func TestAvailableFalse_DuringScaling(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewStatefulSetProvider(c)
+	p := NewStatefulSetProvider(c, testRedactor(t))
 
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{

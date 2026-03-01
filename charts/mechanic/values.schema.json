@@ -76,6 +76,32 @@
               }
             }
           }
+        },
+        "hardenKubectl": {
+          "type": "boolean",
+          "description": "When true: blocks kubectl get/describe secret(s), get all, exec, and port-forward in agent Jobs."
+        },
+        "extraRedactPatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Additional RE2 regex patterns applied by the watcher and agent redact binary."
+        },
+        "kyvernoPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Optional Kyverno ClusterPolicy for agent hardening. Requires Kyverno v1.9+.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable the Kyverno ClusterPolicy. Default: false."
+            },
+            "allowedImagePrefix": {
+              "type": "string",
+              "description": "Image prefix enforced on mechanic-agent Job containers. Empty disables image enforcement."
+            }
+          }
         }
       }
     },

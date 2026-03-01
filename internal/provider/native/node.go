@@ -22,15 +22,16 @@ var ignoredNodeConditions = map[corev1.NodeConditionType]struct{}{
 }
 
 type nodeProvider struct {
-	client client.Client
+	client   client.Client
+	redactor *domain.Redactor
 }
 
 // NewNodeProvider constructs a nodeProvider. Panics if c is nil.
-func NewNodeProvider(c client.Client) domain.SourceProvider {
+func NewNodeProvider(c client.Client, redactor *domain.Redactor) domain.SourceProvider {
 	if c == nil {
 		panic("NewNodeProvider: client must not be nil")
 	}
-	return &nodeProvider{client: c}
+	return &nodeProvider{client: c, redactor: redactor}
 }
 
 // ProviderName returns the stable identifier for this provider.
@@ -74,16 +75,16 @@ func (n *nodeProvider) ExtractFinding(obj client.Object) (*domain.Finding, error
 		switch cond.Type {
 		case corev1.NodeReady:
 			if cond.Status == corev1.ConditionFalse || cond.Status == corev1.ConditionUnknown {
-				errors = append(errors, errorEntry{Text: buildNodeConditionText(node.Name, cond)})
+				errors = append(errors, errorEntry{Text: buildNodeConditionText(node.Name, cond, n.redactor)})
 			}
 		case corev1.NodeMemoryPressure, corev1.NodeDiskPressure, corev1.NodePIDPressure, corev1.NodeNetworkUnavailable:
 			if cond.Status == corev1.ConditionTrue {
-				errors = append(errors, errorEntry{Text: buildNodeConditionText(node.Name, cond)})
+				errors = append(errors, errorEntry{Text: buildNodeConditionText(node.Name, cond, n.redactor)})
 			}
 		default:
 			if cond.Status == corev1.ConditionTrue {
 				if _, ignored := ignoredNodeConditions[cond.Type]; !ignored {
-					errors = append(errors, errorEntry{Text: buildNodeConditionText(node.Name, cond)})
+					errors = append(errors, errorEntry{Text: buildNodeConditionText(node.Name, cond, n.redactor)})
 				}
 			}
 		}
@@ -133,7 +134,7 @@ func computeNodeSeverity(node *corev1.Node) domain.Severity {
 
 // buildNodeConditionText constructs the error message for a failing node condition.
 // Format: "node <name> has condition <Type> (<Reason>): <Message>"
-func buildNodeConditionText(nodeName string, cond corev1.NodeCondition) string {
+func buildNodeConditionText(nodeName string, cond corev1.NodeCondition, redactor *domain.Redactor) string {
 	return fmt.Sprintf("node %s has condition %s (%s): %s",
-		nodeName, cond.Type, cond.Reason, truncate(domain.StripDelimiters(domain.RedactSecrets(cond.Message)), maxConditionMessage))
+		nodeName, cond.Type, cond.Reason, truncate(domain.StripDelimiters(redactor.Redact(cond.Message)), maxConditionMessage))
 }

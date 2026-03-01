@@ -65,6 +65,16 @@ type Config struct {
 	// DRY_RUN — default false; set "true" or "1" to enable dry-run mode
 	DryRun bool
 
+	// HardenAgentKubectl — when true, kubectl wrapper in agent Jobs blocks
+	// get/describe secret(s), get all, exec, and port-forward. Enforced via
+	// read-only sentinel file. Default: false.
+	HardenAgentKubectl bool
+
+	// ExtraRedactPatterns — additional RE2 regex patterns applied by both the
+	// watcher's finding redaction and the agent's redact binary. Comma-separated
+	// in EXTRA_REDACT_PATTERNS env var. Invalid patterns cause startup failure.
+	ExtraRedactPatterns []string
+
 	// CorrelationWindowSeconds is how long (in seconds) a Pending RemediationJob
 	// is held before the correlator evaluates it. Default 30; 0 disables the hold.
 	CorrelationWindowSeconds int // CORRELATION_WINDOW_SECONDS — default 30
@@ -326,6 +336,28 @@ func FromEnv() (Config, error) {
 		cfg.DryRun = true
 	default:
 		return Config{}, fmt.Errorf("DRY_RUN must be 'true', 'false', '1', or '0', got %q", dryRunStr)
+	}
+
+	hardenStr := os.Getenv("HARDEN_AGENT_KUBECTL")
+	switch hardenStr {
+	case "", "false", "0":
+		cfg.HardenAgentKubectl = false
+	case "true", "1":
+		cfg.HardenAgentKubectl = true
+	default:
+		return Config{}, fmt.Errorf("HARDEN_AGENT_KUBECTL must be 'true', 'false', '1', or '0', got %q", hardenStr)
+	}
+
+	if raw := os.Getenv("EXTRA_REDACT_PATTERNS"); raw != "" {
+		for _, p := range strings.Split(raw, ",") {
+			p = strings.TrimSpace(p)
+			if p != "" {
+				cfg.ExtraRedactPatterns = append(cfg.ExtraRedactPatterns, p)
+			}
+		}
+	}
+	if _, err := domain.New(cfg.ExtraRedactPatterns); err != nil {
+		return Config{}, fmt.Errorf("EXTRA_REDACT_PATTERNS: %w", err)
 	}
 
 	// Correlation window — how long to hold Pending jobs before dispatching.

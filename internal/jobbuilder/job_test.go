@@ -602,8 +602,111 @@ func TestBuild_SecurityContexts(t *testing.T) {
 		}
 	}
 	main := job.Spec.Template.Spec.Containers[0]
-	if main.SecurityContext.ReadOnlyRootFilesystem != nil {
-		t.Error("main container: ReadOnlyRootFilesystem must not be set")
+	if main.SecurityContext.ReadOnlyRootFilesystem == nil || !*main.SecurityContext.ReadOnlyRootFilesystem {
+		t.Error("main container: ReadOnlyRootFilesystem must be set to true")
+	}
+	if main.SecurityContext.RunAsNonRoot == nil || !*main.SecurityContext.RunAsNonRoot {
+		t.Error("main container: RunAsNonRoot must be set to true")
+	}
+}
+
+func TestBuild_TmpVolume_Present(t *testing.T) {
+	job := buildJob(t)
+	podSpec := job.Spec.Template.Spec
+
+	vol, ok := findVolume(podSpec, "tmp")
+	if !ok {
+		t.Fatal("volume \"tmp\" not found in pod spec")
+	}
+	if vol.EmptyDir == nil {
+		t.Error("volume \"tmp\" must be an emptyDir")
+	}
+}
+
+func TestBuild_TmpVolumeMount_MainContainer(t *testing.T) {
+	job := buildJob(t)
+	var main corev1.Container
+	for _, c := range job.Spec.Template.Spec.Containers {
+		if c.Name == "mechanic-agent" {
+			main = c
+			break
+		}
+	}
+
+	mount, ok := findVolumeMount(main, "tmp")
+	if !ok {
+		t.Fatal("volume mount \"tmp\" not found in main container")
+	}
+	if mount.MountPath != "/tmp" {
+		t.Errorf("tmp VolumeMount.MountPath = %q, want %q", mount.MountPath, "/tmp")
+	}
+}
+
+func TestBuild_WorkspaceVolume_StillPresent(t *testing.T) {
+	job := buildJob(t)
+	podSpec := job.Spec.Template.Spec
+
+	vol, ok := findVolume(podSpec, "shared-workspace")
+	if !ok {
+		t.Fatal("volume \"shared-workspace\" not found in pod spec")
+	}
+	if vol.EmptyDir == nil {
+		t.Error("volume \"shared-workspace\" must be an emptyDir")
+	}
+
+	var main corev1.Container
+	for _, c := range podSpec.Containers {
+		if c.Name == "mechanic-agent" {
+			main = c
+			break
+		}
+	}
+	mount, ok := findVolumeMount(main, "shared-workspace")
+	if !ok {
+		t.Fatal("volume mount \"shared-workspace\" not found in main container")
+	}
+	if mount.MountPath != "/workspace" {
+		t.Errorf("shared-workspace VolumeMount.MountPath = %q, want %q", mount.MountPath, "/workspace")
+	}
+}
+
+func TestBuild_TmpVolume_PresentWhenDryRun(t *testing.T) {
+	job := buildDryRunJob(t)
+	podSpec := job.Spec.Template.Spec
+
+	if _, ok := findVolume(podSpec, "tmp"); !ok {
+		t.Fatal("volume \"tmp\" must still be present when DryRun=true")
+	}
+
+	var main corev1.Container
+	for _, c := range podSpec.Containers {
+		if c.Name == "mechanic-agent" {
+			main = c
+			break
+		}
+	}
+	if _, ok := findVolumeMount(main, "tmp"); !ok {
+		t.Fatal("volume mount \"tmp\" must still be present in main container when DryRun=true")
+	}
+}
+
+func TestBuild_TmpVolume_PresentWhenHardenKubectl(t *testing.T) {
+	job := buildHardenJob(t)
+	podSpec := job.Spec.Template.Spec
+
+	if _, ok := findVolume(podSpec, "tmp"); !ok {
+		t.Fatal("volume \"tmp\" must still be present when HardenAgentKubectl=true")
+	}
+
+	var main corev1.Container
+	for _, c := range podSpec.Containers {
+		if c.Name == "mechanic-agent" {
+			main = c
+			break
+		}
+	}
+	if _, ok := findVolumeMount(main, "tmp"); !ok {
+		t.Fatal("volume mount \"tmp\" must still be present in main container when HardenAgentKubectl=true")
 	}
 }
 
@@ -1167,5 +1270,245 @@ func TestBuild_NoDryRun_MainContainerMountAbsent(t *testing.T) {
 		if m.Name == "mechanic-cfg" {
 			t.Error("mechanic-cfg volume mount must not be present when DryRun=false")
 		}
+	}
+}
+
+// --- epic29 STORY_04: HardenAgentKubectl and ExtraRedactPatterns ---
+
+// buildHardenJob creates a Job with only HardenAgentKubectl=true (DryRun=false).
+func buildHardenJob(t *testing.T) *batchv1.Job {
+	t.Helper()
+	b, err := New(Config{AgentNamespace: "mechanic", HardenAgentKubectl: true})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	job, err := b.Build(testRJob, nil)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	return job
+}
+
+// buildBothFlagsJob creates a Job with both DryRun=true and HardenAgentKubectl=true.
+func buildBothFlagsJob(t *testing.T) *batchv1.Job {
+	t.Helper()
+	b, err := New(Config{AgentNamespace: "mechanic", DryRun: true, HardenAgentKubectl: true})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	job, err := b.Build(testRJob, nil)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	return job
+}
+
+// TestBuild_NeitherFlag_NoMechanicCfgVolume verifies that when neither DryRun nor
+// HardenAgentKubectl is set, no mechanic-cfg volume is added (no regression).
+func TestBuild_NeitherFlag_NoMechanicCfgVolume(t *testing.T) {
+	job := buildJob(t)
+	for _, v := range job.Spec.Template.Spec.Volumes {
+		if v.Name == "mechanic-cfg" {
+			t.Error("mechanic-cfg volume must not exist when neither DryRun nor HardenAgentKubectl is set")
+		}
+	}
+}
+
+// TestBuild_NeitherFlag_NoGateInitContainer verifies no dry-run-gate init container
+// when neither flag is set.
+func TestBuild_NeitherFlag_NoGateInitContainer(t *testing.T) {
+	job := buildJob(t)
+	for _, c := range job.Spec.Template.Spec.InitContainers {
+		if c.Name == "dry-run-gate" {
+			t.Error("dry-run-gate init container must not exist when neither DryRun nor HardenAgentKubectl is set")
+		}
+	}
+}
+
+// TestBuild_HardenOnly_MechanicCfgVolumePresent verifies mechanic-cfg volume is added
+// when only HardenAgentKubectl=true.
+func TestBuild_HardenOnly_MechanicCfgVolumePresent(t *testing.T) {
+	job := buildHardenJob(t)
+	found := false
+	for _, v := range job.Spec.Template.Spec.Volumes {
+		if v.Name == "mechanic-cfg" {
+			found = true
+			if v.EmptyDir == nil {
+				t.Error("mechanic-cfg volume must be an emptyDir")
+			}
+			break
+		}
+	}
+	if !found {
+		t.Error("mechanic-cfg volume missing when HardenAgentKubectl=true")
+	}
+}
+
+// TestBuild_HardenOnly_GateInitContainerPresent verifies dry-run-gate init container
+// exists when only HardenAgentKubectl=true.
+func TestBuild_HardenOnly_GateInitContainerPresent(t *testing.T) {
+	job := buildHardenJob(t)
+	var gate *corev1.Container
+	for i := range job.Spec.Template.Spec.InitContainers {
+		if job.Spec.Template.Spec.InitContainers[i].Name == "dry-run-gate" {
+			gate = &job.Spec.Template.Spec.InitContainers[i]
+			break
+		}
+	}
+	if gate == nil {
+		t.Fatal("dry-run-gate init container missing when HardenAgentKubectl=true")
+	}
+}
+
+// TestBuild_HardenOnly_GateWritesHardenKubectl verifies the gate command writes only
+// the harden-kubectl sentinel (not dry-run) when only HardenAgentKubectl=true.
+func TestBuild_HardenOnly_GateWritesHardenKubectl(t *testing.T) {
+	job := buildHardenJob(t)
+	var gate *corev1.Container
+	for i := range job.Spec.Template.Spec.InitContainers {
+		if job.Spec.Template.Spec.InitContainers[i].Name == "dry-run-gate" {
+			gate = &job.Spec.Template.Spec.InitContainers[i]
+			break
+		}
+	}
+	if gate == nil {
+		t.Fatal("dry-run-gate init container not found")
+	}
+	if len(gate.Args) == 0 {
+		t.Fatal("gate container has no args")
+	}
+	cmd := gate.Args[0]
+	if !strings.Contains(cmd, "/mechanic-cfg/harden-kubectl") {
+		t.Errorf("gate command should write /mechanic-cfg/harden-kubectl, got: %q", cmd)
+	}
+	if strings.Contains(cmd, "/mechanic-cfg/dry-run") {
+		t.Errorf("gate command must NOT write /mechanic-cfg/dry-run when DryRun=false, got: %q", cmd)
+	}
+}
+
+// TestBuild_DryRunOnly_GateWritesDryRunOnly verifies the gate command writes only
+// the dry-run sentinel (not harden-kubectl) when only DryRun=true.
+func TestBuild_DryRunOnly_GateWritesDryRunOnly(t *testing.T) {
+	job := buildDryRunJob(t)
+	var gate *corev1.Container
+	for i := range job.Spec.Template.Spec.InitContainers {
+		if job.Spec.Template.Spec.InitContainers[i].Name == "dry-run-gate" {
+			gate = &job.Spec.Template.Spec.InitContainers[i]
+			break
+		}
+	}
+	if gate == nil {
+		t.Fatal("dry-run-gate init container not found")
+	}
+	if len(gate.Args) == 0 {
+		t.Fatal("gate container has no args")
+	}
+	cmd := gate.Args[0]
+	if !strings.Contains(cmd, "/mechanic-cfg/dry-run") {
+		t.Errorf("gate command should write /mechanic-cfg/dry-run, got: %q", cmd)
+	}
+	if strings.Contains(cmd, "/mechanic-cfg/harden-kubectl") {
+		t.Errorf("gate command must NOT write /mechanic-cfg/harden-kubectl when HardenAgentKubectl=false, got: %q", cmd)
+	}
+}
+
+// TestBuild_BothFlags_GateWritesBothSentinels verifies both sentinels are written
+// when both DryRun=true and HardenAgentKubectl=true.
+func TestBuild_BothFlags_GateWritesBothSentinels(t *testing.T) {
+	job := buildBothFlagsJob(t)
+	var gate *corev1.Container
+	for i := range job.Spec.Template.Spec.InitContainers {
+		if job.Spec.Template.Spec.InitContainers[i].Name == "dry-run-gate" {
+			gate = &job.Spec.Template.Spec.InitContainers[i]
+			break
+		}
+	}
+	if gate == nil {
+		t.Fatal("dry-run-gate init container not found")
+	}
+	if len(gate.Args) == 0 {
+		t.Fatal("gate container has no args")
+	}
+	cmd := gate.Args[0]
+	if !strings.Contains(cmd, "/mechanic-cfg/dry-run") {
+		t.Errorf("gate command should write /mechanic-cfg/dry-run, got: %q", cmd)
+	}
+	if !strings.Contains(cmd, "/mechanic-cfg/harden-kubectl") {
+		t.Errorf("gate command should write /mechanic-cfg/harden-kubectl, got: %q", cmd)
+	}
+}
+
+// TestBuild_HardenOnly_MainContainerMountPresent verifies the mechanic-cfg volume
+// is mounted read-only on the main container when only HardenAgentKubectl=true.
+func TestBuild_HardenOnly_MainContainerMountPresent(t *testing.T) {
+	job := buildHardenJob(t)
+	main := job.Spec.Template.Spec.Containers[0]
+	var mount *corev1.VolumeMount
+	for i := range main.VolumeMounts {
+		if main.VolumeMounts[i].Name == "mechanic-cfg" {
+			mount = &main.VolumeMounts[i]
+			break
+		}
+	}
+	if mount == nil {
+		t.Fatal("mechanic-cfg volume mount missing from main container when HardenAgentKubectl=true")
+	}
+	if !mount.ReadOnly {
+		t.Error("mechanic-cfg volume mount must be ReadOnly=true in main container")
+	}
+}
+
+// TestBuild_HardenOnly_EnvVarHardenKubectl verifies HARDEN_KUBECTL=true is set
+// when HardenAgentKubectl=true.
+func TestBuild_HardenOnly_EnvVarHardenKubectl(t *testing.T) {
+	job := buildHardenJob(t)
+	main := job.Spec.Template.Spec.Containers[0]
+	val, ok := getEnv(main, "HARDEN_KUBECTL")
+	if !ok {
+		t.Fatal("HARDEN_KUBECTL env var missing when HardenAgentKubectl=true")
+	}
+	if val != "true" {
+		t.Errorf("HARDEN_KUBECTL = %q, want %q", val, "true")
+	}
+}
+
+// TestBuild_NoDryRunNoHarden_NoHardenKubectlEnv verifies HARDEN_KUBECTL is absent
+// when HardenAgentKubectl=false.
+func TestBuild_NoDryRunNoHarden_NoHardenKubectlEnv(t *testing.T) {
+	job := buildJob(t)
+	main := job.Spec.Template.Spec.Containers[0]
+	if _, ok := getEnv(main, "HARDEN_KUBECTL"); ok {
+		t.Error("HARDEN_KUBECTL must not be present when HardenAgentKubectl=false")
+	}
+}
+
+// TestBuild_ExtraRedactPatterns_EnvVarSet verifies EXTRA_REDACT_PATTERNS is set
+// in the main container env when ExtraRedactPatterns is non-empty.
+func TestBuild_ExtraRedactPatterns_EnvVarSet(t *testing.T) {
+	b, err := New(Config{AgentNamespace: "mechanic", ExtraRedactPatterns: []string{"CORP-[0-9]{8}", "INT-[A-Z]+-[0-9]+"}})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	job, err := b.Build(testRJob, nil)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	main := job.Spec.Template.Spec.Containers[0]
+	val, ok := getEnv(main, "EXTRA_REDACT_PATTERNS")
+	if !ok {
+		t.Fatal("EXTRA_REDACT_PATTERNS env var missing when ExtraRedactPatterns is set")
+	}
+	if val != "CORP-[0-9]{8},INT-[A-Z]+-[0-9]+" {
+		t.Errorf("EXTRA_REDACT_PATTERNS = %q, want %q", val, "CORP-[0-9]{8},INT-[A-Z]+-[0-9]+")
+	}
+}
+
+// TestBuild_NoExtraRedactPatterns_EnvVarAbsent verifies EXTRA_REDACT_PATTERNS is absent
+// when ExtraRedactPatterns is empty.
+func TestBuild_NoExtraRedactPatterns_EnvVarAbsent(t *testing.T) {
+	job := buildJob(t)
+	main := job.Spec.Template.Spec.Containers[0]
+	if _, ok := getEnv(main, "EXTRA_REDACT_PATTERNS"); ok {
+		t.Error("EXTRA_REDACT_PATTERNS must not be present when ExtraRedactPatterns is empty")
 	}
 }

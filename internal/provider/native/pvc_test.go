@@ -45,7 +45,7 @@ func makeEvent(pvcName, pvcNamespace, reason, message string) *corev1.Event {
 func TestPVCProviderName_IsNative(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPVCProvider(c)
+	p := NewPVCProvider(c, testRedactor(t))
 
 	got := p.ProviderName()
 	if got != "native" {
@@ -57,7 +57,7 @@ func TestPVCProviderName_IsNative(t *testing.T) {
 func TestPVCObjectType_IsPVC(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPVCProvider(c)
+	p := NewPVCProvider(c, testRedactor(t))
 
 	obj := p.ObjectType()
 	if _, ok := obj.(*corev1.PersistentVolumeClaim); !ok {
@@ -69,7 +69,7 @@ func TestPVCObjectType_IsPVC(t *testing.T) {
 func TestBoundPVC_ReturnsNil(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPVCProvider(c)
+	p := NewPVCProvider(c, testRedactor(t))
 
 	pvc := makePVC("my-pvc", "default", corev1.ClaimBound)
 	finding, err := p.ExtractFinding(pvc)
@@ -85,7 +85,7 @@ func TestBoundPVC_ReturnsNil(t *testing.T) {
 func TestPendingPVC_NoEvents_ReturnsNil(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPVCProvider(c)
+	p := NewPVCProvider(c, testRedactor(t))
 
 	pvc := makePVC("my-pvc", "default", corev1.ClaimPending)
 	finding, err := p.ExtractFinding(pvc)
@@ -105,7 +105,7 @@ func TestPendingPVC_WithProvisioningFailed_ReturnsFinding(t *testing.T) {
 	event := makeEvent("my-pvc", "default", "ProvisioningFailed", "no storage class found")
 
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(pvc, event).Build()
-	p := NewPVCProvider(c)
+	p := NewPVCProvider(c, testRedactor(t))
 
 	finding, err := p.ExtractFinding(pvc)
 	if err != nil {
@@ -142,7 +142,7 @@ func TestPendingPVC_WithOtherEvent_ReturnsNil(t *testing.T) {
 	event := makeEvent("my-pvc", "default", "Provisioning", "provisioning started")
 
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(pvc, event).Build()
-	p := NewPVCProvider(c)
+	p := NewPVCProvider(c, testRedactor(t))
 
 	finding, err := p.ExtractFinding(pvc)
 	if err != nil {
@@ -157,7 +157,7 @@ func TestPendingPVC_WithOtherEvent_ReturnsNil(t *testing.T) {
 func TestPVCWrongType_ReturnsError(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPVCProvider(c)
+	p := NewPVCProvider(c, testRedactor(t))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: "my-pod", Namespace: "default"},
@@ -178,7 +178,7 @@ func TestPVCFindingErrors_IsValidJSON(t *testing.T) {
 	event := makeEvent("my-pvc", "default", "ProvisioningFailed", "storageclass not found")
 
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(pvc, event).Build()
-	p := NewPVCProvider(c)
+	p := NewPVCProvider(c, testRedactor(t))
 
 	finding, err := p.ExtractFinding(pvc)
 	if err != nil {
@@ -206,7 +206,7 @@ func TestPVCErrorText_IncludesEventMessage(t *testing.T) {
 	event := makeEvent("my-pvc", "default", "ProvisioningFailed", "rbd: create volume failed: volume already exists")
 
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(pvc, event).Build()
-	p := NewPVCProvider(c)
+	p := NewPVCProvider(c, testRedactor(t))
 
 	finding, err := p.ExtractFinding(pvc)
 	if err != nil {
@@ -225,7 +225,7 @@ func TestPVCBoundWithStaleEvents_ReturnsNil(t *testing.T) {
 	event := makeEvent("my-pvc", "default", "ProvisioningFailed", "old failure message")
 
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(pvc, event).Build()
-	p := NewPVCProvider(c)
+	p := NewPVCProvider(c, testRedactor(t))
 
 	finding, err := p.ExtractFinding(pvc)
 	if err != nil {
@@ -244,7 +244,7 @@ func TestPVCEventMessageRedacted(t *testing.T) {
 	event := makeEvent("my-pvc", "default", "ProvisioningFailed", "provision failed: password=secret123 rejected")
 
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(pvc, event).Build()
-	p := NewPVCProvider(c)
+	p := NewPVCProvider(c, testRedactor(t))
 
 	finding, err := p.ExtractFinding(pvc)
 	if err != nil {
@@ -272,7 +272,7 @@ func TestPVCAnnotationEnabled_False(t *testing.T) {
 	event := makeEvent("ann-pvc", "default", "ProvisioningFailed", "no storage class found")
 
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(pvc, event).Build()
-	p := NewPVCProvider(c)
+	p := NewPVCProvider(c, testRedactor(t))
 
 	finding, err := p.ExtractFinding(pvc)
 	if err != nil {
@@ -293,7 +293,7 @@ func TestPVCAnnotationSkipUntilFuture(t *testing.T) {
 	event := makeEvent("skip-pvc", "default", "ProvisioningFailed", "no storage class found")
 
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(pvc, event).Build()
-	p := NewPVCProvider(c)
+	p := NewPVCProvider(c, testRedactor(t))
 
 	finding, err := p.ExtractFinding(pvc)
 	if err != nil {
@@ -325,7 +325,7 @@ func TestPVCEventForDifferentKind_ReturnsNil(t *testing.T) {
 	}
 
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(pvc, event).Build()
-	p := NewPVCProvider(c)
+	p := NewPVCProvider(c, testRedactor(t))
 
 	finding, err := p.ExtractFinding(pvc)
 	if err != nil {

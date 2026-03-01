@@ -65,10 +65,10 @@ read-only into the main container. The LLM cannot `unset` or overwrite it.
 - [ ] `kubectl get all -n kube-system` is blocked (the `-n` flag does not bypass)
 - [ ] `kubectl get pods,secrets` (multi-resource) exits 1 (contains `secret`)
 - [ ] When hardened mode is **not** active, none of the Tier 2 blocks apply
-- [ ] Sentinel file `/mendabot-cfg/harden-kubectl` is created with permissions `444`
+- [ ] Sentinel file `/mechanic-cfg/harden-kubectl` is created with permissions `444`
 - [ ] Sentinel file is mounted read-only in the main container — the agent cannot modify it
 - [ ] Three-layer detection:
-      - Layer 1: `/mendabot-cfg/harden-kubectl` contains `true`
+      - Layer 1: `/mechanic-cfg/harden-kubectl` contains `true`
       - Layer 2: `HARDEN_KUBECTL=true` in `/proc/1/environ`
       - Layer 3: `$HARDEN_KUBECTL` env var fallback
 - [ ] `agent.hardenKubectl: false` in `values.yaml` is the default — existing deployments
@@ -86,8 +86,8 @@ read-only into the main container. The LLM cannot `unset` or overwrite it.
 _harden_kubectl="false"
 
 # Layer 1: sentinel file (chmod 444, read-only volume mount — tamper-proof)
-if [ -f /mendabot-cfg/harden-kubectl ] && \
-   [ "$(cat /mendabot-cfg/harden-kubectl 2>/dev/null)" = "true" ]; then
+if [ -f /mechanic-cfg/harden-kubectl ] && \
+   [ "$(cat /mechanic-cfg/harden-kubectl 2>/dev/null)" = "true" ]; then
     _harden_kubectl="true"
 fi
 
@@ -201,8 +201,8 @@ The implementation should use this approach for robustness.
 ### Sentinel init container (STORY_04 wires this — referenced here for context)
 
 The `dry-run-gate` init container command (in `internal/jobbuilder/job.go`) is extended
-to write `/mendabot-cfg/harden-kubectl` when `cfg.HardenAgentKubectl` is true. The
-`mendabot-cfg` emptyDir volume is created when either `DryRun` or `HardenAgentKubectl`
+to write `/mechanic-cfg/harden-kubectl` when `cfg.HardenAgentKubectl` is true. The
+`mechanic-cfg` emptyDir volume is created when either `DryRun` or `HardenAgentKubectl`
 is set. The main container always mounts it read-only.
 
 ---

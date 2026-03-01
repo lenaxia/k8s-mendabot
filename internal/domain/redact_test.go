@@ -1,6 +1,7 @@
 package domain_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/lenaxia/k8s-mechanic/internal/domain"
@@ -214,6 +215,68 @@ func TestRedactSecrets(t *testing.T) {
 			// The secret payload is still redacted; this documents the residual prefix leak.
 			want: "github_pat_[REDACTED-BASE64]",
 		},
+		// age private key patterns (STORY_02)
+		{
+			name:  "age private key full",
+			input: "key: AGE-SECRET-KEY-1QEKK0T0PGLH0W3S2VCFQV9XC8YFQY4YXJMCFABCDEFGHIJK",
+			want:  "key: [REDACTED-AGE-KEY]",
+		},
+		{
+			name:  "age private key lowercase",
+			input: "key: age-secret-key-1qekk0t0pglh0w3s2vcfqv9xc8yfqy4yxjmcfabcdefghijk",
+			want:  "key: [REDACTED-AGE-KEY]",
+		},
+		{
+			name:  "age public key not redacted",
+			input: "recipient: age1ql3z7hjy54pw3pywairh23x4let4w0g9",
+			want:  "recipient: age1ql3z7hjy54pw3pywairh23x4let4w0g9",
+		},
+		// sk-* API key patterns (STORY_02)
+		{
+			// sk-* pattern fires for bare sk-* value not preceded by a named key
+			name:  "sk-proj key",
+			input: "provider: sk-proj-T2BlbkFJabcdefghij1234567890ABCDEF",
+			want:  "provider: [REDACTED-SK-KEY]",
+		},
+		{
+			name:  "sk-ant key",
+			input: "key: sk-ant-api03-AbCdEfGhIj1234567890KLmno",
+			want:  "key: [REDACTED-SK-KEY]",
+		},
+		{
+			name:  "sk too short",
+			input: "key: sk-abc",
+			want:  "key: sk-abc",
+		},
+		// AWS AKIA key patterns (STORY_02)
+		{
+			name:  "AWS AKIA key",
+			input: "aws_access_key_id: AKIAIOSFODNN7EXAMPLE",
+			want:  "aws_access_key_id: [REDACTED-AWS-KEY]",
+		},
+		{
+			name:  "AWS AKIA not 16 chars",
+			input: "value: AKIAIOSFODNN7EXAMPL",
+			want:  "value: AKIAIOSFODNN7EXAMPL",
+		},
+		// JWT two-segment patterns (STORY_02)
+		{
+			// JWT pattern fires for bare ey...ey... value not preceded by "token:"
+			name:  "JWT two segments",
+			input: "header: eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ1c2VyIn0",
+			want:  "header: [REDACTED-JWT]",
+		},
+		// Non-Bearer Authorization header patterns (STORY_02)
+		{
+			name:  "Authorization Token",
+			input: "Authorization: Token ghp_abc123secretvalue456789012345678",
+			want:  "Authorization: [REDACTED]",
+		},
+		{
+			name:  "Authorization Basic",
+			input: "Authorization: Basic dXNlcjpwYXNzd29yZA==",
+			want:  "Authorization: [REDACTED]",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -223,4 +286,60 @@ func TestRedactSecrets(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNew(t *testing.T) {
+	t.Run("no extras applies built-in patterns", func(t *testing.T) {
+		r, err := domain.New(nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		got := r.Redact("password: hunter2")
+		if got != "password: [REDACTED]" {
+			t.Errorf("got %q, want %q", got, "password: [REDACTED]")
+		}
+	})
+
+	t.Run("valid extra pattern", func(t *testing.T) {
+		r, err := domain.New([]string{`CORP-[0-9]{8}`})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		got := r.Redact("id: CORP-12345678")
+		if got != "id: [REDACTED-CUSTOM]" {
+			t.Errorf("got %q, want %q", got, "id: [REDACTED-CUSTOM]")
+		}
+		// built-ins still apply
+		got2 := r.Redact("token: abc123")
+		if got2 != "token: [REDACTED]" {
+			t.Errorf("got %q, want %q", got2, "token: [REDACTED]")
+		}
+	})
+
+	t.Run("invalid extra pattern returns error", func(t *testing.T) {
+		_, err := domain.New([]string{`[invalid`})
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "invalid extra redact pattern") {
+			t.Errorf("error %q does not contain 'invalid extra redact pattern'", err.Error())
+		}
+	})
+
+	t.Run("empty and whitespace patterns skipped", func(t *testing.T) {
+		r, err := domain.New([]string{"", "  "})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if r == nil {
+			t.Fatal("got nil Redactor")
+		}
+	})
+
+	t.Run("RedactSecrets shim unchanged", func(t *testing.T) {
+		got := domain.RedactSecrets("password: hunter2")
+		if got != "password: [REDACTED]" {
+			t.Errorf("got %q, want %q", got, "password: [REDACTED]")
+		}
+	})
 }

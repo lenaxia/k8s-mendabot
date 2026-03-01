@@ -30,6 +30,34 @@ agent:
       cpu: 500m
       # -- Memory limit for each agent Job container.
       memory: 512Mi
+  # -- When true: blocks kubectl get/describe secret(s), get all, exec, and port-forward
+  # in agent Jobs. Enforced via read-only sentinel file (cannot be bypassed from
+  # within the container). Default: false.
+  hardenKubectl: false
+  # -- Additional RE2 regex patterns applied by both the watcher's finding redaction
+  # and the agent redact binary inside every Job. Invalid patterns cause watcher
+  # startup failure. Default: [] (no extra patterns).
+  # Example:
+  #   extraRedactPatterns:
+  #     - 'CORP-[0-9]{8}'
+  #     - 'INT-[A-Z]+-[0-9]+'
+  extraRedactPatterns: []
+  # Optional Kyverno ClusterPolicy enforcing agent hardening rules:
+  # secret read denial, write denial, pod exec/portforward denial,
+  # agent image allowlist, pod security profile, and a curl-bypass audit rule.
+  #
+  # Requires Kyverno v1.9+ installed in the cluster.
+  # Default: false (Kyverno is not a required dependency).
+  #
+  # If agent.kyvernoPolicy.enabled is true and Kyverno is not installed,
+  # helm install will fail with a CRD-not-found error for kyverno.io/v1/ClusterPolicy.
+  kyvernoPolicy:
+    enabled: false
+    # Image prefix enforced on all mechanic-agent Job containers.
+    # Jobs whose agent container image does not start with this prefix are denied.
+    # Set to "" to disable image enforcement while keeping other rules active.
+    # Override when using a fork, private mirror, or custom build of the agent image.
+    allowedImagePrefix: "ghcr.io/lenaxia/mechanic-agent"
 
 # @section GitOps repository
 gitops:

@@ -19,15 +19,16 @@ import (
 var _ domain.SourceProvider = (*jobProvider)(nil)
 
 type jobProvider struct {
-	client client.Client
+	client   client.Client
+	redactor *domain.Redactor
 }
 
 // NewJobProvider constructs a jobProvider. Panics if c is nil.
-func NewJobProvider(c client.Client) domain.SourceProvider {
+func NewJobProvider(c client.Client, redactor *domain.Redactor) domain.SourceProvider {
 	if c == nil {
 		panic("NewJobProvider: client must not be nil")
 	}
-	return &jobProvider{client: c}
+	return &jobProvider{client: c, redactor: redactor}
 }
 
 // ProviderName returns the stable identifier for this provider.
@@ -92,7 +93,7 @@ func (p *jobProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 	for _, cond := range job.Status.Conditions {
 		if cond.Type == batchv1.JobFailed && cond.Status == corev1.ConditionTrue {
 			if cond.Reason != "" || cond.Message != "" {
-				condText := fmt.Sprintf("job %s: %s: %s", job.Name, cond.Reason, truncate(domain.StripDelimiters(domain.RedactSecrets(cond.Message)), maxConditionMessage))
+				condText := fmt.Sprintf("job %s: %s: %s", job.Name, cond.Reason, truncate(domain.StripDelimiters(p.redactor.Redact(cond.Message)), maxConditionMessage))
 				errors = append(errors, errorEntry{Text: condText})
 			}
 			break

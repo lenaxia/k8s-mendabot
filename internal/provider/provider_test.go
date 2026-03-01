@@ -50,6 +50,16 @@ var _ domain.SourceProvider = (*fakeSourceProvider)(nil)
 
 const agentNamespace = "mechanic"
 
+// mustNewRedactor returns a default Redactor (built-in patterns only) for use in tests.
+func mustNewRedactor(t *testing.T) *domain.Redactor {
+	t.Helper()
+	r, err := domain.New(nil)
+	if err != nil {
+		t.Fatalf("mustNewRedactor: %v", err)
+	}
+	return r
+}
+
 func newTestScheme() *runtime.Scheme {
 	s := v1alpha1.NewScheme()
 	// Add client-go scheme so that core types (ConfigMap used as watched object) are registered.
@@ -2507,7 +2517,7 @@ func TestAnnotationGate_EnabledFalse_NoRemediationJob(t *testing.T) {
 		WithStatusSubresource(&v1alpha1.RemediationJob{}).
 		Build()
 
-	podProvider := native.NewPodProvider(c)
+	podProvider := native.NewPodProvider(c, mustNewRedactor(t))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{

@@ -19,7 +19,7 @@ func int32Ptr(v int32) *int32 { return &v }
 func TestDeploymentProviderName_IsNative(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewDeploymentProvider(c)
+	p := NewDeploymentProvider(c, testRedactor(t))
 
 	got := p.ProviderName()
 	if got != "native" {
@@ -31,7 +31,7 @@ func TestDeploymentProviderName_IsNative(t *testing.T) {
 func TestDeploymentObjectType_IsDeployment(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewDeploymentProvider(c)
+	p := NewDeploymentProvider(c, testRedactor(t))
 
 	obj := p.ObjectType()
 	if _, ok := obj.(*appsv1.Deployment); !ok {
@@ -43,7 +43,7 @@ func TestDeploymentObjectType_IsDeployment(t *testing.T) {
 func TestHealthyDeployment(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewDeploymentProvider(c)
+	p := NewDeploymentProvider(c, testRedactor(t))
 
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -79,7 +79,7 @@ func TestHealthyDeployment(t *testing.T) {
 func TestDegradedDeployment(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewDeploymentProvider(c)
+	p := NewDeploymentProvider(c, testRedactor(t))
 
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -121,7 +121,7 @@ func TestDegradedDeployment(t *testing.T) {
 func TestZeroReadyReplicas(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewDeploymentProvider(c)
+	p := NewDeploymentProvider(c, testRedactor(t))
 
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -155,7 +155,7 @@ func TestZeroReadyReplicas(t *testing.T) {
 func TestScalingDownTransient(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewDeploymentProvider(c)
+	p := NewDeploymentProvider(c, testRedactor(t))
 
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -185,7 +185,7 @@ func TestScalingDownTransient(t *testing.T) {
 func TestAvailableConditionFalse(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewDeploymentProvider(c)
+	p := NewDeploymentProvider(c, testRedactor(t))
 
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -227,7 +227,7 @@ func TestAvailableConditionFalse(t *testing.T) {
 func TestErrorTextIncludesReason(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewDeploymentProvider(c)
+	p := NewDeploymentProvider(c, testRedactor(t))
 
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -268,7 +268,7 @@ func TestErrorTextIncludesReason(t *testing.T) {
 func TestDeploymentAvailableFalseMessageRedacted(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewDeploymentProvider(c)
+	p := NewDeploymentProvider(c, testRedactor(t))
 
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -310,7 +310,7 @@ func TestDeploymentAvailableFalseMessageRedacted(t *testing.T) {
 func TestDeploymentWrongType(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewDeploymentProvider(c)
+	p := NewDeploymentProvider(c, testRedactor(t))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: "my-pod", Namespace: "default"},
@@ -329,7 +329,7 @@ func TestDeploymentWrongType(t *testing.T) {
 func TestErrorTextContent(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewDeploymentProvider(c)
+	p := NewDeploymentProvider(c, testRedactor(t))
 
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -362,7 +362,7 @@ func TestErrorTextContent(t *testing.T) {
 func TestDeploymentFindingErrors_IsValidJSON(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewDeploymentProvider(c)
+	p := NewDeploymentProvider(c, testRedactor(t))
 
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -402,7 +402,7 @@ func TestDeploymentFindingErrors_IsValidJSON(t *testing.T) {
 func TestDeploymentParentObject_IsSelf(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewDeploymentProvider(c)
+	p := NewDeploymentProvider(c, testRedactor(t))
 
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -439,7 +439,7 @@ func TestDeploymentParentObject_IsSelf(t *testing.T) {
 func TestDeploymentProvider_AvailableFalse_WhileScalingDown(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewDeploymentProvider(c)
+	p := NewDeploymentProvider(c, testRedactor(t))
 
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -478,7 +478,7 @@ func TestDeploymentProvider_AvailableFalse_WhileScalingDown(t *testing.T) {
 func TestBothConditions_TwoEntries(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewDeploymentProvider(c)
+	p := NewDeploymentProvider(c, testRedactor(t))
 
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -533,7 +533,7 @@ func TestBothConditions_TwoEntries(t *testing.T) {
 func TestDeploymentSeverity_Critical(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewDeploymentProvider(c)
+	p := NewDeploymentProvider(c, testRedactor(t))
 
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{Name: "crit-deploy", Namespace: "default"},
@@ -557,7 +557,7 @@ func TestDeploymentSeverity_Critical(t *testing.T) {
 func TestDeploymentSeverity_High(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewDeploymentProvider(c)
+	p := NewDeploymentProvider(c, testRedactor(t))
 
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{Name: "high-deploy", Namespace: "default"},
@@ -581,7 +581,7 @@ func TestDeploymentSeverity_High(t *testing.T) {
 func TestDeploymentSeverity_Medium(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewDeploymentProvider(c)
+	p := NewDeploymentProvider(c, testRedactor(t))
 
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{Name: "med-deploy", Namespace: "default"},
@@ -604,7 +604,7 @@ func TestDeploymentSeverity_Medium(t *testing.T) {
 func TestDeploymentAnnotationEnabled_False(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewDeploymentProvider(c)
+	p := NewDeploymentProvider(c, testRedactor(t))
 
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -635,7 +635,7 @@ func TestDeploymentAnnotationEnabled_False(t *testing.T) {
 func TestDeploymentAnnotationSkipUntilFuture(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewDeploymentProvider(c)
+	p := NewDeploymentProvider(c, testRedactor(t))
 
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{

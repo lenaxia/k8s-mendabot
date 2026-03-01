@@ -3,6 +3,7 @@ package jobbuilder
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -21,8 +22,10 @@ type Config struct {
 	AgentType      config.AgentType
 	// TTLSeconds controls TTLSecondsAfterFinished on the batch/v1 Job.
 	// Zero means use the default (86400 = 24h).
-	TTLSeconds int32
-	DryRun     bool
+	TTLSeconds          int32
+	DryRun              bool
+	HardenAgentKubectl  bool
+	ExtraRedactPatterns []string
 	// Resource limits applied to all three Job containers.
 	// Empty strings fall back to the package defaults (100m/128Mi/500m/512Mi).
 	CPURequest string
@@ -80,6 +83,19 @@ func (b *Builder) containerResources() corev1.ResourceRequirements {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// buildGateCommand returns the sh command for the dry-run-gate init container.
+// Only writes the sentinels that are actually needed.
+func buildGateCommand(dryRun, hardenKubectl bool) string {
+	var cmds []string
+	if dryRun {
+		cmds = append(cmds, "echo -n 'true' > /mechanic-cfg/dry-run && chmod 444 /mechanic-cfg/dry-run")
+	}
+	if hardenKubectl {
+		cmds = append(cmds, "echo -n 'true' > /mechanic-cfg/harden-kubectl && chmod 444 /mechanic-cfg/harden-kubectl")
+	}
+	return strings.Join(cmds, " && ")
+}
 
 const initScript = `#!/bin/bash
 set -euo pipefail
@@ -208,9 +224,15 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 				MountPath: "/var/run/secrets/mechanic/serviceaccount",
 				ReadOnly:  true,
 			},
+			{
+				Name:      "tmp",
+				MountPath: "/tmp",
+			},
 		},
 		Resources: b.containerResources(),
 		SecurityContext: &corev1.SecurityContext{
+			ReadOnlyRootFilesystem:   ptr(true),
+			RunAsNonRoot:             ptr(true),
 			AllowPrivilegeEscalation: ptr(false),
 			Capabilities: &corev1.Capabilities{
 				Drop: []corev1.Capability{"ALL"},
@@ -230,13 +252,23 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 			Name:  "DRY_RUN",
 			Value: "true",
 		})
-		// Mount the dry-run sentinel volume read-only so the wrappers can detect
-		// dry-run mode via a tamper-proof file rather than an env var that a child
-		// shell could unset.
+	}
+	if b.cfg.DryRun || b.cfg.HardenAgentKubectl {
+		// Mount the mechanic-cfg sentinel volume read-only so the wrappers can detect
+		// mode via a tamper-proof file rather than an env var that a child shell could unset.
 		mainContainer.VolumeMounts = append(mainContainer.VolumeMounts, corev1.VolumeMount{
 			Name:      "mechanic-cfg",
 			MountPath: "/mechanic-cfg",
 			ReadOnly:  true,
+		})
+	}
+	if b.cfg.HardenAgentKubectl {
+		mainContainer.Env = append(mainContainer.Env, corev1.EnvVar{Name: "HARDEN_KUBECTL", Value: "true"})
+	}
+	if len(b.cfg.ExtraRedactPatterns) > 0 {
+		mainContainer.Env = append(mainContainer.Env, corev1.EnvVar{
+			Name:  "EXTRA_REDACT_PATTERNS",
+			Value: strings.Join(b.cfg.ExtraRedactPatterns, ","),
 		})
 	}
 	if groupID, ok := rjob.Labels[domain.CorrelationGroupIDLabel]; ok && groupID != "" {
@@ -288,15 +320,20 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 				},
 			},
 		},
+		{
+			Name: "tmp",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
 	}
 
 	initContainers := []corev1.Container{initContainer}
 
-	if b.cfg.DryRun {
-		// dry-run-gate: writes /mechanic-cfg/dry-run before the main container
-		// starts. The main container mounts the same emptyDir read-only, so the
-		// sentinel file cannot be deleted or modified by any child process inside
-		// the agent — not even via "unset DRY_RUN" shell tricks.
+	if b.cfg.DryRun || b.cfg.HardenAgentKubectl {
+		// mechanic-cfg: writes sentinel files before the main container starts.
+		// The main container mounts the same emptyDir read-only, so sentinel files
+		// cannot be deleted or modified by any child process inside the agent.
 		volumes = append(volumes, corev1.Volume{
 			Name: "mechanic-cfg",
 			VolumeSource: corev1.VolumeSource{
@@ -307,7 +344,7 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 			Name:    "dry-run-gate",
 			Image:   rjob.Spec.AgentImage,
 			Command: []string{"/bin/sh", "-c"},
-			Args:    []string{"echo -n 'true' > /mechanic-cfg/dry-run && chmod 444 /mechanic-cfg/dry-run"},
+			Args:    []string{buildGateCommand(b.cfg.DryRun, b.cfg.HardenAgentKubectl)},
 			VolumeMounts: []corev1.VolumeMount{
 				{Name: "mechanic-cfg", MountPath: "/mechanic-cfg"},
 			},

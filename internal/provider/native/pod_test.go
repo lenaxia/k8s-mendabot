@@ -41,7 +41,7 @@ func runningPod(name, namespace string) *corev1.Pod {
 func TestProviderName_IsNative(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPodProvider(c)
+	p := NewPodProvider(c, testRedactor(t))
 
 	got := p.ProviderName()
 	if got != "native" {
@@ -53,7 +53,7 @@ func TestProviderName_IsNative(t *testing.T) {
 func TestObjectType_IsPod(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPodProvider(c)
+	p := NewPodProvider(c, testRedactor(t))
 
 	obj := p.ObjectType()
 	if _, ok := obj.(*corev1.Pod); !ok {
@@ -65,7 +65,7 @@ func TestObjectType_IsPod(t *testing.T) {
 func TestHealthyRunningPod(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPodProvider(c)
+	p := NewPodProvider(c, testRedactor(t))
 
 	pod := runningPod("my-pod", "default")
 	finding, err := p.ExtractFinding(pod)
@@ -81,7 +81,7 @@ func TestHealthyRunningPod(t *testing.T) {
 func TestWrongType(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPodProvider(c)
+	p := NewPodProvider(c, testRedactor(t))
 
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{Name: "my-deploy", Namespace: "default"},
@@ -100,7 +100,7 @@ func TestWrongType(t *testing.T) {
 func TestCrashLoopBackOffOOMKilled(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPodProvider(c)
+	p := NewPodProvider(c, testRedactor(t))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -159,7 +159,7 @@ func TestCrashLoopBackOffOOMKilled(t *testing.T) {
 func TestCrashLoopBackOffGeneric(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPodProvider(c)
+	p := NewPodProvider(c, testRedactor(t))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -208,7 +208,7 @@ func TestCrashLoopBackOffGeneric(t *testing.T) {
 func TestImagePullBackOff(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPodProvider(c)
+	p := NewPodProvider(c, testRedactor(t))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -251,7 +251,7 @@ func TestImagePullBackOff(t *testing.T) {
 func TestErrImagePull(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPodProvider(c)
+	p := NewPodProvider(c, testRedactor(t))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -293,7 +293,7 @@ func TestErrImagePull(t *testing.T) {
 func TestCreateContainerConfigError(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPodProvider(c)
+	p := NewPodProvider(c, testRedactor(t))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -337,7 +337,7 @@ func TestCreateContainerConfigError(t *testing.T) {
 func TestNonZeroExitCode(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPodProvider(c)
+	p := NewPodProvider(c, testRedactor(t))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -380,7 +380,7 @@ func TestNonZeroExitCode(t *testing.T) {
 func TestUnschedulablePending(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPodProvider(c)
+	p := NewPodProvider(c, testRedactor(t))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -420,7 +420,7 @@ func TestUnschedulablePending(t *testing.T) {
 func TestNoOwnerRef(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPodProvider(c)
+	p := NewPodProvider(c, testRedactor(t))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -481,7 +481,7 @@ func TestWithDeploymentParent(t *testing.T) {
 	}
 
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(deploy, rs).Build()
-	p := NewPodProvider(c)
+	p := NewPodProvider(c, testRedactor(t))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -524,7 +524,7 @@ func TestWithDeploymentParent(t *testing.T) {
 func TestMultipleContainerFailures(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPodProvider(c)
+	p := NewPodProvider(c, testRedactor(t))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -578,7 +578,7 @@ func TestMultipleContainerFailures(t *testing.T) {
 func TestFindingErrors_IsValidJSON(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPodProvider(c)
+	p := NewPodProvider(c, testRedactor(t))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -625,7 +625,7 @@ func TestFindingErrors_IsValidJSON(t *testing.T) {
 func TestInitContainerCrashLoop(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPodProvider(c)
+	p := NewPodProvider(c, testRedactor(t))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -684,7 +684,7 @@ func TestInitContainerCrashLoop(t *testing.T) {
 func TestWaitingMessageRedacted(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPodProvider(c)
+	p := NewPodProvider(c, testRedactor(t))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -729,7 +729,7 @@ func TestWaitingMessageRedacted(t *testing.T) {
 func TestWaitingMessageTruncated(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPodProvider(c)
+	p := NewPodProvider(c, testRedactor(t))
 
 	longMsg := strings.Repeat("container startup error occurred. ", 40) // 1360 chars, spaces break base64
 
@@ -774,7 +774,7 @@ func TestWaitingMessageTruncated(t *testing.T) {
 func TestTerminatedMessageRedacted(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPodProvider(c)
+	p := NewPodProvider(c, testRedactor(t))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -817,7 +817,7 @@ func TestTerminatedMessageRedacted(t *testing.T) {
 func TestUnschedulableMessageRedacted(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPodProvider(c)
+	p := NewPodProvider(c, testRedactor(t))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -858,7 +858,7 @@ func TestUnschedulableMessageRedacted(t *testing.T) {
 func TestPodAnnotationEnabled_False(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPodProvider(c)
+	p := NewPodProvider(c, testRedactor(t))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -896,7 +896,7 @@ func TestPodAnnotationEnabled_False(t *testing.T) {
 func TestPodAnnotationSkipUntilFuture(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPodProvider(c)
+	p := NewPodProvider(c, testRedactor(t))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -934,7 +934,7 @@ func TestPodAnnotationSkipUntilFuture(t *testing.T) {
 func TestCrashLoopBackOff_Critical(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPodProvider(c)
+	p := NewPodProvider(c, testRedactor(t))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -974,7 +974,7 @@ func TestCrashLoopBackOff_Critical(t *testing.T) {
 func TestCrashLoopBackOff_HighAtBoundary(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPodProvider(c)
+	p := NewPodProvider(c, testRedactor(t))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1018,7 +1018,7 @@ func TestCrashLoopBackOff_HighAtBoundary(t *testing.T) {
 func TestOOMKilledTerminated_High(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPodProvider(c)
+	p := NewPodProvider(c, testRedactor(t))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1059,7 +1059,7 @@ func TestOOMKilledTerminated_High(t *testing.T) {
 func TestCrashLoopBackOff_CriticalWins_OverHigh(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewPodProvider(c)
+	p := NewPodProvider(c, testRedactor(t))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{

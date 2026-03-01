@@ -53,7 +53,7 @@ patterns when building `Finding.Errors` and `Finding.Details`.
 
 - [ ] `jobbuilder.Config` struct has `HardenAgentKubectl bool` field
 - [ ] `jobbuilder.Config` struct has `ExtraRedactPatterns []string` field
-- [ ] The `mendabot-cfg` emptyDir volume is added to the Job spec when
+- [ ] The `mechanic-cfg` emptyDir volume is added to the Job spec when
       `cfg.DryRun || cfg.HardenAgentKubectl` (previously only when `cfg.DryRun`)
 - [ ] The `dry-run-gate` init container is added when `cfg.DryRun || cfg.HardenAgentKubectl`
 - [ ] The init container command writes only the sentinels that are needed:
@@ -103,7 +103,7 @@ patterns when building `Finding.Errors` and `Finding.Details`.
 // HardenAgentKubectl — when true, the kubectl wrapper in agent Jobs blocks
 // get/describe secret(s), get all, exec, and port-forward in addition to all
 // write subcommands. Propagated to agent Jobs via HARDEN_KUBECTL env var and
-// /mendabot-cfg/harden-kubectl sentinel file (read-only mount, chmod 444).
+// /mechanic-cfg/harden-kubectl sentinel file (read-only mount, chmod 444).
 HardenAgentKubectl bool
 
 // ExtraRedactPatterns — additional RE2 regex patterns applied by both the
@@ -149,10 +149,10 @@ if _, err := domain.New(cfg.ExtraRedactPatterns); err != nil {
 func buildGateCommand(dryRun, hardenKubectl bool) string {
     var cmds []string
     if dryRun {
-        cmds = append(cmds, "echo -n 'true' > /mendabot-cfg/dry-run && chmod 444 /mendabot-cfg/dry-run")
+        cmds = append(cmds, "echo -n 'true' > /mechanic-cfg/dry-run && chmod 444 /mechanic-cfg/dry-run")
     }
     if hardenKubectl {
-        cmds = append(cmds, "echo -n 'true' > /mendabot-cfg/harden-kubectl && chmod 444 /mendabot-cfg/harden-kubectl")
+        cmds = append(cmds, "echo -n 'true' > /mechanic-cfg/harden-kubectl && chmod 444 /mechanic-cfg/harden-kubectl")
     }
     return strings.Join(cmds, " && ")
 }
@@ -242,7 +242,7 @@ deployProvider := native.NewDeploymentProvider(mgr.GetClient(), redactor, ...)
       `ExtraRedactPatterns` parsing (valid, invalid, empty)
 - [ ] `internal/jobbuilder/job.go` `Config` struct has both new fields
 - [ ] `internal/jobbuilder/job_test.go` covers all init-container command combinations:
-      - Neither flag: no `mendabot-cfg` volume, no init container
+      - Neither flag: no `mechanic-cfg` volume, no init container
       - DryRun only: volume present, only `dry-run` sentinel written
       - HardenKubectl only: volume present, only `harden-kubectl` sentinel written
       - Both: volume present, both sentinels written

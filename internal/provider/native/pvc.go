@@ -17,15 +17,16 @@ import (
 var _ domain.SourceProvider = (*pvcProvider)(nil)
 
 type pvcProvider struct {
-	client client.Client
+	client   client.Client
+	redactor *domain.Redactor
 }
 
 // NewPVCProvider constructs a pvcProvider. Panics if c is nil.
-func NewPVCProvider(c client.Client) domain.SourceProvider {
+func NewPVCProvider(c client.Client, redactor *domain.Redactor) domain.SourceProvider {
 	if c == nil {
 		panic("NewPVCProvider: client must not be nil")
 	}
-	return &pvcProvider{client: c}
+	return &pvcProvider{client: c, redactor: redactor}
 }
 
 // ProviderName returns the stable identifier for this provider.
@@ -62,7 +63,7 @@ func (p *pvcProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 		Text string `json:"text"`
 	}
 
-	errText := fmt.Sprintf("pvc %s: ProvisioningFailed: %s", pvc.Name, truncate(domain.StripDelimiters(domain.RedactSecrets(eventMsg)), maxCSIEventMessage))
+	errText := fmt.Sprintf("pvc %s: ProvisioningFailed: %s", pvc.Name, truncate(domain.StripDelimiters(p.redactor.Redact(eventMsg)), maxCSIEventMessage))
 	errorsJSON, err := json.Marshal([]errorEntry{{Text: errText}})
 	if err != nil {
 		return nil, fmt.Errorf("pvcProvider: serialising errors: %w", err)

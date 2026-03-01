@@ -35,7 +35,7 @@ This epic hardens the agent at three independent layers:
 
 - epic25-tool-output-redaction complete (`docker/scripts/redact-wrappers/kubectl` exists;
   `internal/domain/redact.go` `RedactSecrets` function established)
-- epic20-dry-run-mode complete (three-layer sentinel pattern; `mendabot-cfg` emptyDir volume;
+- epic20-dry-run-mode complete (three-layer sentinel pattern; `mechanic-cfg` emptyDir volume;
   `dry-run-gate` init container — all extended by this epic)
 - epic12-security-review complete (`docs/SECURITY/THREAT_MODEL.md` established — updated
   by STORY_05)
@@ -50,7 +50,7 @@ Nothing downstream depends on this epic.
       with a clear `[KUBECTL]` prefixed error message to stderr
 - [ ] `kubectl` wrapper hardened mode blocks `get/describe secret(s)`, `get all`, `exec`,
       `port-forward` when the `harden-kubectl` sentinel is present
-- [ ] Hardened mode sentinel (`/mendabot-cfg/harden-kubectl`) is `chmod 444` and mounted
+- [ ] Hardened mode sentinel (`/mechanic-cfg/harden-kubectl`) is `chmod 444` and mounted
       read-only — cannot be unset from within the agent container
 - [ ] Three-layer detection (sentinel file → `/proc/1/environ` → env var) matches the
       pattern established in epic20
@@ -183,23 +183,23 @@ Custom patterns are also applied by the watcher's own redaction of `Finding.Erro
 ### Sentinel immutability (hardened mode)
 
 The `dry-run-gate` init container (epic20) is extended to also write the `harden-kubectl`
-sentinel when `cfg.HardenAgentKubectl` is true. The `mendabot-cfg` emptyDir volume is
+sentinel when `cfg.HardenAgentKubectl` is true. The `mechanic-cfg` emptyDir volume is
 created whenever either `DryRun` or `HardenAgentKubectl` is set. The init container
 command is constructed dynamically:
 
 ```sh
 # DryRun only:
-echo -n 'true' > /mendabot-cfg/dry-run && chmod 444 /mendabot-cfg/dry-run
+echo -n 'true' > /mechanic-cfg/dry-run && chmod 444 /mechanic-cfg/dry-run
 
 # HardenAgentKubectl only:
-echo -n 'true' > /mendabot-cfg/harden-kubectl && chmod 444 /mendabot-cfg/harden-kubectl
+echo -n 'true' > /mechanic-cfg/harden-kubectl && chmod 444 /mechanic-cfg/harden-kubectl
 
 # Both:
-echo -n 'true' > /mendabot-cfg/dry-run && chmod 444 /mendabot-cfg/dry-run && \
-echo -n 'true' > /mendabot-cfg/harden-kubectl && chmod 444 /mendabot-cfg/harden-kubectl
+echo -n 'true' > /mechanic-cfg/dry-run && chmod 444 /mechanic-cfg/dry-run && \
+echo -n 'true' > /mechanic-cfg/harden-kubectl && chmod 444 /mechanic-cfg/harden-kubectl
 ```
 
-The main container mounts `mendabot-cfg` as `ReadOnly: true` — the agent process cannot
+The main container mounts `mechanic-cfg` as `ReadOnly: true` — the agent process cannot
 modify or remove the sentinel file after the init container has written it.
 
 ## Configuration

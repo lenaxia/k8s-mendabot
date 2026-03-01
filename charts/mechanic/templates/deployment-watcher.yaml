@@ -76,6 +76,14 @@ spec:
         - name: DRY_RUN
           value: "true"
         {{- end }}
+        {{- if .Values.agent.hardenKubectl }}
+        - name: HARDEN_AGENT_KUBECTL
+          value: "true"
+        {{- end }}
+        {{- if .Values.agent.extraRedactPatterns }}
+        - name: EXTRA_REDACT_PATTERNS
+          value: {{ .Values.agent.extraRedactPatterns | join "," | quote }}
+        {{- end }}
         - name: CORRELATION_WINDOW_SECONDS
           value: {{ .Values.watcher.correlationWindowSeconds | quote }}
         - name: DISABLE_CORRELATION

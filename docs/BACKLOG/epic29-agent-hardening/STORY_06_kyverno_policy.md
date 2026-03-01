@@ -42,7 +42,7 @@ template complexity.
 | Write denial | AV-13, AV-05 | Server-side mirror of Tier 1 kubectl wrapper; catches `curl`-bypass write path |
 | Image allowlist | 2026-02-27-005 | Closes the partial fix from the 2026-02-27 pentest; prevents arbitrary container image injection via a crafted `RemediationJob` |
 | readOnlyRootFilesystem | AV-02 | Prevents runtime replacement of wrapper scripts in `/usr/local/bin`, which would silently bypass the entire epic25/29 redaction chain |
-| Non-root / no privilege escalation / no capabilities | AV-03, AV-14 | Removes the ability to remount the read-only `mendabot-cfg` sentinel volume, read other pods' `/proc` namespaces, or escape the container |
+| Non-root / no privilege escalation / no capabilities | AV-03, AV-14 | Removes the ability to remount the read-only `mechanic-cfg` sentinel volume, read other pods' `/proc` namespaces, or escape the container |
 
 ### curl audit rule rationale
 

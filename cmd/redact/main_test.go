@@ -145,3 +145,34 @@ func TestRunWriteFailure(t *testing.T) {
 		t.Errorf("run() error = %v, want %v", err, sentinel)
 	}
 }
+
+func TestRunExtraPatterns(t *testing.T) {
+	t.Run("EXTRA_REDACT_PATTERNS applied", func(t *testing.T) {
+		t.Setenv("EXTRA_REDACT_PATTERNS", `CORP-[0-9]{8}`)
+		var w bytes.Buffer
+		err := run(strings.NewReader("id: CORP-12345678 and token: abc123"), &w)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		out := w.String()
+		if !strings.Contains(out, "[REDACTED-CUSTOM]") {
+			t.Errorf("output %q should contain [REDACTED-CUSTOM]", out)
+		}
+		if !strings.Contains(out, "[REDACTED]") {
+			t.Errorf("output %q should contain [REDACTED] from token pattern", out)
+		}
+	})
+
+	t.Run("invalid EXTRA_REDACT_PATTERNS skipped no crash", func(t *testing.T) {
+		t.Setenv("EXTRA_REDACT_PATTERNS", `[invalid,CORP-[0-9]{8}`)
+		var w bytes.Buffer
+		err := run(strings.NewReader("CORP-12345678"), &w)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		out := w.String()
+		if !strings.Contains(out, "[REDACTED-CUSTOM]") {
+			t.Errorf("output %q should contain [REDACTED-CUSTOM]", out)
+		}
+	})
+}

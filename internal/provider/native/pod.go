@@ -27,15 +27,16 @@ var waitingReasons = map[string]struct{}{
 }
 
 type podProvider struct {
-	client client.Client
+	client   client.Client
+	redactor *domain.Redactor
 }
 
 // NewPodProvider constructs a podProvider. Panics if c is nil.
-func NewPodProvider(c client.Client) domain.SourceProvider {
+func NewPodProvider(c client.Client, redactor *domain.Redactor) domain.SourceProvider {
 	if c == nil {
 		panic("NewPodProvider: client must not be nil")
 	}
-	return &podProvider{client: c}
+	return &podProvider{client: c, redactor: redactor}
 }
 
 // ProviderName returns the stable identifier for this provider.
@@ -75,7 +76,7 @@ func (p *podProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 					text := buildCrashLoopText(cs)
 					errors = append(errors, errorEntry{Text: text})
 				} else {
-					text := buildWaitingText(cs)
+					text := buildWaitingText(cs, p.redactor)
 					errors = append(errors, errorEntry{Text: text})
 				}
 			}
@@ -87,7 +88,7 @@ func (p *podProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 		if cs.State.Terminated != nil && cs.State.Terminated.ExitCode != 0 {
 			msg := cs.State.Terminated.Message
 			if msg != "" {
-				msg = ": " + truncate(domain.StripDelimiters(domain.RedactSecrets(msg)), maxTerminatedMessage)
+				msg = ": " + truncate(domain.StripDelimiters(p.redactor.Redact(msg)), maxTerminatedMessage)
 			}
 			text := fmt.Sprintf("container %s: terminated with exit code %d%s",
 				cs.Name, cs.State.Terminated.ExitCode, msg)
@@ -101,7 +102,7 @@ func (p *podProvider) ExtractFinding(obj client.Object) (*domain.Finding, error)
 			if cond.Type == corev1.PodScheduled &&
 				cond.Status == corev1.ConditionFalse &&
 				cond.Reason == "Unschedulable" {
-				text := fmt.Sprintf("pod %s: %s", cond.Reason, truncate(domain.StripDelimiters(domain.RedactSecrets(cond.Message)), maxSchedulerMessage))
+				text := fmt.Sprintf("pod %s: %s", cond.Reason, truncate(domain.StripDelimiters(p.redactor.Redact(cond.Message)), maxSchedulerMessage))
 				errors = append(errors, errorEntry{Text: text})
 				break
 			}
@@ -201,11 +202,11 @@ func buildCrashLoopText(cs corev1.ContainerStatus) string {
 
 // buildWaitingText constructs the error message for a container in a non-CrashLoopBackOff
 // waiting failure state, including the Waiting.Message when non-empty.
-func buildWaitingText(cs corev1.ContainerStatus) string {
+func buildWaitingText(cs corev1.ContainerStatus, redactor *domain.Redactor) string {
 	reason := cs.State.Waiting.Reason
 	msg := cs.State.Waiting.Message
 	if msg != "" {
-		msg = truncate(domain.StripDelimiters(domain.RedactSecrets(msg)), maxWaitingMessage)
+		msg = truncate(domain.StripDelimiters(redactor.Redact(msg)), maxWaitingMessage)
 		return fmt.Sprintf("container %s: %s: %s", cs.Name, reason, msg)
 	}
 	return fmt.Sprintf("container %s: %s", cs.Name, reason)

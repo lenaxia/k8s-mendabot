@@ -1657,3 +1657,153 @@ func TestFromEnv_PRAutoClose_InvalidValue(t *testing.T) {
 		t.Fatal("expected error for PR_AUTO_CLOSE=yes, got nil")
 	}
 }
+
+// TestFromEnv_HardenAgentKubectl covers all valid and invalid HARDEN_AGENT_KUBECTL cases.
+func TestFromEnv_HardenAgentKubectl(t *testing.T) {
+	tests := []struct {
+		name      string
+		envValue  string
+		wantValue bool
+		wantErr   bool
+	}{
+		{
+			name:      "unset defaults to false",
+			envValue:  "",
+			wantValue: false,
+		},
+		{
+			name:      "false is false",
+			envValue:  "false",
+			wantValue: false,
+		},
+		{
+			name:      "0 is false",
+			envValue:  "0",
+			wantValue: false,
+		},
+		{
+			name:      "true is true",
+			envValue:  "true",
+			wantValue: true,
+		},
+		{
+			name:      "1 is true",
+			envValue:  "1",
+			wantValue: true,
+		},
+		{
+			name:     "invalid value returns error",
+			envValue: "invalid",
+			wantErr:  true,
+		},
+		{
+			name:     "yes is not valid",
+			envValue: "yes",
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setRequiredEnv(t)
+			if tt.envValue == "" {
+				os.Unsetenv("HARDEN_AGENT_KUBECTL")
+			} else {
+				t.Setenv("HARDEN_AGENT_KUBECTL", tt.envValue)
+			}
+
+			cfg, err := config.FromEnv()
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error for HARDEN_AGENT_KUBECTL=%q, got nil", tt.envValue)
+				}
+				if !strings.Contains(err.Error(), "HARDEN_AGENT_KUBECTL") {
+					t.Errorf("error should mention HARDEN_AGENT_KUBECTL, got: %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if cfg.HardenAgentKubectl != tt.wantValue {
+				t.Errorf("HardenAgentKubectl = %v, want %v", cfg.HardenAgentKubectl, tt.wantValue)
+			}
+		})
+	}
+}
+
+// TestFromEnv_ExtraRedactPatterns covers all valid and invalid EXTRA_REDACT_PATTERNS cases.
+func TestFromEnv_ExtraRedactPatterns(t *testing.T) {
+	tests := []struct {
+		name      string
+		envValue  string
+		wantSlice []string
+		wantErr   bool
+	}{
+		{
+			name:      "unset produces empty slice",
+			envValue:  "",
+			wantSlice: nil,
+		},
+		{
+			name:      "single valid pattern",
+			envValue:  "A",
+			wantSlice: []string{"A"},
+		},
+		{
+			name:      "two valid patterns",
+			envValue:  "A,B",
+			wantSlice: []string{"A", "B"},
+		},
+		{
+			name:      "whitespace around patterns is trimmed",
+			envValue:  " A , B ",
+			wantSlice: []string{"A", "B"},
+		},
+		{
+			name:      "whitespace-only tokens are filtered",
+			envValue:  " , ",
+			wantSlice: nil,
+		},
+		{
+			name:     "invalid regex causes error",
+			envValue: "[invalid",
+			wantErr:  true,
+		},
+		{
+			name:     "invalid regex in second pattern causes error",
+			envValue: "valid,[invalid",
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setRequiredEnv(t)
+			if tt.envValue == "" {
+				os.Unsetenv("EXTRA_REDACT_PATTERNS")
+			} else {
+				t.Setenv("EXTRA_REDACT_PATTERNS", tt.envValue)
+			}
+
+			cfg, err := config.FromEnv()
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error for EXTRA_REDACT_PATTERNS=%q, got nil", tt.envValue)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(cfg.ExtraRedactPatterns) != len(tt.wantSlice) {
+				t.Fatalf("ExtraRedactPatterns length = %d, want %d (got %v)", len(cfg.ExtraRedactPatterns), len(tt.wantSlice), cfg.ExtraRedactPatterns)
+			}
+			for i, p := range tt.wantSlice {
+				if cfg.ExtraRedactPatterns[i] != p {
+					t.Errorf("ExtraRedactPatterns[%d] = %q, want %q", i, cfg.ExtraRedactPatterns[i], p)
+				}
+			}
+		})
+	}
+}

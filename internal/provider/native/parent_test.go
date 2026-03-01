@@ -15,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	v1alpha1 "github.com/lenaxia/k8s-mechanic/api/v1alpha1"
+	"github.com/lenaxia/k8s-mechanic/internal/domain"
 )
 
 func newTestScheme() *runtime.Scheme {
@@ -23,6 +24,16 @@ func newTestScheme() *runtime.Scheme {
 	_ = appsv1.AddToScheme(s)
 	_ = batchv1.AddToScheme(s)
 	return s
+}
+
+// testRedactor returns a default Redactor (built-in patterns only) for use in tests.
+func testRedactor(t *testing.T) *domain.Redactor {
+	t.Helper()
+	r, err := domain.New(nil)
+	if err != nil {
+		t.Fatalf("testRedactor: %v", err)
+	}
+	return r
 }
 
 func ownerRef(kind, name string, uid types.UID) metav1.OwnerReference {

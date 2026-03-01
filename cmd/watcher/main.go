@@ -120,14 +120,16 @@ func main() {
 	}
 
 	jb, err := jobbuilder.New(jobbuilder.Config{
-		AgentNamespace: cfg.AgentNamespace,
-		AgentType:      cfg.AgentType,
-		TTLSeconds:     int32(cfg.RemediationJobTTLSeconds),
-		DryRun:         cfg.DryRun,
-		CPURequest:     cfg.AgentCPURequest,
-		MemRequest:     cfg.AgentMemRequest,
-		CPULimit:       cfg.AgentCPULimit,
-		MemLimit:       cfg.AgentMemLimit,
+		AgentNamespace:      cfg.AgentNamespace,
+		AgentType:           cfg.AgentType,
+		TTLSeconds:          int32(cfg.RemediationJobTTLSeconds),
+		DryRun:              cfg.DryRun,
+		HardenAgentKubectl:  cfg.HardenAgentKubectl,
+		ExtraRedactPatterns: cfg.ExtraRedactPatterns,
+		CPURequest:          cfg.AgentCPURequest,
+		MemRequest:          cfg.AgentMemRequest,
+		CPULimit:            cfg.AgentCPULimit,
+		MemLimit:            cfg.AgentMemLimit,
 	})
 	if err != nil {
 		logger.Fatal("jobbuilder init failed", zap.Error(err))
@@ -137,6 +139,14 @@ func main() {
 		logger.Info("dry-run mode enabled — agent Jobs will not create PRs; investigation reports stored in status.message",
 			zap.Bool("dryRun", true),
 		)
+	}
+
+	setupLog := logger.Named("setup")
+
+	redactor, err := domain.New(cfg.ExtraRedactPatterns)
+	if err != nil {
+		setupLog.Error("failed to initialise redactor", zap.Error(err))
+		os.Exit(1)
 	}
 
 	// Build the readiness checker that gates RemediationJob creation.
@@ -203,12 +213,12 @@ func main() {
 	}
 
 	enabledProviders := []domain.SourceProvider{
-		native.NewPodProvider(nativeClient),
-		native.NewDeploymentProvider(nativeClient),
-		native.NewPVCProvider(nativeClient),
-		native.NewNodeProvider(nativeClient),
-		native.NewStatefulSetProvider(nativeClient),
-		native.NewJobProvider(nativeClient),
+		native.NewPodProvider(nativeClient, redactor),
+		native.NewDeploymentProvider(nativeClient, redactor),
+		native.NewPVCProvider(nativeClient, redactor),
+		native.NewNodeProvider(nativeClient, redactor),
+		native.NewStatefulSetProvider(nativeClient, redactor),
+		native.NewJobProvider(nativeClient, redactor),
 	}
 
 	// Wire GitHub App token provider and sink closer.

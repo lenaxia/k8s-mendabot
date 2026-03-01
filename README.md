@@ -71,6 +71,12 @@ can be fully overridden via `prompt.coreOverride` / `prompt.agentOverride` in
 **[Prometheus metrics](docs/WORKLOGS/0038_2026-02-23_epic10-helm-chart-implementation.md)** — optional metrics Service and Prometheus Operator
 `ServiceMonitor` for watcher health observability.
 
+**[Auto-close resolved findings](docs/WORKLOGS/0091_2026-02-26_epic26-auto-close-resolved.md)** — when a Kubernetes finding clears (Deployment recovers,
+PVC is provisioned, Node returns Ready), the watcher automatically closes the GitHub PR the agent
+opened. Works for both in-flight jobs (Pending/Dispatched/Running) and already-succeeded jobs whose
+PR became stale after the cluster self-healed. Uses the GitHub App installation token directly via
+REST API — no `gh` CLI required in the watcher. Opt out with `watcher.prAutoClose: false`.
+
 ### Security
 
 **[Secret redaction](docs/WORKLOGS/0054_2026-02-23_story01-secret-redaction.md)** — error text extracted from cluster state (pod `Waiting.Message`,
@@ -301,6 +307,7 @@ All `values.yaml` keys and their defaults:
 | `networkPolicy.enabled` | `false` | Restrict agent Job egress to API server, GitHub, and LLM endpoint |
 | `networkPolicy.apiServerPort` | `6443` | Kubernetes API server port (some distributions use `443`) |
 | `networkPolicy.additionalEgressRules` | `[]` | Extra egress rules appended verbatim (e.g. to restrict LLM endpoint by CIDR) |
+| `watcher.prAutoClose` | `true` | Automatically close the GitHub PR when the underlying finding resolves. Set to `false` to leave PRs open for manual review |
 
 ### Configuration validation
 
@@ -478,7 +485,7 @@ Features under active development or planned:
 | Accuracy | Per-resource opt-out annotations (`mechanic.io/enabled`, `mechanic.io/skip-until`, `mechanic.io/priority`) | Shipped |
 | Accuracy | Multi-signal correlation (related findings grouped into one investigation) | Planned |
 | Accuracy | Mandatory pre-PR manifest validation | Planned |
-| Impact | PR auto-close when finding resolves | Evaluated |
+| Impact | PR auto-close when finding resolves | Shipped |
 | Impact | GitLab and Gitea sink support | Evaluated |
 | Signal sources | Prometheus / Alertmanager source provider | Evaluated |
 | Signal sources | cert-manager certificate expiry provider | Evaluated |

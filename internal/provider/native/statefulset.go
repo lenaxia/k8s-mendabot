@@ -17,15 +17,16 @@ import (
 var _ domain.SourceProvider = (*statefulSetProvider)(nil)
 
 type statefulSetProvider struct {
-	client client.Client
+	client   client.Client
+	redactor *domain.Redactor
 }
 
 // NewStatefulSetProvider constructs a statefulSetProvider. Panics if c is nil.
-func NewStatefulSetProvider(c client.Client) domain.SourceProvider {
+func NewStatefulSetProvider(c client.Client, redactor *domain.Redactor) domain.SourceProvider {
 	if c == nil {
 		panic("NewStatefulSetProvider: client must not be nil")
 	}
-	return &statefulSetProvider{client: c}
+	return &statefulSetProvider{client: c, redactor: redactor}
 }
 
 // ProviderName returns the stable identifier for this provider.
@@ -74,7 +75,7 @@ func (p *statefulSetProvider) ExtractFinding(obj client.Object) (*domain.Finding
 	for _, cond := range sts.Status.Conditions {
 		if cond.Type == "Available" && cond.Status == corev1.ConditionFalse {
 			text := fmt.Sprintf("statefulset %s: condition Available is False: %s: %s",
-				sts.Name, cond.Reason, truncate(domain.StripDelimiters(domain.RedactSecrets(cond.Message)), maxConditionMessage))
+				sts.Name, cond.Reason, truncate(domain.StripDelimiters(p.redactor.Redact(cond.Message)), maxConditionMessage))
 			errors = append(errors, errorEntry{Text: text})
 			break
 		}

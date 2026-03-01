@@ -92,7 +92,7 @@ Add to the mitigations list:
 - **kubectl Tier 2 (opt-in, `agent.hardenKubectl: true`):** When the hardened flag is
   set, the wrapper additionally blocks `kubectl get/describe secret(s)`, `kubectl get
   all`, `kubectl exec`, and `kubectl port-forward`. The flag is enforced via a
-  `chmod 444` sentinel file at `/mendabot-cfg/harden-kubectl` mounted read-only into
+  `chmod 444` sentinel file at `/mechanic-cfg/harden-kubectl` mounted read-only into
   the agent container — it cannot be unset from within the container. Three-layer
   detection (sentinel file → `/proc/1/environ` → env var) mirrors the epic20 dry-run
   enforcement pattern.

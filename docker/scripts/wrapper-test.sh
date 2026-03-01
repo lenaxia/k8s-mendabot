@@ -207,6 +207,198 @@ for tool in kubectl helm flux sops talosctl yq stern kubeconform kustomize age a
     check_exit_code "$tool" 42
 done
 
+# ── Tier 1 write-block tests ──────────────────────────────────────────────────
+# Strategy: install stub kubectl.real (exits 0) and stub redact (cat passthrough)
+# at /tmp/stub/, then invoke the kubectl wrapper with a write subcommand.
+# The wrapper must exit 1 with a [KUBECTL] message before reaching kubectl.real.
+# For read subcommands the wrapper must exit 0 (stub kubectl.real exits 0).
+
+# check_write_blocked: asserts the kubectl wrapper blocks the given subcommand.
+check_write_blocked() {
+    local subcmd="$1"
+    shift
+    local args="$*"
+    printf 'Checking kubectl write-block: kubectl %s %s ... ' "$subcmd" "$args"
+    local out rc
+    out=$(docker run --rm --entrypoint /bin/sh "$IMAGE" -c \
+        "mkdir -p /tmp/stub \
+         && printf '#!/bin/sh\nexit 0\n' > /tmp/stub/kubectl.real \
+         && chmod +x /tmp/stub/kubectl.real \
+         && printf '#!/bin/sh\ncat\n' > /tmp/stub/redact \
+         && chmod +x /tmp/stub/redact \
+         && PATH=/tmp/stub:\$PATH kubectl ${subcmd} ${args} 2>&1; echo \"exit:\$?\"") || true
+    if printf '%s' "$out" | grep -q '\[KUBECTL\]' \
+    && printf '%s' "$out" | grep -q 'blocked' \
+    && printf '%s' "$out" | grep -q 'exit:1'; then
+        echo "OK"; ((pass++)) || true
+    else
+        echo "FAIL (output: $out)"; ((fail++)) || true
+    fi
+}
+
+# check_write_allowed: asserts the kubectl wrapper does NOT block the given subcommand.
+# Stub kubectl.real exits 0; if wrapper passes through it also exits 0.
+check_write_allowed() {
+    local subcmd="$1"
+    shift
+    local args="$*"
+    printf 'Checking kubectl no-block: kubectl %s %s ... ' "$subcmd" "$args"
+    local out rc
+    out=$(docker run --rm --entrypoint /bin/sh "$IMAGE" -c \
+        "mkdir -p /tmp/stub \
+         && printf '#!/bin/sh\nexit 0\n' > /tmp/stub/kubectl.real \
+         && chmod +x /tmp/stub/kubectl.real \
+         && printf '#!/bin/sh\ncat\n' > /tmp/stub/redact \
+         && chmod +x /tmp/stub/redact \
+         && PATH=/tmp/stub:\$PATH kubectl ${subcmd} ${args} 2>&1; echo \"exit:\$?\"") || true
+    if ! printf '%s' "$out" | grep -q '\[KUBECTL\]' \
+    && printf '%s' "$out" | grep -q 'exit:0'; then
+        echo "OK"; ((pass++)) || true
+    else
+        echo "FAIL (output: $out)"; ((fail++)) || true
+    fi
+}
+
+# Blocked write subcommands (must exit 1 with [KUBECTL] message)
+check_write_blocked apply -f manifest.yaml
+check_write_blocked create deployment foo --image=nginx
+check_write_blocked delete pod foo
+check_write_blocked edit deployment foo
+check_write_blocked patch deployment foo -p '{}'
+check_write_blocked replace -f manifest.yaml
+check_write_blocked scale deployment foo --replicas=3
+check_write_blocked set image deployment/foo container=nginx:latest
+check_write_blocked label pod foo app=bar
+check_write_blocked annotate pod foo note=test
+check_write_blocked taint node foo key=val:NoSchedule
+check_write_blocked drain node foo
+check_write_blocked cordon node foo
+check_write_blocked uncordon node foo
+check_write_blocked rollout restart deployment/foo
+check_write_blocked rollout undo deployment/foo
+
+# Read subcommands (must NOT be blocked)
+check_write_allowed get pods
+check_write_allowed describe deployment foo
+check_write_allowed logs foo
+check_write_allowed diff -f manifest.yaml
+check_write_allowed rollout status deployment/foo
+check_write_allowed rollout history deployment/foo
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Tier 2 hardened-mode tests ────────────────────────────────────────────────
+# Strategy: install stub kubectl.real (exits 0) and stub redact (cat passthrough)
+# at /tmp/stub/, set HARDEN_KUBECTL=true via env, then invoke the kubectl wrapper.
+# Blocked calls must exit 1 with a [KUBECTL-HARDENED] message.
+# Allowed calls must exit 0 without the [KUBECTL-HARDENED] message.
+
+# check_hardened_blocked: asserts the wrapper blocks the given subcommand in hardened mode.
+check_hardened_blocked() {
+    local subcmd="$1"
+    shift
+    local args="$*"
+    printf 'Checking kubectl hardened-block: kubectl %s %s ... ' "$subcmd" "$args"
+    local out
+    out=$(docker run --rm \
+        -e HARDEN_KUBECTL=true \
+        --entrypoint /bin/sh "$IMAGE" -c \
+        "mkdir -p /tmp/stub \
+         && printf '#!/bin/sh\nexit 0\n' > /tmp/stub/kubectl.real \
+         && chmod +x /tmp/stub/kubectl.real \
+         && printf '#!/bin/sh\ncat\n' > /tmp/stub/redact \
+         && chmod +x /tmp/stub/redact \
+         && PATH=/tmp/stub:\$PATH kubectl ${subcmd} ${args} 2>&1; echo \"exit:\$?\"") || true
+    if printf '%s' "$out" | grep -q '\[KUBECTL-HARDENED\]' \
+    && printf '%s' "$out" | grep -q 'blocked' \
+    && printf '%s' "$out" | grep -q 'exit:1'; then
+        echo "OK"; ((pass++)) || true
+    else
+        echo "FAIL (output: $out)"; ((fail++)) || true
+    fi
+}
+
+# check_hardened_allowed: asserts the wrapper does NOT block in hardened mode.
+check_hardened_allowed() {
+    local subcmd="$1"
+    shift
+    local args="$*"
+    printf 'Checking kubectl hardened-allowed: kubectl %s %s ... ' "$subcmd" "$args"
+    local out
+    out=$(docker run --rm \
+        -e HARDEN_KUBECTL=true \
+        --entrypoint /bin/sh "$IMAGE" -c \
+        "mkdir -p /tmp/stub \
+         && printf '#!/bin/sh\nexit 0\n' > /tmp/stub/kubectl.real \
+         && chmod +x /tmp/stub/kubectl.real \
+         && printf '#!/bin/sh\ncat\n' > /tmp/stub/redact \
+         && chmod +x /tmp/stub/redact \
+         && PATH=/tmp/stub:\$PATH kubectl ${subcmd} ${args} 2>&1; echo \"exit:\$?\"") || true
+    if ! printf '%s' "$out" | grep -q '\[KUBECTL-HARDENED\]' \
+    && printf '%s' "$out" | grep -q 'exit:0'; then
+        echo "OK"; ((pass++)) || true
+    else
+        echo "FAIL (output: $out)"; ((fail++)) || true
+    fi
+}
+
+# Blocked in hardened mode
+check_hardened_blocked get secret
+check_hardened_blocked get secrets
+check_hardened_blocked get secret/my-secret
+check_hardened_blocked get secret my-secret -n foo
+check_hardened_blocked describe secret my-secret
+check_hardened_blocked describe secrets
+check_hardened_blocked get all
+check_hardened_blocked get all -n kube-system
+check_hardened_blocked exec my-pod -- /bin/sh
+check_hardened_blocked port-forward svc/my-svc 8080:80
+check_hardened_blocked get pods,secrets
+check_hardened_blocked get secrets,pods
+
+# Allowed in hardened mode (must NOT be over-blocked)
+check_hardened_allowed get pods
+check_hardened_allowed get configmaps
+check_hardened_allowed describe deployment foo
+check_hardened_allowed get pods,configmaps
+check_hardened_allowed logs foo
+
+# Verify hardened mode is OFF by default (no HARDEN_KUBECTL set)
+printf 'Checking kubectl hardened mode off by default: get secret ... '
+default_out=$(docker run --rm \
+    --entrypoint /bin/sh "$IMAGE" -c \
+    "mkdir -p /tmp/stub \
+     && printf '#!/bin/sh\nexit 0\n' > /tmp/stub/kubectl.real \
+     && chmod +x /tmp/stub/kubectl.real \
+     && printf '#!/bin/sh\ncat\n' > /tmp/stub/redact \
+     && chmod +x /tmp/stub/redact \
+     && PATH=/tmp/stub:\$PATH kubectl get secret 2>&1; echo \"exit:\$?\"") || true
+if ! printf '%s' "$default_out" | grep -q '\[KUBECTL-HARDENED\]' \
+&& printf '%s' "$default_out" | grep -q 'exit:0'; then
+    echo "OK"; ((pass++)) || true
+else
+    echo "FAIL (output: $default_out)"; ((fail++)) || true
+fi
+
+# Verify sentinel file layer activates hardened mode (even when HARDEN_KUBECTL is unset)
+printf 'Checking hardened mode via sentinel file: get secret ... '
+sentinel_out=$(docker run --rm \
+    --entrypoint /bin/sh "$IMAGE" -c \
+    "mkdir -p /tmp/stub /mechanic-cfg \
+     && echo -n true > /mechanic-cfg/harden-kubectl \
+     && printf '#!/bin/sh\nexit 0\n' > /tmp/stub/kubectl.real \
+     && chmod +x /tmp/stub/kubectl.real \
+     && printf '#!/bin/sh\ncat\n' > /tmp/stub/redact \
+     && chmod +x /tmp/stub/redact \
+     && unset HARDEN_KUBECTL \
+     && PATH=/tmp/stub:\$PATH kubectl get secret 2>&1; echo \"exit:\$?\"") || true
+if printf '%s' "$sentinel_out" | grep -q '\[KUBECTL-HARDENED\]' \
+&& printf '%s' "$sentinel_out" | grep -q 'exit:1'; then
+    echo "OK"; ((pass++)) || true
+else
+    echo "FAIL (output: $sentinel_out)"; ((fail++)) || true
+fi
+# ─────────────────────────────────────────────────────────────────────────────
+
 echo ""
 echo "Wrapper test complete: ${pass} passed, ${fail} failed."
 if [ "$fail" -gt 0 ]; then

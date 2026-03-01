@@ -34,7 +34,7 @@ func newExhaustedJob(name, namespace string, failedCount int32) *batchv1.Job {
 func TestJobProviderName_IsNative(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	got := p.ProviderName()
 	if got != "native" {
@@ -46,7 +46,7 @@ func TestJobProviderName_IsNative(t *testing.T) {
 func TestJobObjectType_IsJob(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	obj := p.ObjectType()
 	if _, ok := obj.(*batchv1.Job); !ok {
@@ -58,7 +58,7 @@ func TestJobObjectType_IsJob(t *testing.T) {
 func TestHealthyJob_ReturnsNil(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{Name: "my-job", Namespace: "default"},
@@ -81,7 +81,7 @@ func TestHealthyJob_ReturnsNil(t *testing.T) {
 func TestSucceededJob_ReturnsNil(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	now := metav1.NewTime(time.Now())
 	job := &batchv1.Job{
@@ -105,7 +105,7 @@ func TestSucceededJob_ReturnsNil(t *testing.T) {
 func TestFailedJobNoActive_Detected(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	job := newExhaustedJob("my-job", "default", 3)
 
@@ -135,7 +135,7 @@ func TestFailedJobNoActive_Detected(t *testing.T) {
 func TestCronJobOwned_ReturnsNil(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	job := newExhaustedJob("cronjob-run-1", "default", 2)
 	job.OwnerReferences = []metav1.OwnerReference{
@@ -155,7 +155,7 @@ func TestCronJobOwned_ReturnsNil(t *testing.T) {
 func TestFailedWithActiveStillRunning_ReturnsNil(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{Name: "my-job", Namespace: "default"},
@@ -178,7 +178,7 @@ func TestFailedWithActiveStillRunning_ReturnsNil(t *testing.T) {
 func TestCompletedSuccessfully_ReturnsNil(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	now := metav1.NewTime(time.Now())
 	job := &batchv1.Job{
@@ -204,7 +204,7 @@ func TestCompletedSuccessfully_ReturnsNil(t *testing.T) {
 func TestZeroFailedZeroActive_ReturnsNil(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{Name: "my-job", Namespace: "default"},
@@ -227,7 +227,7 @@ func TestZeroFailedZeroActive_ReturnsNil(t *testing.T) {
 func TestSuspendedJob_ReturnsNil(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	job := newExhaustedJob("my-job", "default", 2)
 	job.Status.Conditions = []batchv1.JobCondition{
@@ -250,7 +250,7 @@ func TestSuspendedJob_ReturnsNil(t *testing.T) {
 func TestJobWrongType_ReturnsError(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: "my-pod", Namespace: "default"},
@@ -268,7 +268,7 @@ func TestJobWrongType_ReturnsError(t *testing.T) {
 func TestJobFindingErrors_IsValidJSON(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	job := newExhaustedJob("my-job", "default", 3)
 
@@ -295,7 +295,7 @@ func TestJobFindingErrors_IsValidJSON(t *testing.T) {
 func TestJobErrorText_IncludesFailureCount(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	job := newExhaustedJob("my-job", "default", 5)
 
@@ -316,7 +316,7 @@ func TestJobErrorText_IncludesFailureCount(t *testing.T) {
 func TestJobStandaloneParentObject(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	job := newExhaustedJob("my-job", "default", 3)
 	job.OwnerReferences = nil
@@ -340,7 +340,7 @@ func TestJobStandaloneParentObject(t *testing.T) {
 func TestJobFailedWithConditionReason(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	job := newExhaustedJob("my-job", "default", 3)
 	job.Status.Conditions = []batchv1.JobCondition{
@@ -368,7 +368,7 @@ func TestJobFailedWithConditionReason(t *testing.T) {
 func TestJobErrorText_Format(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	job := newExhaustedJob("my-job", "default", 4)
 
@@ -400,7 +400,7 @@ func TestJobErrorText_Format(t *testing.T) {
 func TestJobChainDepth_NonMechanicJob(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	job := newExhaustedJob("some-other-job", "default", 2)
 
@@ -431,7 +431,7 @@ func TestJobChainDepth_MechanicOwnerDepth0(t *testing.T) {
 		},
 	}
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(rjob).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	job := newExhaustedJob("mechanic-agent-abc123456789", "mechanic-system", 2)
 	job.Labels = map[string]string{"app.kubernetes.io/managed-by": "mechanic-watcher"}
@@ -466,7 +466,7 @@ func TestJobChainDepth_MechanicOwnerDepth1(t *testing.T) {
 		},
 	}
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(rjob).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	job := newExhaustedJob("mechanic-agent-abc123456789", "mechanic-system", 3)
 	job.Labels = map[string]string{"app.kubernetes.io/managed-by": "mechanic-watcher"}
@@ -490,7 +490,7 @@ func TestJobChainDepth_MechanicOwnerDepth1(t *testing.T) {
 func TestJobChainDepth_MechanicOwnerNotFound(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	job := newExhaustedJob("mechanic-agent-abc123456789", "mechanic-system", 2)
 	job.Labels = map[string]string{"app.kubernetes.io/managed-by": "mechanic-watcher"}
@@ -514,7 +514,7 @@ func TestJobChainDepth_MechanicOwnerNotFound(t *testing.T) {
 func TestJobChainDepth_MechanicNoOwnerRef(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	job := newExhaustedJob("mechanic-agent-abc123456789", "mechanic-system", 2)
 	job.Labels = map[string]string{"app.kubernetes.io/managed-by": "mechanic-watcher"}
@@ -537,7 +537,7 @@ func TestJobChainDepth_MechanicNoOwnerRef(t *testing.T) {
 func TestJobChainDepth_MechanicMalformedOwnerRef(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	job := newExhaustedJob("mechanic-agent-abc123456789", "mechanic-system", 2)
 	job.Labels = map[string]string{"app.kubernetes.io/managed-by": "mechanic-watcher"}
@@ -567,7 +567,7 @@ func TestJobChainDepth_MechanicMalformedOwnerRef(t *testing.T) {
 func TestJobChainDepth_MechanicStillActive(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -594,7 +594,7 @@ func TestJobChainDepth_MechanicStillActive(t *testing.T) {
 func TestJobChainDepth_MechanicSucceeded(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	now := metav1.NewTime(time.Now())
 	job := &batchv1.Job{
@@ -622,7 +622,7 @@ func TestJobChainDepth_MechanicSucceeded(t *testing.T) {
 func TestJobChainDepth_MechanicCronJobOwned(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	job := newExhaustedJob("mechanic-agent-abc123456789", "mechanic-system", 2)
 	job.Labels = map[string]string{"app.kubernetes.io/managed-by": "mechanic-watcher"}
@@ -643,7 +643,7 @@ func TestJobChainDepth_MechanicCronJobOwned(t *testing.T) {
 func TestJobChainDepth_MechanicSuspended(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	job := newExhaustedJob("mechanic-agent-abc123456789", "mechanic-system", 2)
 	job.Labels = map[string]string{"app.kubernetes.io/managed-by": "mechanic-watcher"}
@@ -669,7 +669,7 @@ func TestJobChainDepth_MechanicSuspended(t *testing.T) {
 func TestJobAnnotationEnabled_False(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	job := newExhaustedJob("ann-job", "default", 3)
 	job.Annotations = map[string]string{
@@ -688,7 +688,7 @@ func TestJobAnnotationEnabled_False(t *testing.T) {
 func TestJobAnnotationSkipUntilFuture(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	job := newExhaustedJob("skip-job", "default", 3)
 	job.Annotations = map[string]string{
@@ -708,7 +708,7 @@ func TestJobAnnotationSkipUntilFuture(t *testing.T) {
 func TestJobConditionMessageRedacted(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewJobProvider(c)
+	p := NewJobProvider(c, testRedactor(t))
 
 	job := newExhaustedJob("redact-job", "default", 3)
 	job.Status.Conditions = []batchv1.JobCondition{

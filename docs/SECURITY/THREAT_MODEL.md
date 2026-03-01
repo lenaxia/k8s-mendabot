@@ -1,7 +1,7 @@
 # Threat Model: mechanic
 
-**Version:** 1.4
-**Date:** 2026-02-27
+**Version:** 1.6
+**Date:** 2026-02-28
 **Status:** Authoritative
 
 This document is the single source of truth for mechanic's threat model. It is
@@ -189,6 +189,19 @@ LLM directs: kubectl get secret <name> -o yaml
 - Wrappers hard-fail (exit 1) if `redact` binary is absent, aborting the entrypoint
   visibly rather than passing raw output silently
 
+*New patterns and extensibility (epic29):*
+- Five new built-in patterns added in `internal/domain/redact.go`:
+  - `age` private key (`AGE-SECRET-KEY-1...` bech32 format) → `[REDACTED-AGE-KEY]`
+  - `sk-*` API keys (OpenAI `sk-proj-...`, Anthropic `sk-ant-...`) → `[REDACTED-SK-KEY]`
+  - AWS access key ID (`AKIA[A-Z0-9]{16}`) → `[REDACTED-AWS-KEY]`
+  - JWT two-segment (`ey....ey....`) → `[REDACTED-JWT]`
+  - Non-Bearer Authorization header schemes (`Token`, `Basic`, `Digest`, etc.)
+- User-extensible custom patterns via `agent.extraRedactPatterns` (Helm value) /
+  `EXTRA_REDACT_PATTERNS` (env var). Patterns are compiled RE2 regexes; invalid
+  patterns cause watcher startup failure. Custom patterns are applied by both the
+  watcher's finding redaction (`domain.Redactor`) and the `redact` binary inside
+  agent Jobs.
+
 **Wrapper inventory:**
 
 | Tool | Wrapper | Real binary | Why wrapped |
@@ -218,11 +231,32 @@ LLM directs: kubectl get secret <name> -o yaml
 | `cat` | Used in `entrypoint-common.sh` to read SA token and prompt files; in `entrypoint-opencode.sh` to pass the rendered prompt to opencode. Wrapping would corrupt control-plane reads. | LLM can use `cat` to read any file in the container, including `/var/run/secrets/kubernetes.io/serviceaccount/token`. |
 | `env` / `printenv` | `FINDING_ERRORS` is already redacted at source in all six native providers. Wrapping has marginal security value. High risk of breaking shell initialisation. | LLM can call `env` or `printenv` to list all environment variables; only `FINDING_ERRORS` is pre-redacted. Other env vars (e.g. `GIT_AUTHOR_EMAIL`) are non-sensitive. |
 
+### kubectl write-blocking (distinct from redact-wrapping) — epic29
+
+The `kubectl` wrapper applies both output redaction (via `redact` binary — epic25) and
+subcommand-level blocking (epic29). These are two independent mechanisms:
+
+| Tier | Condition | Blocked operations |
+|------|-----------|--------------------|
+| Tier 1 (always-on) | All deployments | `apply`, `create`, `delete`, `edit`, `patch`, `replace`, `rollout restart`, `rollout undo`, `scale`, `set`, `label`, `annotate`, `taint`, `drain`, `cordon`, `uncordon` |
+| Tier 2 (opt-in) | `agent.hardenKubectl: true` | `get/describe secret(s)`, `get all`, `exec`, `port-forward` |
+
+Tier 1 enforces the agent's read-only design contract at the tool layer regardless of RBAC.
+Tier 2 adds defence-in-depth for operators using `agentRBACScope: namespace` who want to
+prevent secret exfiltration through the namespace wildcard RBAC.
+
+The blocking is distinct from the redact pipeline: blocked calls exit immediately with an
+error message to stderr — `kubectl.real` is never invoked and no output reaches the
+`redact` filter. Tier 2 is enforced via an immutable sentinel file (`chmod 444`,
+read-only volume mount) using the same three-layer pattern as epic20 dry-run enforcement.
+
 **Residual risk summary:**
 - `curl`/`jq`/`openssl`/`cat` bypass: LLM can reach Kubernetes API or read container files directly using unwrapped tools
 - `git` output bypass: commit history and diffs may contain credential fragments (stdout redaction not applied; dry-run write blocking is the only gate)
 - Short secret values (< 30 raw bytes, < 40 base64 chars): not matched by the base64 pattern threshold; only caught if key name matches a named pattern (`password`, `token`, `secret`, `api-key`, `x-api-key`)
-- Novel credential formats not covered by any existing regex pattern: pass through unredacted
+- Novel credential formats not covered by any existing regex pattern: pass through unredacted; mitigated by `agent.extraRedactPatterns` for known application-specific formats
+- The `age` private key blind spot is **closed** (epic29 STORY_02)
+- `sk-*` (OpenAI/Anthropic), AWS `AKIA*`, JWT two-segment, and non-Bearer Authorization header formats are now covered (epic29 STORY_02)
 
 **Pentest/audit outcome (2026-02-24, phase03):** Three findings assigned to AV-02:
 
@@ -257,6 +291,32 @@ agent Job runs with mechanic-agent ClusterRole
 
 **Controls in place:** NetworkPolicy (opt-in, requires CNI); HARD RULE 2 (prompt-only);
 namespace-scope opt-in (`AGENT_RBAC_SCOPE=namespace`).
+
+**epic29 controls (kubectl write-blocking and hardened mode):**
+- **kubectl Tier 1 (always-on):** The `kubectl` wrapper blocks all write subcommands
+  (`apply`, `create`, `delete`, `edit`, `patch`, `replace`, `rollout restart`,
+  `rollout undo`, `scale`, `set`, `label`, `annotate`, `taint`, `drain`, `cordon`,
+  `uncordon`) before the real binary is invoked. This is enforced at the tool layer
+  regardless of RBAC.
+- **kubectl Tier 2 (opt-in, `agent.hardenKubectl: true`):** When the hardened flag is
+  set, the wrapper additionally blocks `kubectl get/describe secret(s)`, `kubectl get
+  all`, `kubectl exec`, and `kubectl port-forward`. The flag is enforced via a
+  `chmod 444` sentinel file at `/mechanic-cfg/harden-kubectl` mounted read-only into
+  the agent container — it cannot be unset from within the container. Three-layer
+  detection (sentinel file → `/proc/1/environ` → env var) mirrors the epic20 dry-run
+  enforcement pattern.
+- **RBAC (unchanged):** `clusterrole-agent.yaml` grants only `get/list/watch` on an
+  explicit allowlist that excludes `secrets` in `agentRBACScope: cluster` (default).
+  RBAC is the server-side control; Tier 1 and Tier 2 are wrapper-layer defense-in-depth.
+- **Kyverno server-side enforcement (opt-in, `agent.kyvernoPolicy.enabled: true`, epic29 STORY_06):**
+  When enabled, a Kyverno `ClusterPolicy` enforces at the Kubernetes API admission level:
+  - `deny-agent-secret-read`: denies GET/LIST/WATCH on `Secret` resources by the agent SA.
+  - `deny-agent-pod-exec` and `deny-agent-pod-portforward`: deny `pods/exec` and `pods/portforward`.
+  - `deny-agent-writes`: denies all mutating verbs on any resource (excludes `RemediationJob/status` so the agent can still patch its own status).
+  - `restrict-agent-image`: enforces that agent Job containers use the configured image prefix (`agent.kyvernoPolicy.allowedImagePrefix`), closing finding 2026-02-27-005 at the admission layer.
+  - `enforce-agent-pod-security`: denies pods without `readOnlyRootFilesystem: true`, `runAsNonRoot: true`, `allowPrivilegeEscalation: false`, and `capabilities.drop: ALL`. The `readOnlyRootFilesystem` requirement eliminates the wrapper-replacement attack path — an attacker cannot modify `/usr/local/bin/kubectl` at runtime to bypass the redaction wrapper.
+  - `audit-agent-direct-api-calls`: Audit-mode rule that fires when the agent SA accesses a resource outside its standard ClusterRole allowlist, surfacing potential `curl`/SA-token bypass attempts in the `PolicyReport` CR (provides observability for the EX-001 path).
+  These rules operate independently of RBAC and of the kubectl wrapper controls. Requires Kyverno v1.9+.
 
 **Pentest outcome (2026-02-24, phases02+04 for P-004; phase05 for P-009):** Two live escalation paths confirmed:
 
@@ -602,6 +662,84 @@ JSON output mode — newlines and quotes are escaped.
 
 ---
 
+### AV-14: LLM-Directed Secret Exfiltration via Unwrapped Tools (HIGH risk)
+
+**Entry point:** Agent Job pod — the LLM has access to multiple tools that are
+deliberately not wrapped by the PATH-shadowing redaction layer (see AV-02 wrapper
+inventory).
+
+**Mechanism:**
+```
+LLM is manipulated (via prompt injection, hallucination, or adversarial red team prompt)
+→ LLM executes one or more unwrapped tool calls:
+    curl <k8s-api>/namespaces/mechanic/secrets/... -H "Authorization: Bearer $(cat /var/run/secrets/kubernetes.io/serviceaccount/token)"
+    jq '.data["secret-value"]' | base64 -d
+    openssl rsa -in <key-file> -text
+    git log -p | grep -A3 password
+    cat /workspace/github-token
+→ output is not intercepted by any redaction wrapper
+→ secret value appears in LLM context
+→ LLM includes value in investigation report, PR body, PR diff, or status field
+→ secret value leaves the cluster via GitHub API
+```
+
+**Why this is distinct from AV-02 and AV-03:**
+
+AV-02 covers the ingestion path (pod error message → Finding.Errors) and tool call
+output redaction via wrappers. AV-03 covers cluster-level exfiltration (all Secrets
+to an external endpoint). AV-14 covers the narrow but critical case where the LLM
+is specifically tested for its willingness and capability to include secret values in
+the pull request it opens — the PR is the designed output channel and therefore the
+most likely exfil destination.
+
+The distinguishing characteristic is **intentional, targeted testing** — AV-14 is
+not an incidental side effect of prompt injection (AV-01) but a dedicated adversarial
+test of the LLM's compliance with HARD RULE 2 under direct red team pressure.
+
+**Controls in place:**
+
+- PATH-shadowing wrappers on all high-risk tools (kubectl, helm, flux, sops, talosctl,
+  yq, stern, kubeconform, kustomize, age, age-keygen) — but NOT on curl, cat, jq,
+  openssl, git-stdout, env/printenv (see AV-02 unwrapped tools table)
+- HARD RULE 2 (prompt instruction): agent must not read or include secrets
+- `domain.DetectInjection` fires on red team payloads with known patterns
+- Prompt envelope: FINDING_ERRORS is bracketed — content treated as data not instructions
+- NetworkPolicy (opt-in): restricts egress to GitHub and Kubernetes APIs only
+
+**Test methodology:**
+
+See `docs/SECURITY/PROCESS.md` Phase 11 (Exfil Test). This attack vector is the primary
+target of Phase 11. Every exfil test run produces entries in `docs/SECURITY/EXFIL_LEAK_REGISTRY.md`.
+
+**Exfil Leak Registry:** `docs/SECURITY/EXFIL_LEAK_REGISTRY.md` — authoritative list of
+all known exfil paths, their status (needs_remediation / accepted / remediated), and the
+acceptance rationale for each accepted path.
+
+**Known accepted paths (from Leak Registry):**
+
+| Leak ID | Tool | Path | Severity |
+|---------|------|------|----------|
+| EX-001 | `curl` + SA token | Direct K8s API read of any Secret | HIGH |
+| EX-002 | `cat` | SA token, GitHub token, `/proc/1/environ` | MEDIUM |
+| EX-003 | `git log/show/diff` | Credentials in GitOps commit history | LOW |
+| EX-004 | `env`/`printenv` | Agent process environment dump | LOW |
+| EX-005 | `jq` | Credential field extraction from curl output | MEDIUM |
+| EX-006 | `openssl` | Private key extraction to stdout | HIGH |
+
+**Residual risk:**
+
+The controls are probabilistic (prompt-based), not deterministic, for the unwrapped tool
+paths. A sophisticated enough red team prompt or a highly capable LLM may comply with
+instructions to include secret values in the PR despite HARD RULE 2. The only deterministic
+mitigation for these paths is wrapping the tools (which breaks specific init container
+workflows) or removing the agent's read access to the relevant resources (which breaks
+the investigation capability). Both trade-offs are documented above.
+
+The key assurance mechanic provides is that the redacted tools (kubectl, helm, etc.) do
+not expose secret values even when the LLM actively tries to use them for exfil.
+
+---
+
 ## 6. Data Flow Security Analysis
 
 ### Highest-risk path: pod error message → LLM prompt
@@ -647,8 +785,8 @@ Each step is a control point. A failure at any step propagates to all downstream
 
 | ID | Risk | Severity | Acceptance Rationale |
 |----|------|----------|---------------------|
-| AR-01 | Agent can read all Secrets cluster-wide (default scope) | HIGH | Matches k8sgpt-operator permissions per HLD §11; namespace scope available as opt-in. Pentest confirmed: `nodes/proxy` access via wildcard also confirmed (P-004) — **remediated** by replacing wildcard with explicit resource list. |
-| AR-02 | Regex redaction has false negatives | MEDIUM | Best-effort; not a substitute for proper secret management. Pentest found PEM header gap (P-006) and X-API-Key gap (P-007) — both **remediated**. Pattern set is now more complete but not exhaustive. |
+| AR-01 | Agent can read all Secrets cluster-wide (default scope) | HIGH | In `agentRBACScope: cluster` (default), the agent SA has no `secrets` RBAC permission — the API server denies secret reads at the server side. The kubectl Tier 1 wrapper-layer control (epic29) additionally blocks `kubectl get secret` even if RBAC were misconfigured. In `agentRBACScope: namespace`, the wildcard `resources: ["*"]` Role grants secret reads in watched namespaces. Operators who consider this unacceptable should set `agent.hardenKubectl: true` (kubectl Tier 2, epic29) to add a wrapper-layer block. The combination of namespace-scoped RBAC + Tier 2 hardened mode provides two independent controls. `curl` with the mounted SA bearer token bypasses both wrapper-layer controls; server-side RBAC is the sole control for that path (AR-07). Pentest confirmed: `nodes/proxy` access via wildcard also confirmed (P-004) — **remediated** by replacing wildcard with explicit resource list. |
+| AR-02 | Regex redaction has false negatives | MEDIUM | The built-in pattern set (now 16 patterns, epic29 STORY_02) covers the most common credential formats. The `age` private key blind spot is **closed** (epic29). `sk-*` (OpenAI/Anthropic), AWS `AKIA*`, JWT two-segment, and non-Bearer Authorization header formats are now covered. Known remaining gaps: short Kubernetes Secret values (< 30 raw bytes) not matched by the base64 threshold unless the key name matches a named pattern; custom application-specific formats (mitigated by `agent.extraRedactPatterns`). `curl`/`jq`/`openssl`/`git` stdout redaction is not applied by design (see AV-02 unwrapped tools). Pentest found PEM header gap (P-006) and X-API-Key gap (P-007) — both **remediated**. |
 | AR-03 | NetworkPolicy requires CNI — not enforced without it | MEDIUM | Cilium CNI confirmed deployed and capable (pentest phase05). NetworkPolicy not applied (P-009) — this is now a deployment gap, not a CNI availability gap. Operator action required (`kubectl apply -f deploy/overlays/security/network-policy-agent.yaml`). |
 | AR-04 | Prompt injection cannot be fully prevented | MEDIUM | Field-wide unsolved problem; layered mitigations reduce but cannot eliminate risk. Pentest confirmed LLM refused live payload, but this is not a deterministic control. P-008 remediation adds a deterministic gate in the controller path. |
 | AR-05 | GitHub token in shared emptyDir | MEDIUM | Required by init container pattern; 1-hour TTL limits exposure window. Pentest phase06 verified isolation — no findings. |

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# kubectl wrapper — pipes output through redact before returning to caller.
+# kubectl wrapper — blocks write subcommands (Tier 1, always-on) and optionally
+# blocks secret reads / exec / port-forward (Tier 2, hardened mode); pipes output
+# through redact.
 # Does NOT use set -e: the real binary may exit non-zero legitimately.
 
 if ! command -v redact > /dev/null 2>&1; then
@@ -9,6 +11,114 @@ fi
 
 _tmpfile=$(mktemp) || { echo "[ERROR] mktemp failed — aborting" >&2; exit 1; }
 trap 'rm -f "$_tmpfile"' EXIT
+
+# ── Tier 1: always-on write-subcommand block ─────────────────────────────────
+_subcmd="${1:-}"
+_blocked_write="false"
+
+case "$_subcmd" in
+    apply|create|delete|edit|patch|replace|scale|set|label|annotate|taint|drain|cordon|uncordon)
+        _blocked_write="true"
+        ;;
+    rollout)
+        case "${2:-}" in
+            restart|undo)
+                _blocked_write="true"
+                ;;
+        esac
+        ;;
+esac
+
+if [ "$_blocked_write" = "true" ]; then
+    echo "[KUBECTL] kubectl $* blocked — write operations are not permitted in the mendabot agent" >&2
+    exit 1
+fi
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Hardened mode sentinel detection (three-layer, mirrors epic20 dry-run) ───
+_harden_kubectl="false"
+
+# Layer 1: sentinel file (chmod 444, read-only volume mount — tamper-proof)
+if [ -f /mechanic-cfg/harden-kubectl ] && \
+   [ "$(cat /mechanic-cfg/harden-kubectl 2>/dev/null)" = "true" ]; then
+    _harden_kubectl="true"
+fi
+
+# Layer 2: /proc/1/environ (PID-1 env — immutable from within container)
+if [ "$_harden_kubectl" = "false" ] && [ -r /proc/1/environ ]; then
+    if tr '\0' '\n' < /proc/1/environ 2>/dev/null | grep -q '^HARDEN_KUBECTL=true$'; then
+        _harden_kubectl="true"
+    fi
+fi
+
+# Layer 3: current shell env var (fallback / local testing)
+if [ "$_harden_kubectl" = "false" ] && [ "${HARDEN_KUBECTL:-false}" = "true" ]; then
+    _harden_kubectl="true"
+fi
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Tier 2: hardened-mode block ───────────────────────────────────────────────
+if [ "$_harden_kubectl" = "true" ]; then
+    _tier2_blocked="false"
+    _tier2_reason=""
+
+    case "$_subcmd" in
+        exec)
+            _tier2_blocked="true"
+            _tier2_reason="exec is disabled in hardened mode"
+            ;;
+        port-forward)
+            _tier2_blocked="true"
+            _tier2_reason="port-forward is disabled in hardened mode"
+            ;;
+        get|describe)
+            for _arg in "$@"; do
+                # Direct resource match
+                case "$_arg" in
+                    secret|secrets|"secret/"*|"secrets/"*)
+                        _tier2_blocked="true"
+                        _tier2_reason="access to secrets is disabled in hardened mode"
+                        break
+                        ;;
+                    all)
+                        _tier2_blocked="true"
+                        _tier2_reason="'get all' is disabled in hardened mode (may include secrets)"
+                        break
+                        ;;
+                esac
+                # Comma-separated multi-resource: split without clobbering "$@"
+                # Only attempt splitting when the arg actually contains a comma.
+                case "$_arg" in
+                    *,*)
+                        _contains_secret="false"
+                        _comma_list="${_arg},"
+                        while [ -n "$_comma_list" ]; do
+                            _token="${_comma_list%%,*}"
+                            _comma_list="${_comma_list#*,}"
+                            case "$_token" in
+                                secret|secrets|"secret/"*|"secrets/"*)
+                                    _contains_secret="true"
+                                    break
+                                    ;;
+                            esac
+                        done
+                        if [ "$_contains_secret" = "true" ]; then
+                            _tier2_blocked="true"
+                            _tier2_reason="access to secrets is disabled in hardened mode"
+                            break
+                        fi
+                        ;;
+                esac
+            done
+            ;;
+    esac
+
+    if [ "$_tier2_blocked" = "true" ]; then
+        echo "[KUBECTL-HARDENED] kubectl $* blocked — ${_tier2_reason}" >&2
+        exit 1
+    fi
+fi
+# ─────────────────────────────────────────────────────────────────────────────
 
 kubectl.real "$@" > "$_tmpfile" 2>&1
 _rc=$?

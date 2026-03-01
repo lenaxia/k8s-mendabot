@@ -1,0 +1,219 @@
+{{- if .Values.agent.kyvernoPolicy.enabled }}
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: {{ include "mechanic.fullname" . }}-agent-hardening
+  labels:
+    {{- include "mechanic.labels" . | nindent 4 }}
+  annotations:
+    policies.kyverno.io/title: "mechanic-agent hardening"
+    policies.kyverno.io/category: "Security"
+    policies.kyverno.io/severity: "high"
+    policies.kyverno.io/minversion: "1.9.0"
+    policies.kyverno.io/description: >-
+      Enforces mechanic-agent access restrictions, pod security profile,
+      and agent image allowlist. Requires Kyverno v1.9+.
+spec:
+  background: false
+  rules:
+  - name: deny-agent-secret-read
+    match:
+      any:
+      - resources:
+          kinds: ["Secret"]
+        subjects:
+        - kind: ServiceAccount
+          name: {{ include "mechanic.agentSAName" . }}
+          namespace: {{ .Release.Namespace }}
+    validate:
+      validationFailureAction: Enforce
+      message: "mechanic-agent is not permitted to read secrets"
+      deny:
+        conditions:
+          any:
+          - key: "{{ "{{" }} request.operation {{ "}}" }}"
+            operator: AnyIn
+            value: ["GET", "LIST", "WATCH"]
+  - name: deny-agent-pod-exec
+    match:
+      any:
+      - resources:
+          kinds: ["Pod/exec"]
+        subjects:
+        - kind: ServiceAccount
+          name: {{ include "mechanic.agentSAName" . }}
+          namespace: {{ .Release.Namespace }}
+    validate:
+      validationFailureAction: Enforce
+      message: "mechanic-agent is not permitted to exec into pods"
+      deny: {}
+  - name: deny-agent-pod-portforward
+    match:
+      any:
+      - resources:
+          kinds: ["Pod/portforward"]
+        subjects:
+        - kind: ServiceAccount
+          name: {{ include "mechanic.agentSAName" . }}
+          namespace: {{ .Release.Namespace }}
+    validate:
+      validationFailureAction: Enforce
+      message: "mechanic-agent is not permitted to port-forward"
+      deny: {}
+  - name: deny-agent-writes
+    match:
+      any:
+      - resources:
+          kinds: ["*"]
+        subjects:
+        - kind: ServiceAccount
+          name: {{ include "mechanic.agentSAName" . }}
+          namespace: {{ .Release.Namespace }}
+    exclude:
+      any:
+      - resources:
+          kinds: ["RemediationJob", "RemediationJob/status"]
+    validate:
+      validationFailureAction: Enforce
+      message: "mechanic-agent is not permitted to mutate cluster resources"
+      deny:
+        conditions:
+          any:
+          - key: "{{ "{{" }} request.operation {{ "}}" }}"
+            operator: AnyIn
+            value: ["CREATE", "UPDATE", "PATCH", "DELETE", "DELETECOLLECTION"]
+{{- if .Values.agent.kyvernoPolicy.allowedImagePrefix }}
+  - name: restrict-agent-image
+    match:
+      any:
+      - resources:
+          kinds: ["Job"]
+          namespaces: [{{ .Release.Namespace | quote }}]
+          selector:
+            matchLabels:
+              app.kubernetes.io/managed-by: mechanic-watcher
+    validate:
+      validationFailureAction: Enforce
+      message: "mechanic-agent Job image must use the configured allowedImagePrefix"
+      pattern:
+        spec:
+          template:
+            spec:
+              containers:
+              - name: mechanic-agent
+                image: "{{ .Values.agent.kyvernoPolicy.allowedImagePrefix }}*"
+{{- end }}
+  - name: enforce-agent-readonly-root
+    match:
+      any:
+      - resources:
+          kinds: ["Pod"]
+          namespaces: [{{ .Release.Namespace | quote }}]
+          selector:
+            matchLabels:
+              app.kubernetes.io/managed-by: mechanic-watcher
+    validate:
+      validationFailureAction: Enforce
+      message: "mechanic-agent containers must use a read-only root filesystem"
+      pattern:
+        spec:
+          containers:
+          - name: mechanic-agent
+            securityContext:
+              readOnlyRootFilesystem: true
+  - name: enforce-agent-nonroot
+    match:
+      any:
+      - resources:
+          kinds: ["Pod"]
+          namespaces: [{{ .Release.Namespace | quote }}]
+          selector:
+            matchLabels:
+              app.kubernetes.io/managed-by: mechanic-watcher
+    validate:
+      validationFailureAction: Enforce
+      message: "mechanic-agent containers must not run as root"
+      pattern:
+        spec:
+          containers:
+          - name: mechanic-agent
+            securityContext:
+              runAsNonRoot: true
+  - name: enforce-agent-no-privilege-escalation
+    match:
+      any:
+      - resources:
+          kinds: ["Pod"]
+          namespaces: [{{ .Release.Namespace | quote }}]
+          selector:
+            matchLabels:
+              app.kubernetes.io/managed-by: mechanic-watcher
+    validate:
+      validationFailureAction: Enforce
+      message: "mechanic-agent containers must not allow privilege escalation"
+      pattern:
+        spec:
+          containers:
+          - name: mechanic-agent
+            securityContext:
+              allowPrivilegeEscalation: false
+  - name: enforce-agent-drop-capabilities
+    match:
+      any:
+      - resources:
+          kinds: ["Pod"]
+          namespaces: [{{ .Release.Namespace | quote }}]
+          selector:
+            matchLabels:
+              app.kubernetes.io/managed-by: mechanic-watcher
+    validate:
+      validationFailureAction: Enforce
+      message: "mechanic-agent containers must drop all Linux capabilities"
+      pattern:
+        spec:
+          containers:
+          - name: mechanic-agent
+            securityContext:
+              capabilities:
+                drop: ["ALL"]
+  - name: audit-agent-direct-api-calls
+    match:
+      any:
+      - resources:
+          kinds: ["*"]
+        subjects:
+        - kind: ServiceAccount
+          name: {{ include "mechanic.agentSAName" . }}
+          namespace: {{ .Release.Namespace }}
+    exclude:
+      any:
+      - resources:
+          kinds:
+          - Pod
+          - Node
+          - PersistentVolumeClaim
+          - Namespace
+          - Event
+          - Service
+          - Endpoints
+          - Deployment
+          - StatefulSet
+          - ReplicaSet
+          - DaemonSet
+          - Job
+          - CronJob
+          - RemediationJob
+          - RemediationJob/status
+          - Pod/exec
+          - Pod/portforward
+          - Secret
+    validate:
+      validationFailureAction: Audit
+      message: "mechanic-agent accessed a resource outside its standard ClusterRole allowlist — potential curl/SA-token bypass"
+      deny:
+        conditions:
+          any:
+          - key: "{{ "{{" }} request.operation {{ "}}" }}"
+            operator: AnyIn
+            value: ["GET", "LIST", "WATCH"]
+{{- end }}

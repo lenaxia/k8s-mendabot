@@ -15,8 +15,10 @@ deployment.
 | [THREAT_MODEL.md](THREAT_MODEL.md) | Authoritative threat model for mechanic |
 | [PROCESS.md](PROCESS.md) | Step-by-step repeatable review process |
 | [CHECKLIST.md](CHECKLIST.md) | Tick-off checklist — one copy per review run |
+| [EXFIL_LEAK_REGISTRY.md](EXFIL_LEAK_REGISTRY.md) | Known LLM exfil paths — status, acceptance rationale, red team instructions |
 | [REPORT_TEMPLATE/](REPORT_TEMPLATE/) | Template folder — copy to start a new report |
 | `YYYY-MM-DD_security_report/` | Completed report folders (one per review run) |
+| `YYYY-MM-DD_pentest_report/` | Completed pentest report folders |
 
 ## When to Run a Security Review
 
@@ -29,6 +31,15 @@ Run a full security review:
 - After any change to the prompt template (`configmap-prompt.yaml`)
 - After adding a new native provider
 - On a scheduled cadence (minimum: quarterly)
+
+Run Phase 11 (Exfil Test) additionally:
+
+- After any change to the PATH-shadowing redaction wrappers in `docker/scripts/redact-wrappers/`
+- After any change to the prompt hard rules
+- After adding a new tool to the agent image (the new tool may bypass redaction)
+- After any `EXFIL_LEAK_REGISTRY.md` entry transitions from `needs_remediation` to `remediated`
+  (verify the fix holds)
+- Whenever a new exfil technique is identified in the wild for LLM agents
 
 ## How to Run a Review
 
@@ -61,6 +72,10 @@ days, use the completion date. Use lowercase with underscores — no spaces.
 - The CHECKLIST must be fully completed (no unchecked items) before the report is closed
 - If a test could not be run (e.g. no live cluster), it must be documented as SKIPPED
   with the specific reason — not silently omitted
+- Phase 11 (Exfil Test) MUST NOT be permanently skipped: if a cluster is unavailable,
+  document it as SKIPPED with reason, but the test must be run in the next review that
+  does have a cluster
+- Exfil test sentinel values MUST NOT be committed to this repository under any circumstances
 
 ## Severity Definitions
 

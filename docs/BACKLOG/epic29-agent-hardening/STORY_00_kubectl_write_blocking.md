@@ -2,7 +2,7 @@
 
 **Epic:** [epic29-agent-hardening](README.md)
 **Priority:** Critical
-**Status:** Not Started
+**Status:** Complete
 
 ---
 
@@ -45,34 +45,34 @@ scope review (they are less common and can be added if needed). `rollout restart
 
 ## Acceptance Criteria
 
-- [ ] `kubectl apply [...]` exits 1 with message `[KUBECTL] kubectl apply blocked — write
+- [x] `kubectl apply [...]` exits 1 with message `[KUBECTL] kubectl apply blocked — write
       operations are not permitted in the mendabot agent` to stderr
-- [ ] `kubectl create [...]` is blocked
-- [ ] `kubectl delete [...]` is blocked
-- [ ] `kubectl edit [...]` is blocked
-- [ ] `kubectl patch [...]` is blocked
-- [ ] `kubectl replace [...]` is blocked
-- [ ] `kubectl rollout restart [...]` is blocked
-- [ ] `kubectl rollout undo [...]` is blocked
-- [ ] `kubectl rollout status [...]` is **not** blocked (read-only)
-- [ ] `kubectl rollout history [...]` is **not** blocked (read-only)
-- [ ] `kubectl scale [...]` is blocked
-- [ ] `kubectl set [...]` is blocked
-- [ ] `kubectl label [...]` is blocked
-- [ ] `kubectl annotate [...]` is blocked
-- [ ] `kubectl taint [...]` is blocked
-- [ ] `kubectl drain [...]` is blocked
-- [ ] `kubectl cordon [...]` is blocked
-- [ ] `kubectl uncordon [...]` is blocked
-- [ ] `kubectl get pods` is **not** blocked (legitimate read)
-- [ ] `kubectl describe deployment foo` is **not** blocked (legitimate read)
-- [ ] `kubectl logs foo` is **not** blocked
-- [ ] `kubectl diff [...]` is **not** blocked (read-only diff)
-- [ ] Blocked calls exit with code 1 (not 0 — the LLM must see a failure)
-- [ ] All blocked calls write the error to stderr only (not stdout — preserves redact
+- [x] `kubectl create [...]` is blocked
+- [x] `kubectl delete [...]` is blocked
+- [x] `kubectl edit [...]` is blocked
+- [x] `kubectl patch [...]` is blocked
+- [x] `kubectl replace [...]` is blocked
+- [x] `kubectl rollout restart [...]` is blocked
+- [x] `kubectl rollout undo [...]` is blocked
+- [x] `kubectl rollout status [...]` is **not** blocked (read-only)
+- [x] `kubectl rollout history [...]` is **not** blocked (read-only)
+- [x] `kubectl scale [...]` is blocked
+- [x] `kubectl set [...]` is blocked
+- [x] `kubectl label [...]` is blocked
+- [x] `kubectl annotate [...]` is blocked
+- [x] `kubectl taint [...]` is blocked
+- [x] `kubectl drain [...]` is blocked
+- [x] `kubectl cordon [...]` is blocked
+- [x] `kubectl uncordon [...]` is blocked
+- [x] `kubectl get pods` is **not** blocked (legitimate read)
+- [x] `kubectl describe deployment foo` is **not** blocked (legitimate read)
+- [x] `kubectl logs foo` is **not** blocked
+- [x] `kubectl diff [...]` is **not** blocked (read-only diff)
+- [x] Blocked calls exit with code 1 (not 0 — the LLM must see a failure)
+- [x] All blocked calls write the error to stderr only (not stdout — preserves redact
       pipeline integrity for stdout)
-- [ ] `shellcheck docker/scripts/redact-wrappers/kubectl` passes with no errors
-- [ ] The redact pipeline (tmpfile → `redact < tmpfile`) remains intact for all
+- [x] `shellcheck docker/scripts/redact-wrappers/kubectl` passes with no errors
+- [x] The redact pipeline (tmpfile → `redact < tmpfile`) remains intact for all
       non-blocked calls — this story does not change the output filtering behaviour
 
 ---
@@ -162,9 +162,9 @@ blocked. Add test cases for at minimum: `apply`, `delete`, `create`, `rollout re
 
 ## Definition of Done
 
-- [ ] `docker/scripts/redact-wrappers/kubectl` updated with Tier 1 write-block logic
-- [ ] All blocked subcommands from the acceptance criteria verified to exit 1
-- [ ] All read subcommands from the acceptance criteria verified to pass through
-- [ ] `shellcheck docker/scripts/redact-wrappers/kubectl` passes with no errors
-- [ ] `docker/scripts/wrapper-test.sh` extended with write-block test cases
-- [ ] `go test -timeout 30s -race ./...` still passes (no Go changes in this story)
+- [x] `docker/scripts/redact-wrappers/kubectl` updated with Tier 1 write-block logic
+- [x] All blocked subcommands from the acceptance criteria verified to exit 1
+- [x] All read subcommands from the acceptance criteria verified to pass through
+- [x] `shellcheck docker/scripts/redact-wrappers/kubectl` passes with no errors
+- [x] `docker/scripts/wrapper-test.sh` extended with write-block test cases
+- [x] `go test -timeout 30s -race ./...` still passes (no Go changes in this story)

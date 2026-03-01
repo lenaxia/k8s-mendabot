@@ -54,7 +54,7 @@ func healthyNode(name string) *corev1.Node {
 func TestNodeProvider_ProviderName(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewNodeProvider(c)
+	p := NewNodeProvider(c, testRedactor(t))
 
 	got := p.ProviderName()
 	if got != "native" {
@@ -66,7 +66,7 @@ func TestNodeProvider_ProviderName(t *testing.T) {
 func TestNodeProvider_ObjectType(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewNodeProvider(c)
+	p := NewNodeProvider(c, testRedactor(t))
 
 	obj := p.ObjectType()
 	if _, ok := obj.(*corev1.Node); !ok {
@@ -78,7 +78,7 @@ func TestNodeProvider_ObjectType(t *testing.T) {
 func TestNodeProvider_HealthyNode(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewNodeProvider(c)
+	p := NewNodeProvider(c, testRedactor(t))
 
 	node := healthyNode("node-1")
 	finding, err := p.ExtractFinding(node)
@@ -94,7 +94,7 @@ func TestNodeProvider_HealthyNode(t *testing.T) {
 func TestNodeProvider_NotReadyFalse(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewNodeProvider(c)
+	p := NewNodeProvider(c, testRedactor(t))
 
 	node := healthyNode("node-1")
 	node.Status.Conditions[0] = corev1.NodeCondition{
@@ -131,7 +131,7 @@ func TestNodeProvider_NotReadyFalse(t *testing.T) {
 func TestNodeProvider_NotReadyUnknown(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewNodeProvider(c)
+	p := NewNodeProvider(c, testRedactor(t))
 
 	node := healthyNode("node-2")
 	node.Status.Conditions[0] = corev1.NodeCondition{
@@ -160,7 +160,7 @@ func TestNodeProvider_NotReadyUnknown(t *testing.T) {
 func TestNodeProvider_MemoryPressure(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewNodeProvider(c)
+	p := NewNodeProvider(c, testRedactor(t))
 
 	node := healthyNode("node-3")
 	// Remove the healthy MemoryPressure=False condition added by healthyNode, then add True.
@@ -190,7 +190,7 @@ func TestNodeProvider_MemoryPressure(t *testing.T) {
 func TestNodeProvider_DiskPressure(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewNodeProvider(c)
+	p := NewNodeProvider(c, testRedactor(t))
 
 	node := healthyNode("node-4")
 	// Remove the healthy DiskPressure=False condition added by healthyNode, then add True.
@@ -220,7 +220,7 @@ func TestNodeProvider_DiskPressure(t *testing.T) {
 func TestNodeProvider_PIDPressure(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewNodeProvider(c)
+	p := NewNodeProvider(c, testRedactor(t))
 
 	node := healthyNode("node-5")
 	// Remove the healthy PIDPressure=False condition added by healthyNode, then add True.
@@ -250,7 +250,7 @@ func TestNodeProvider_PIDPressure(t *testing.T) {
 func TestNodeProvider_NetworkUnavailable(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewNodeProvider(c)
+	p := NewNodeProvider(c, testRedactor(t))
 
 	node := healthyNode("node-6")
 	node.Status.Conditions = append(node.Status.Conditions, corev1.NodeCondition{
@@ -278,7 +278,7 @@ func TestNodeProvider_NetworkUnavailable(t *testing.T) {
 func TestNodeProvider_EtcdIsVoterIgnored(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewNodeProvider(c)
+	p := NewNodeProvider(c, testRedactor(t))
 
 	node := healthyNode("node-7")
 	node.Status.Conditions = append(node.Status.Conditions, corev1.NodeCondition{
@@ -302,7 +302,7 @@ func TestNodeProvider_EtcdIsVoterIgnored(t *testing.T) {
 func TestNodeProvider_MultipleConditions(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewNodeProvider(c)
+	p := NewNodeProvider(c, testRedactor(t))
 
 	node := healthyNode("node-8")
 	// Override Ready to False.
@@ -347,7 +347,7 @@ func TestNodeProvider_MultipleConditions(t *testing.T) {
 func TestNodeProvider_WrongType(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewNodeProvider(c)
+	p := NewNodeProvider(c, testRedactor(t))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: "my-pod", Namespace: "default"},
@@ -365,7 +365,7 @@ func TestNodeProvider_WrongType(t *testing.T) {
 func TestNodeProvider_ParentObject(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewNodeProvider(c)
+	p := NewNodeProvider(c, testRedactor(t))
 
 	node := healthyNode("worker-01")
 	node.Status.Conditions[0] = corev1.NodeCondition{
@@ -393,7 +393,7 @@ func TestNodeProvider_ParentObject(t *testing.T) {
 func TestNodeProvider_ErrorTextFormat(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewNodeProvider(c)
+	p := NewNodeProvider(c, testRedactor(t))
 
 	node := healthyNode("node-format")
 	node.Status.Conditions[0] = corev1.NodeCondition{
@@ -421,7 +421,7 @@ func TestNodeProvider_ErrorTextFormat(t *testing.T) {
 func TestNodeProvider_FindingErrors_IsValidJSON(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewNodeProvider(c)
+	p := NewNodeProvider(c, testRedactor(t))
 
 	node := healthyNode("node-json")
 	node.Status.Conditions[0] = corev1.NodeCondition{
@@ -455,7 +455,7 @@ func TestNodeProvider_FindingErrors_IsValidJSON(t *testing.T) {
 func TestNodeProvider_NonStandardConditionTrue_Detected(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewNodeProvider(c)
+	p := NewNodeProvider(c, testRedactor(t))
 
 	node := healthyNode("node-gpu")
 	node.Status.Conditions = append(node.Status.Conditions, corev1.NodeCondition{
@@ -484,7 +484,7 @@ func TestNodeProvider_NonStandardConditionTrue_Detected(t *testing.T) {
 func TestNodeProvider_ConditionMessageRedacted(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewNodeProvider(c)
+	p := NewNodeProvider(c, testRedactor(t))
 
 	node := healthyNode("redact-node")
 	node.Status.Conditions[0] = corev1.NodeCondition{
@@ -546,7 +546,7 @@ func assertNodeErrorTextContains(t *testing.T, errors, substr string) {
 func TestNodeAnnotationEnabled_False(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewNodeProvider(c)
+	p := NewNodeProvider(c, testRedactor(t))
 
 	node := healthyNode("ann-node")
 	node.Annotations = map[string]string{
@@ -571,7 +571,7 @@ func TestNodeAnnotationEnabled_False(t *testing.T) {
 func TestNodeAnnotationSkipUntilFuture(t *testing.T) {
 	s := newTestScheme()
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	p := NewNodeProvider(c)
+	p := NewNodeProvider(c, testRedactor(t))
 
 	node := healthyNode("skip-node")
 	node.Annotations = map[string]string{
