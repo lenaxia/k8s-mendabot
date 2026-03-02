@@ -133,7 +133,7 @@ exposed to the main agent container.
 
 #### Hardened mode
 
-Hardened mode (`agent.hardenKubectl: true` in `values.yaml`, on by default) adds
+Hardened mode (`agent.hardenKubectl: true` in `values.yaml`, off by default) adds
 additional read restrictions on top of the always-on defaults below.
 
 **Always on (regardless of hardened mode)**
@@ -353,6 +353,8 @@ All `values.yaml` keys and their defaults:
 | `networkPolicy.apiServerPort` | `6443` | Kubernetes API server port (some distributions use `443`) |
 | `networkPolicy.additionalEgressRules` | `[]` | Extra egress rules appended verbatim (e.g. to restrict LLM endpoint by CIDR) |
 | `watcher.prAutoClose` | `true` | Automatically close the GitHub PR when the underlying finding resolves. Set to `false` to leave PRs open for manual review |
+| `watcher.dryRun` | `false` | Run the full investigation pipeline without opening PRs. Reports are written to a `mechanic-dryrun-<fingerprint>` ConfigMap instead |
+| `agent.hardenKubectl` | `false` | Enable hardened mode — blocks `kubectl get/describe secret`, `get all`, `exec`, and `port-forward` in addition to the always-on write blocks |
 
 ### Configuration validation
 
