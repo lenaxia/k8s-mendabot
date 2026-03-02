@@ -52,28 +52,28 @@ read-only into the main container. The LLM cannot `unset` or overwrite it.
 
 - [ ] `kubectl get secret` exits 1 with `[KUBECTL-HARDENED]` message when hardened mode
       is active
-- [ ] `kubectl get secrets` (plural) exits 1 with `[KUBECTL-HARDENED]` message
-- [ ] `kubectl get secret/my-secret` (slash notation) exits 1
-- [ ] `kubectl get secret my-secret -n foo` exits 1
-- [ ] `kubectl describe secret my-secret` exits 1
-- [ ] `kubectl describe secrets` exits 1
-- [ ] `kubectl get all` exits 1 with `[KUBECTL-HARDENED]` message
-- [ ] `kubectl exec my-pod -- /bin/sh` exits 1 with `[KUBECTL-HARDENED]` message
-- [ ] `kubectl port-forward svc/my-svc 8080:80` exits 1
-- [ ] `kubectl get pods` is **not** blocked even in hardened mode
-- [ ] `kubectl get configmaps` is **not** blocked
-- [ ] `kubectl get all -n kube-system` is blocked (the `-n` flag does not bypass)
-- [ ] `kubectl get pods,secrets` (multi-resource) exits 1 (contains `secret`)
-- [ ] When hardened mode is **not** active, none of the Tier 2 blocks apply
-- [ ] Sentinel file `/mechanic-cfg/harden-kubectl` is created with permissions `444`
-- [ ] Sentinel file is mounted read-only in the main container — the agent cannot modify it
-- [ ] Three-layer detection:
-      - Layer 1: `/mechanic-cfg/harden-kubectl` contains `true`
-      - Layer 2: `HARDEN_KUBECTL=true` in `/proc/1/environ`
-      - Layer 3: `$HARDEN_KUBECTL` env var fallback
-- [ ] `agent.hardenKubectl: false` in `values.yaml` is the default — existing deployments
+- [x] `kubectl get secrets` (plural) exits 1 with `[KUBECTL-HARDENED]` message
+- [x] `kubectl get secret/my-secret` (slash notation) exits 1
+- [x] `kubectl get secret my-secret -n foo` exits 1
+- [x] `kubectl describe secret my-secret` exits 1
+- [x] `kubectl describe secrets` exits 1
+- [x] `kubectl get all` exits 1 with `[KUBECTL-HARDENED]` message
+- [x] `kubectl exec my-pod -- /bin/sh` exits 1 with `[KUBECTL-HARDENED]` message
+- [x] `kubectl port-forward svc/my-svc 8080:80` exits 1
+- [x] `kubectl get pods` is **not** blocked even in hardened mode
+- [x] `kubectl get configmaps` is **not** blocked
+- [x] `kubectl get all -n kube-system` is blocked (the `-n` flag does not bypass)
+- [x] `kubectl get pods,secrets` (multi-resource) exits 1 (contains `secret`)
+- [x] When hardened mode is **not** active, none of the Tier 2 blocks apply
+- [x] Sentinel file `/mechanic-cfg/harden-kubectl` is created with permissions `444`
+- [x] Sentinel file is mounted read-only in the main container — the agent cannot modify it
+- [x] Three-layer detection:
+      - Layer 1: `/mechanic-cfg/harden-kubectl` contains `true` — validated in-cluster
+      - Layer 2: `HARDEN_KUBECTL=true` in `/proc/1/environ` — validated in-cluster
+      - Layer 3: `$HARDEN_KUBECTL` env var fallback — validated in-cluster
+- [x] `agent.hardenKubectl: false` in `values.yaml` is the default — existing deployments
       are unaffected
-- [ ] `shellcheck docker/scripts/redact-wrappers/kubectl` passes with no errors
+- [x] `shellcheck docker/scripts/redact-wrappers/kubectl` passes with no errors
 
 ---
 
