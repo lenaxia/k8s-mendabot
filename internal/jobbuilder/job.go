@@ -228,6 +228,12 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 				Name:      "tmp",
 				MountPath: "/tmp",
 			},
+			{
+				// /home/agent must be writable so that entrypoint-common.sh can run
+				// "mkdir -p /home/agent/.kube" when ReadOnlyRootFilesystem=true.
+				Name:      "agent-home",
+				MountPath: "/home/agent",
+			},
 		},
 		Resources: b.containerResources(),
 		SecurityContext: &corev1.SecurityContext{
@@ -322,6 +328,15 @@ func (b *Builder) Build(rjob *v1alpha1.RemediationJob, correlatedFindings []v1al
 		},
 		{
 			Name: "tmp",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
+		{
+			// Writable home directory for the agent user. Required because the main
+			// container runs with ReadOnlyRootFilesystem=true and entrypoint-common.sh
+			// creates /home/agent/.kube to build the in-cluster kubeconfig.
+			Name: "agent-home",
 			VolumeSource: corev1.VolumeSource{
 				EmptyDir: &corev1.EmptyDirVolumeSource{},
 			},

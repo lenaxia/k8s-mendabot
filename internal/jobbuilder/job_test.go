@@ -1512,3 +1512,38 @@ func TestBuild_NoExtraRedactPatterns_EnvVarAbsent(t *testing.T) {
 		t.Error("EXTRA_REDACT_PATTERNS must not be present when ExtraRedactPatterns is empty")
 	}
 }
+
+// TestBuild_AgentHomeVolume_Present verifies that an emptyDir volume named
+// "agent-home" exists in the pod spec. The main container runs with
+// ReadOnlyRootFilesystem=true, so entrypoint-common.sh's "mkdir -p /home/agent/.kube"
+// would fail without a writable mount at /home/agent.
+func TestBuild_AgentHomeVolume_Present(t *testing.T) {
+	job := buildJob(t)
+	podSpec := job.Spec.Template.Spec
+
+	vol, ok := findVolume(podSpec, "agent-home")
+	if !ok {
+		t.Fatal("volume \"agent-home\" not found in pod spec: required for ReadOnlyRootFilesystem compatibility")
+	}
+	if vol.EmptyDir == nil {
+		t.Error("volume \"agent-home\" must be an emptyDir")
+	}
+}
+
+// TestBuild_AgentHomeVolumeMount_MainContainer verifies the main container
+// mounts "agent-home" at /home/agent (writable, not read-only).
+func TestBuild_AgentHomeVolumeMount_MainContainer(t *testing.T) {
+	job := buildJob(t)
+	main := job.Spec.Template.Spec.Containers[0]
+
+	mount, ok := findVolumeMount(main, "agent-home")
+	if !ok {
+		t.Fatal("volume mount \"agent-home\" not found in main container")
+	}
+	if mount.MountPath != "/home/agent" {
+		t.Errorf("agent-home VolumeMount.MountPath = %q, want %q", mount.MountPath, "/home/agent")
+	}
+	if mount.ReadOnly {
+		t.Error("agent-home VolumeMount.ReadOnly must be false: /home/agent must be writable")
+	}
+}
