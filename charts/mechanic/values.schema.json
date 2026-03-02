@@ -319,6 +319,7 @@
     "gitops": {
       "type": "object",
       "additionalProperties": false,
+      "required": ["repo", "manifestRoot"],
       "properties": {
         "repo": {
           "type": "string",
