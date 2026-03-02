@@ -2224,3 +2224,190 @@ func TestCorrelation_GroupID_IdempotencyBeforeSuppress(t *testing.T) {
 		t.Errorf("primary CorrelationGroupID = %q, want %q", updatedPrimary.Status.CorrelationGroupID, existingGroupID)
 	}
 }
+
+// TestConcurrencyGate_ExhaustedFailedJobNotCountedAsActive verifies that a batch/v1
+// Job that has exhausted its backoffLimit (status.Failed >= backoffLimit+1) but has
+// no CompletionTime and no Succeeded pods is NOT counted as active by the concurrency
+// gate. Before the fix, such jobs were incorrectly counted, permanently blocking all
+// new job dispatch once enough failed jobs accumulated.
+func TestConcurrencyGate_ExhaustedFailedJobNotCountedAsActive(t *testing.T) {
+	const fp = "abcdefghijklmnopqrstuvwxyz012345abcdefghijklmnopqrstuvwxyz012345"
+	rjob := newRJob("test-rjob", fp)
+	rjob.Status.Phase = v1alpha1.PhasePending
+
+	backoffLimit := int32(1)
+	// Job has failed twice (backoffLimit+1), no CompletionTime, no Succeeded.
+	// This is the exact state of a Kubernetes job that has exhausted its retries
+	// but Kubernetes did not set CompletionTime (observed in production with
+	// backoffLimit=1 and two failed pods).
+	exhaustedJob := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mechanic-agent-exhausted",
+			Namespace: testNamespace,
+			Labels:    map[string]string{"app.kubernetes.io/managed-by": "mechanic-watcher"},
+		},
+		Spec: batchv1.JobSpec{BackoffLimit: &backoffLimit},
+		Status: batchv1.JobStatus{
+			Failed:         2, // >= backoffLimit+1 == 2 → terminal
+			Active:         0,
+			Succeeded:      0,
+			CompletionTime: nil, // deliberately absent
+		},
+	}
+
+	// MaxConcurrentJobs=1; the exhausted job must NOT consume the slot.
+	cfg := defaultCfg()
+	cfg.MaxConcurrentJobs = 1
+
+	c := newFakeClient(t, rjob, exhaustedJob)
+	jb := &fakeJobBuilder{returnJob: defaultFakeJob(rjob)}
+	r := newReconciler(t, c, jb, cfg)
+
+	result, err := r.Reconcile(context.Background(), rjobReqFor("test-rjob"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Gate should be open — a new job must be dispatched, not requeued.
+	if result.RequeueAfter == 30*time.Second {
+		t.Error("concurrency gate incorrectly blocked dispatch: exhausted job was counted as active")
+	}
+	var jobList batchv1.JobList
+	if err := c.List(context.Background(), &jobList, client.InNamespace(testNamespace),
+		client.MatchingLabels{"remediation.mechanic.io/remediation-job": "test-rjob"}); err != nil {
+		t.Fatalf("list jobs: %v", err)
+	}
+	if len(jobList.Items) != 1 {
+		t.Errorf("expected 1 new job dispatched, got %d", len(jobList.Items))
+	}
+}
+
+// TestConcurrencyGate_StalledJobWithTimeoutNotCountedAsActive verifies that a
+// batch/v1 Job that has been running for longer than the staleness timeout (30 min)
+// with no active pods, no completion, and no failure — i.e. stuck in an unknown
+// intermediate state — is treated as terminal by the concurrency gate.
+func TestConcurrencyGate_StalledJobWithTimeoutNotCountedAsActive(t *testing.T) {
+	const fp = "bbcdefghijklmnopqrstuvwxyz012345bbcdefghijklmnopqrstuvwxyz012345"
+	rjob := newRJob("test-rjob-stalled", fp)
+	rjob.Status.Phase = v1alpha1.PhasePending
+
+	// Job created 31 minutes ago with no activity, no completion, no failure.
+	stalledJob := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "mechanic-agent-stalled",
+			Namespace:         testNamespace,
+			Labels:            map[string]string{"app.kubernetes.io/managed-by": "mechanic-watcher"},
+			CreationTimestamp: metav1.Time{Time: time.Now().Add(-31 * time.Minute)},
+		},
+		Status: batchv1.JobStatus{
+			Active:         0,
+			Succeeded:      0,
+			Failed:         0,
+			CompletionTime: nil,
+		},
+	}
+
+	cfg := defaultCfg()
+	cfg.MaxConcurrentJobs = 1
+
+	c := newFakeClient(t, rjob, stalledJob)
+	jb := &fakeJobBuilder{returnJob: defaultFakeJob(rjob)}
+	r := newReconciler(t, c, jb, cfg)
+
+	result, err := r.Reconcile(context.Background(), rjobReqFor("test-rjob-stalled"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.RequeueAfter == 30*time.Second {
+		t.Error("concurrency gate incorrectly blocked dispatch: stalled job older than timeout was counted as active")
+	}
+	var jobList batchv1.JobList
+	if err := c.List(context.Background(), &jobList, client.InNamespace(testNamespace),
+		client.MatchingLabels{"remediation.mechanic.io/remediation-job": "test-rjob-stalled"}); err != nil {
+		t.Fatalf("list jobs: %v", err)
+	}
+	if len(jobList.Items) != 1 {
+		t.Errorf("expected 1 new job dispatched, got %d", len(jobList.Items))
+	}
+}
+
+// TestConcurrencyGate_ActiveJobStillCountedAsActive verifies that a job with
+// active pods and no completion is still correctly counted as active (regression
+// guard for the fix above).
+func TestConcurrencyGate_ActiveJobStillCountedAsActive(t *testing.T) {
+	const fp = "ccdefghijklmnopqrstuvwxyz012345ccdefghijklmnopqrstuvwxyz012345ab"
+	rjob := newRJob("test-rjob-active", fp)
+	rjob.Status.Phase = v1alpha1.PhasePending
+
+	genuinelyActiveJob := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mechanic-agent-genuinely-active",
+			Namespace: testNamespace,
+			Labels:    map[string]string{"app.kubernetes.io/managed-by": "mechanic-watcher"},
+			// Created recently — within the staleness window.
+			CreationTimestamp: metav1.Time{Time: time.Now().Add(-2 * time.Minute)},
+		},
+		Status: batchv1.JobStatus{Active: 1},
+	}
+
+	cfg := defaultCfg()
+	cfg.MaxConcurrentJobs = 1
+
+	c := newFakeClient(t, rjob, genuinelyActiveJob)
+	jb := &fakeJobBuilder{}
+	r := newReconciler(t, c, jb, cfg)
+
+	result, err := r.Reconcile(context.Background(), rjobReqFor("test-rjob-active"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Gate must be closed — active job must block the new dispatch.
+	if result.RequeueAfter != 30*time.Second {
+		t.Errorf("expected 30s requeue (gate closed), got %v", result.RequeueAfter)
+	}
+	var jobList batchv1.JobList
+	if err := c.List(context.Background(), &jobList, client.InNamespace(testNamespace),
+		client.MatchingLabels{"remediation.mechanic.io/remediation-job": "test-rjob-active"}); err != nil {
+		t.Fatalf("list jobs: %v", err)
+	}
+	if len(jobList.Items) != 0 {
+		t.Errorf("expected 0 jobs (gate closed), got %d", len(jobList.Items))
+	}
+}
+
+// TestConcurrencyGate_RecentJobWithNoActivityCountedAsActive verifies that a
+// recently-created job with no activity, no completion, and no failure — within the
+// staleness window — is still counted as active (it may be in pod-scheduling limbo).
+func TestConcurrencyGate_RecentJobWithNoActivityCountedAsActive(t *testing.T) {
+	const fp = "ddcdefghijklmnopqrstuvwxyz012345ddcdefghijklmnopqrstuvwxyz012345"
+	rjob := newRJob("test-rjob-recent", fp)
+	rjob.Status.Phase = v1alpha1.PhasePending
+
+	recentJob := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "mechanic-agent-recent",
+			Namespace:         testNamespace,
+			Labels:            map[string]string{"app.kubernetes.io/managed-by": "mechanic-watcher"},
+			CreationTimestamp: metav1.Time{Time: time.Now().Add(-5 * time.Minute)},
+		},
+		Status: batchv1.JobStatus{
+			Active:    0,
+			Succeeded: 0,
+			Failed:    0,
+		},
+	}
+
+	cfg := defaultCfg()
+	cfg.MaxConcurrentJobs = 1
+
+	c := newFakeClient(t, rjob, recentJob)
+	jb := &fakeJobBuilder{}
+	r := newReconciler(t, c, jb, cfg)
+
+	result, err := r.Reconcile(context.Background(), rjobReqFor("test-rjob-recent"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.RequeueAfter != 30*time.Second {
+		t.Errorf("expected 30s requeue (recent job counts as active), got %v", result.RequeueAfter)
+	}
+}

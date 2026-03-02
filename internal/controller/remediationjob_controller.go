@@ -705,6 +705,41 @@ func (r *RemediationJobReconciler) transitionSuppressed(
 	return r.Patch(ctx, rjob, client.MergeFrom(rjobCopy2))
 }
 
+// jobStalenessTimeout is the maximum age a batch/v1 Job may have with no active
+// pods, no successful pods, and no recorded failure before the concurrency gate
+// stops counting it as active. This guards against Jobs that are stuck in an
+// unknown intermediate state (e.g. node failure between pod scheduling and pod
+// start) from permanently blocking new dispatch.
+const jobStalenessTimeout = 30 * time.Minute
+
+// isJobActive returns true when a batch/v1 Job should count against the
+// MaxConcurrentJobs limit. A job is considered inactive (terminal) when any of
+// the following hold:
+//
+//   - It has at least one succeeded pod (job completed successfully).
+//   - It has exhausted its backoffLimit: status.Failed >= backoffLimit+1.
+//     Kubernetes does not always set CompletionTime in this case, so testing
+//     CompletionTime alone produces false negatives.
+//   - It is older than jobStalenessTimeout with no active, succeeded, or failed
+//     pods — it is stuck in an unknown intermediate state and should not hold a slot.
+func isJobActive(j *batchv1.Job) bool {
+	if j.Status.Succeeded > 0 {
+		return false
+	}
+	var backoffLimit int32 = 6
+	if j.Spec.BackoffLimit != nil {
+		backoffLimit = *j.Spec.BackoffLimit
+	}
+	if j.Status.Failed >= backoffLimit+1 {
+		return false
+	}
+	if j.Status.Active == 0 && j.Status.Failed == 0 &&
+		time.Since(j.CreationTimestamp.Time) > jobStalenessTimeout {
+		return false
+	}
+	return true
+}
+
 // concurrencyGate checks whether the current number of active batch/v1 Jobs
 // has reached MaxConcurrentJobs. When MaxConcurrentJobs==0 the gate is always open.
 // Returns (true, result, nil) when limited; (false, {}, nil) when the gate is open;
@@ -722,8 +757,7 @@ func (r *RemediationJobReconciler) concurrencyGate(ctx context.Context) (bool, c
 	}
 	activeCount := 0
 	for i := range jobs.Items {
-		j := &jobs.Items[i]
-		if j.Status.Active > 0 || (j.Status.Succeeded == 0 && j.Status.CompletionTime == nil) {
+		if isJobActive(&jobs.Items[i]) {
 			activeCount++
 		}
 	}
