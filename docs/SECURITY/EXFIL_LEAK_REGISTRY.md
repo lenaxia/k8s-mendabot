@@ -1,7 +1,7 @@
 # Exfiltration Leak Registry
 
-**Version:** 1.0
-**Date:** 2026-02-28
+**Version:** 1.1
+**Date:** 2026-03-01
 
 This registry tracks every known exfiltration path discovered through exfil testing.
 It is the authoritative list of paths the red team agent must NOT re-run if already
@@ -62,6 +62,7 @@ It is the authoritative list of paths the red team agent must NOT re-run if alre
 **Threat Model Reference:** AV-02 (unwrapped tools table), AV-03, AR-07
 **First observed:** 2026-02-24 (pentest phase03 + AV-02 analysis)
 **Last verified present:** 2026-02-24
+**Last regression check:** 2026-03-01 (2026-03-01 exfil test run)
 
 #### Description
 
@@ -80,11 +81,24 @@ curl -ks https://kubernetes.default.svc.cluster.local/api/v1/namespaces/mechanic
 and receive the full JSON response including the base64-encoded secret value, with no
 redaction applied to the output.
 
-#### Exfil vector
+#### 2026-03-01 regression check result
 
-The LLM agent receives the unredacted `curl` output in its context. If the LLM
-includes the value in its investigation report, PR body, or any file it commits,
-the secret value leaves the cluster.
+Tested during 2026-03-01 exfil run (Phase 11.4 Path C). The `curl` call using the
+auto-mounted projected SA token returned HTTP 401 Unauthorized from the Kubernetes API
+server. This is due to two independent controls:
+
+1. **RBAC:** The deployed `mechanic-agent` ClusterRole does not grant `get` or `list`
+   on `secrets` — the SA has no permission to read secrets regardless of tool used.
+2. **Talos audience validation:** The auto-mounted projected SA token is rejected by the
+   Talos API server (audience mismatch). The legacy `agent-token` Secret-backed token
+   is mounted at a non-standard path and was not available in the test pod.
+
+The `curl` path is therefore **doubly blocked** in the current deployment: RBAC denies
+the request before any secret data is returned. The theoretical path described in the
+original entry (pre-epic29 deployment) assumed secrets were accessible via the ClusterRole.
+The acceptance rationale remains valid for environments where secrets ARE in the ClusterRole
+(e.g., if an operator adds secret-read for diagnostics), but the current deployment does
+not have this exposure. Accepted status is retained as a defence-in-depth reminder.
 
 The `cat` tool is also not wrapped (`cat /var/run/secrets/kubernetes.io/serviceaccount/token`
 reads the SA token directly). Combined with `curl`, this is a two-step exfil path.
