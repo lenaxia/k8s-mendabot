@@ -1,5 +1,13 @@
 # mechanic Helm chart values
-# All fields are optional except gitops.repo and gitops.manifestRoot.
+# gitops.repo and gitops.manifestRoot are required; all other fields are optional.
+
+# ── GitOps repository ─────────────────────────────────────────────────────────
+
+gitops:
+  # -- GitHub repository in org/repo format (e.g. "myorg/my-gitops-repo"). Required.
+  repo: ""
+  # -- Path within the repository containing Kubernetes manifests. Required.
+  manifestRoot: ""
 
 # ── Watcher ───────────────────────────────────────────────────────────────────
 
@@ -164,14 +172,6 @@ agent:
       # -- Optional additional egress rules appended verbatim to the NetworkPolicy
       # spec. Use to restrict the LLM endpoint to a known CIDR.
       additionalEgressRules: []
-
-# ── GitOps repository ─────────────────────────────────────────────────────────
-
-gitops:
-  # -- GitHub repository in org/repo format (e.g. "myorg/my-gitops-repo"). Required.
-  repo: ""
-  # -- Path within the repository containing Kubernetes manifests. Required.
-  manifestRoot: ""
 
 # ── Global ────────────────────────────────────────────────────────────────────
 
