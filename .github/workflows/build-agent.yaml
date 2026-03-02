@@ -58,16 +58,19 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.69.1
+
       - name: Scan agent image for CVEs
-        uses: aquasecurity/trivy-action@e368e328979b113139d6f9068e03accaed98a518 # 0.34.1
-        with:
-          image-ref: ghcr.io/lenaxia/mechanic-agent:sha-${{ steps.sha.outputs.short }}
-          format: table
-          exit-code: '1'
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
-        env:
-          TRIVY_IGNOREFILE: ${{ github.workspace }}/.trivyignore
+        run: |
+          trivy image \
+            --severity CRITICAL,HIGH \
+            --ignore-unfixed \
+            --ignorefile .trivyignore \
+            --exit-code 1 \
+            --skip-version-check \
+            ghcr.io/lenaxia/mechanic-agent:sha-${{ steps.sha.outputs.short }}
 
       - name: Smoke test
         run: |
