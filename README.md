@@ -77,6 +77,25 @@ opened. Works for both in-flight jobs (Pending/Dispatched/Running) and already-s
 PR became stale after the cluster self-healed. Uses the GitHub App installation token directly via
 REST API — no `gh` CLI required in the watcher. Opt out with `watcher.prAutoClose: false`.
 
+**[PR-merge-aware deduplication](https://github.com/lenaxia/k8s-mechanic/pull/23)** — when a PR opened by mechanic is merged, the
+`RemediationJob` is tombstoned with a short TTL (1 hour) rather than the default 7-day TTL. This
+prevents the same finding from being re-investigated immediately after a merge while the GitOps
+reconciler applies the fix and the cluster stabilises.
+
+**[Dry-run mode](docs/WORKLOGS/0089_2026-02-25_epic20-dry-run-mode.md)** — set `watcher.dryRun: true` to run the full investigation
+pipeline without opening any PRs. The agent produces an investigation report written to a
+`mechanic-dryrun-<fingerprint>` ConfigMap instead. Useful for validating mechanic behaviour in
+staging or validating a new LLM model before enabling it in production.
+
+**[GitHub App token expiry guard](docs/WORKLOGS/0088_2026-02-25_epic22-token-expiry-guard.md)** — the main agent container checks the
+installation token's expiry before proceeding. If the token has expired or is within 60 seconds of
+expiry the job fails fast with a clear error rather than silently failing deep into the investigation.
+
+**[Mandatory manifest validation](docs/WORKLOGS/0087_2026-02-25_epic18-manifest-validation.md)** — before committing any change to the GitOps
+repo, the agent runs `kubeconform` (and `kustomize build` for overlay changes) on every modified
+manifest. If validation fails the agent opens a placeholder PR labelled `validation-failed` with
+the full error output rather than committing a schema-invalid manifest.
+
 ### Security
 
 **[Secret redaction](docs/WORKLOGS/0054_2026-02-23_story01-secret-redaction.md)** — error text extracted from cluster state (pod `Waiting.Message`,
@@ -111,6 +130,52 @@ Elasticsearch, Datadog) for post-incident forensics.
 **[Short-lived GitHub credentials](docs/WORKLOGS/0014_2026-02-20_epic03-agent-image-complete.md)** — the agent never holds a long-lived PAT. A GitHub
 App installation token (1-hour TTL) is exchanged in the init container and never
 exposed to the main agent container.
+
+#### Hardened mode
+
+Hardened mode (`agent.hardenKubectl: true` in `values.yaml`, on by default) activates
+a layered set of controls inside the agent container that limit what the LLM can do
+even if it receives adversarial instructions.
+
+**How it is activated**
+
+The jobbuilder writes a sentinel file (`/mechanic-cfg/harden-kubectl: true`) into a
+read-only `emptyDir` volume before the main container starts. All controls inside the
+container read this file — not an environment variable — so the agent process cannot
+disable hardening by modifying its own environment.
+
+**Controls active in hardened mode**
+
+| Control | What it blocks / does |
+|---|---|
+| **kubectl write blocking** | `apply`, `create`, `delete`, `edit`, `patch`, `replace`, `scale`, `label`, `annotate`, `taint`, `drain`, `cordon`, `uncordon`, `rollout restart/undo` — all exit 1 unconditionally. The agent can never modify the cluster directly, regardless of instructions. |
+| **kubectl secret blocking** | `get secret(s)`, `describe secret(s)`, `get all`, `exec`, and `port-forward` are also blocked in hardened mode. Kubernetes Secrets never reach the LLM context via `kubectl`. |
+| **kubectl output redaction** | All remaining `kubectl` output is piped through the `redact` binary before it reaches the LLM. Any value matching a known secret pattern (`base64 ≥ 40 chars`, `password=…`, `token=…`, etc.) is replaced with `[REDACTED]`. The wrapper hard-fails if `redact` is missing, preventing silent unredacted output. |
+| **helm output redaction** | `helm get values`, `helm get secret`, and all other `helm` subcommands have their stdout and stderr piped through `redact` before reaching the LLM context. |
+| **Tool output redaction (all wrapped tools)** | `flux`, `sops`, `talosctl`, `yq`, `stern`, `kubeconform`, `kustomize`, `age`, `age-keygen`, and `gh` all have PATH-shadowing wrapper scripts that capture output and pipe it through `redact` before returning to the caller. The wrappers fail closed — if the `redact` binary is absent the tool exits 1 rather than leaking unredacted output. |
+| **gh dry-run blocking** | In dry-run mode, `gh` is restricted to a read-only allowlist (`api GET`, `auth status`, `repo view`, `pr view/list/checks/diff`, `issue view/list`). All write operations (`pr create`, `pr edit`, `issue create`, etc.) are blocked. Outside dry-run mode, `gh` output is still piped through `redact`. |
+| **git write blocking** | In dry-run mode, `git push`, `git commit`, `git reset`, `git rebase`, `git clean`, and `git remote set-url` are all blocked. The agent cannot push to the GitOps repo during a dry-run validation. |
+| **No secrets in environment variables** | No credentials or API keys are present in the agent process environment. All secret material is written to files before the agent starts and removed from the environment entirely. A full `env` dump by the LLM reveals no credentials. |
+
+**Three-layer detection**
+
+Every hardened wrapper uses the same tamper-resistant detection order:
+
+1. **Sentinel file** (`/mechanic-cfg/harden-kubectl`) — a read-only file written by an
+   init container before the main container starts. Cannot be modified by the agent process.
+2. **`/proc/1/environ`** — reads the immutable container-init environment directly from
+   procfs. Survives any `unset` the agent might attempt.
+3. **`$HARDEN_KUBECTL` env var** — fallback for local testing outside Kubernetes.
+
+All three must agree for the mode to be considered disabled. A single layer firing is
+sufficient to activate hardening.
+
+**Exfiltration testing**
+
+The security controls are validated in regular adversarial red-team runs (Phase 11
+of the security process) using a willing adversarial agent with all prompt protections
+removed. Results and the full exfiltration leak registry are in
+[`docs/SECURITY/EXFIL_LEAK_REGISTRY.md`](docs/SECURITY/EXFIL_LEAK_REGISTRY.md).
 
 ## Quick Start
 
@@ -478,13 +543,13 @@ Features under active development or planned:
 | Area | Feature | Status |
 |---|---|---|
 | Operability | Kubernetes Events on `RemediationJob` (`kubectl describe rjob` shows lifecycle) | Shipped |
-| Operability | Dry-run mode — investigate without opening PRs | Planned |
+| Operability | Dry-run mode — investigate without opening PRs | Shipped |
 | Reliability | `PermanentlyFailed` phase — retry cap with dead-letter tombstone | Shipped |
-| Reliability | GitHub App token expiry fast-fail guard | Planned |
+| Reliability | GitHub App token expiry fast-fail guard | Shipped |
 | Accuracy | Namespace-scoped provider filtering (`WATCH_NAMESPACES`, `EXCLUDE_NAMESPACES`) | Shipped |
 | Accuracy | Per-resource opt-out annotations (`mechanic.io/enabled`, `mechanic.io/skip-until`, `mechanic.io/priority`) | Shipped |
 | Accuracy | Multi-signal correlation (related findings grouped into one investigation) | Planned |
-| Accuracy | Mandatory pre-PR manifest validation | Planned |
+| Accuracy | Mandatory pre-PR manifest validation | Shipped |
 | Impact | PR auto-close when finding resolves | Shipped |
 | Impact | GitLab and Gitea sink support | Evaluated |
 | Signal sources | Prometheus / Alertmanager source provider | Evaluated |
