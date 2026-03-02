@@ -5,9 +5,9 @@
 > manifests, and docs have been updated. The Go module path is now
 > `github.com/lenaxia/k8s-mechanic` and the CRD API group is `remediation.mechanic.io`.
 
-**Version:** 1.0
-**Last Updated:** 2026-02-25
-**Project Status:** Active Development — Design Phase
+**Version:** 1.2
+**Last Updated:** 2026-03-02
+**Project Status:** Active Development
 
 ---
 
@@ -157,28 +157,68 @@ k8s-mechanic/
 │       └── main.go                    # Scheme registration, provider loop, manager start
 │
 ├── internal/
+│   ├── circuitbreaker/
+│   │   └── circuitbreaker.go          # Self-remediation cascade circuit breaker
 │   ├── config/
 │   │   ├── config.go                  # Config struct + FromEnv()
 │   │   └── config_test.go
-│   ├── domain/
-│   │   ├── interfaces.go              # JobBuilder interface
-│   │   └── provider.go                # SourceProvider interface + Finding + SourceRef types
-│   ├── provider/
-│   │   ├── provider.go                # SourceProviderReconciler (generic, wraps any SourceProvider)
-│   │   └── k8sgpt/
-│   │       ├── provider.go            # K8sGPTProvider — implements SourceProvider
-│   │       ├── provider_test.go
-│   │       ├── reconciler.go          # ResultReconciler (concrete ctrl.Reconciler, internal detail)
-│   │       └── reconciler_test.go
 │   ├── controller/
 │   │   ├── remediationjob_controller.go
 │   │   ├── remediationjob_controller_test.go
 │   │   └── suite_test.go              # envtest bootstrap
+│   ├── correlator/
+│   │   ├── correlator.go              # Multi-signal correlation engine
+│   │   └── rules.go                   # Correlation rule definitions
+│   ├── domain/
+│   │   ├── annotations.go             # mechanic.io/* annotation constants
+│   │   ├── correlation.go             # CorrelatedGroup + CorrelationRule types
+│   │   ├── delimiter.go               # Error text field delimiters
+│   │   ├── injection.go               # Prompt injection detection types
+│   │   ├── interfaces.go              # JobBuilder + SinkCloser interfaces
+│   │   ├── provider.go                # SourceProvider interface + Finding + SourceRef types
+│   │   ├── redact.go                  # Secret-pattern redaction types
+│   │   ├── severity.go                # Severity type + classification constants
+│   │   └── sink.go                    # SinkRef + Sink types
+│   ├── github/
+│   │   └── token.go                   # GitHub App installation token exchange
 │   ├── jobbuilder/
 │   │   ├── job.go                     # Builder struct + Build() method
 │   │   └── job_test.go
-│   └── logging/
-│       └── logging.go                 # Zap logger construction
+│   ├── logging/
+│   │   └── logging.go                 # Zap logger construction
+│   ├── metrics/
+│   │   ├── metrics.go                 # All custom Prometheus metrics (8 metrics, registered via init())
+│   │   └── metrics_test.go
+│   ├── provider/
+│   │   ├── bounded_map.go             # BoundedMap: fixed-capacity LRU map for dedup state
+│   │   ├── provider.go                # SourceProviderReconciler (generic, wraps any SourceProvider)
+│   │   ├── provider_test.go
+│   │   ├── export_test.go             # Test helpers exported for black-box tests
+│   │   └── native/
+│   │       ├── deployment.go          # NativeDeploymentProvider
+│   │       ├── job.go                 # NativeJobProvider
+│   │       ├── node.go                # NativeNodeProvider
+│   │       ├── parent.go              # Shared parent-resolution logic
+│   │       ├── pod.go                 # NativePodProvider
+│   │       ├── pvc.go                 # NativePVCProvider
+│   │       ├── statefulset.go         # NativeStatefulSetProvider
+│   │       └── truncate.go            # Error text truncation helpers
+│   ├── readiness/
+│   │   ├── cache.go                   # Readiness check result cache
+│   │   ├── checker.go                 # ReadinessChecker interface + registry
+│   │   ├── llm/
+│   │   │   ├── bedrock.go             # AWS Bedrock readiness stub (non-functional)
+│   │   │   ├── openai.go              # OpenAI readiness checker
+│   │   │   └── vertex.go              # GCP Vertex readiness stub (non-functional)
+│   │   └── sink/
+│   │       └── github.go              # GitHub sink readiness checker
+│   ├── sink/
+│   │   └── github/
+│   │       ├── closer.go              # GitHubSinkCloser — auto-closes PRs when finding resolves
+│   │       └── merge_checker.go       # Detects merged PRs for tombstone TTL shortening
+│   └── testutil/
+│       ├── events.go                  # Fake Kubernetes event helpers for tests
+│       └── recorder.go                # Fake EventRecorder for tests
 │
 ├── deploy/
 │   └── kustomize/
@@ -238,9 +278,9 @@ k8s-mechanic/
 │   │   ├── epic18-manifest-validation/    # (complete)
 │   │   ├── epic20-dry-run-mode/           # (complete)
 │   │   ├── epic22-token-expiry-guard/     # (complete)
-│   │   ├── epic26-auto-close-resolved/    # (not started) auto-close PRs/issues on resolution
-│   │   ├── epic27-pr-feedback-iteration/  # (not started) iterate on reviewer comments
-│   │   └── epic28-manual-trigger/         # (not started) on-demand trigger abstraction
+│   │   ├── epic26-auto-close-resolved/    # (complete)
+│   │   ├── epic27-pr-feedback-iteration/  # (deferred)
+│   │   └── epic28-manual-trigger/         # (deferred)
 │   └── WORKLOGS/
 │       └── README.md
 │
@@ -343,6 +383,48 @@ The agent uses a GitHub App (not a PAT). The init container calls
 `get-github-app-token.sh` to exchange the App private key for a short-lived installation
 token (valid 1 hour), written to a shared `emptyDir` volume, then consumed by the main
 container for git clone and `gh` operations.
+
+---
+
+## Metrics System
+
+All custom Prometheus metrics live in `internal/metrics/metrics.go` and are registered
+with `ctrlmetrics.Registry` (the controller-runtime default registry) via `init()`.
+This is the same registry exposed on `:8080/metrics` by the manager — no separate
+registry is needed.
+
+Call sites import only `internal/metrics`; no direct `prometheus` imports outside that package.
+
+### Metrics exposed
+
+| Metric | Type | Labels | Description |
+|---|---|---|---|
+| `mechanic_findings_dispatched_total` | Counter | `kind`, `severity` | Findings that produced a RemediationJob |
+| `mechanic_findings_suppressed_total` | Counter | `reason` | Findings filtered before dispatch |
+| `mechanic_agent_jobs_active` | Gauge | — | Currently active (non-terminal) agent Jobs |
+| `mechanic_agent_jobs_pending` | Gauge | — | RemediationJobs in Pending phase |
+| `mechanic_agent_job_duration_seconds` | Gauge | `fingerprint`, `outcome` | Per-job wall-clock duration (dispatch → completion) |
+| `mechanic_prs_opened_total` | Counter | — | PRs opened by agent Jobs |
+| `mechanic_prs_closed_total` | Counter | — | PRs auto-closed by the watcher |
+| `mechanic_circuit_breaker_activations_total` | Counter | — | Self-remediation cascade blocks |
+
+Suppression reason constants (`ReasonMinSeverity`, `ReasonDuplicate`, etc.) and job
+outcome constants (`OutcomeSucceeded`, `OutcomeFailed`, `OutcomePermanentlyFailed`) are
+defined in `internal/metrics/metrics.go` and must be used at all call sites for label
+consistency.
+
+### Helm metrics gate
+
+`metrics.enabled: true` in `values.yaml` controls whether a Kubernetes Service is
+created for scraping. The watcher **always** binds `:8080/metrics` regardless of this
+flag — the flag only controls Service creation (and optional `ServiceMonitor`).
+
+### BoundedMap
+
+`internal/provider/bounded_map.go` provides a fixed-capacity LRU map used by
+`SourceProviderReconciler` to bound in-memory dedup state. When capacity is reached,
+the least-recently-used entry is evicted. This prevents unbounded memory growth during
+long-running sessions with many distinct findings.
 
 ---
 
@@ -1017,5 +1099,6 @@ other tests sharing the same envtest process.
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.2 | 2026-03-02 | Updated directory tree (metrics, readiness/llm, sink/github, native providers, BoundedMap, testutil); added Metrics System section; fixed epic 26 (complete), 27/28 (deferred) |
 | 1.1 | 2026-02-20 | Added Multi-Agent Workflow section (Orchestrator + Delegation Agent) |
 | 1.0 | 2026-02-19 | Initial creation |
