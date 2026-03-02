@@ -58,19 +58,32 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Install Trivy
-        run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.69.1
-
+      # trivy-action is pinned to 0.31.0 (76071ef0d7ec797419534a183b498b4d6366cf37).
+      # DO NOT bump past 0.31.0 without testing on a tag-triggered run first.
+      #
+      # Background: 0.34.0 introduced aquasecurity/setup-trivy as an internal
+      # dependency. setup-trivy does a sparse actions/checkout of the upstream
+      # trivy repo to fetch contrib scripts. That checkout fails on tag-triggered
+      # runs because the runner's default GITHUB_TOKEN hits API rate limits on the
+      # secondary repo fetch. The scan never executes and the job exits 1.
+      #
+      # To re-evaluate a newer version:
+      # 1. Create a test branch and bump the pin below.
+      # 2. Push a test tag (e.g. v0.0.0-ci-test) to that branch.
+      # 3. Confirm the "Scan agent image for CVEs" step produces actual trivy
+      #    output (not an immediate exit 1 from setup-trivy failing).
+      # 4. Only then update this pin in main.
+      #
+      # renovate: ignore
       - name: Scan agent image for CVEs
-        run: |
-          trivy image \
-            --severity CRITICAL,HIGH \
-            --ignore-unfixed \
-            --ignorefile .trivyignore \
-            --exit-code 1 \
-            --skip-version-check \
-            ghcr.io/lenaxia/mechanic-agent:sha-${{ steps.sha.outputs.short }}
+        uses: aquasecurity/trivy-action@76071ef0d7ec797419534a183b498b4d6366cf37 # 0.31.0
+        with:
+          image-ref: ghcr.io/lenaxia/mechanic-agent:sha-${{ steps.sha.outputs.short }}
+          format: table
+          exit-code: '1'
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          trivyignores: .trivyignore
 
       - name: Smoke test
         run: |
