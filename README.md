@@ -540,7 +540,7 @@ Features under active development or planned:
 | Reliability | GitHub App token expiry fast-fail guard | Shipped |
 | Accuracy | Namespace-scoped provider filtering (`WATCH_NAMESPACES`, `EXCLUDE_NAMESPACES`) | Shipped |
 | Accuracy | Per-resource opt-out annotations (`mechanic.io/enabled`, `mechanic.io/skip-until`, `mechanic.io/priority`) | Shipped |
-| Accuracy | Multi-signal correlation (related findings grouped into one investigation) | Deferred |
+| Accuracy | Multi-signal correlation (related findings grouped into one investigation) | Shipped |
 | Accuracy | Mandatory pre-PR manifest validation | Shipped |
 | Impact | PR auto-close when finding resolves | Shipped |
 | Impact | PR feedback iteration (respond to reviewer comments) | Deferred |

@@ -274,7 +274,7 @@ k8s-mechanic/
 │   │   ├── epic06-ci-cd/                  # (complete)
 │   │   ├── epic11-self-remediation-cascade/ # (complete)
 │   │   ├── epic12-security-review/        # (complete)
-│   │   ├── epic13-multi-signal-correlation/ # (deferred)
+│   │   ├── epic13-multi-signal-correlation/ # (complete)
 │   │   ├── epic18-manifest-validation/    # (complete)
 │   │   ├── epic20-dry-run-mode/           # (complete)
 │   │   ├── epic22-token-expiry-guard/     # (complete)
