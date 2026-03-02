@@ -1,15 +1,16 @@
-name: Bump Chart appVersion
+name: Bump Chart Version
 
 # Triggered when a release tag (v*) is pushed.
-# Updates appVersion in Chart.yaml to match the new tag, then commits to main.
+# Updates both version and appVersion in Chart.yaml to match the new tag,
+# then commits the change directly to main.
 #
 # Chart versioning policy:
-#   appVersion — tracks the app release tag (e.g. v0.4.1); updated here automatically
-#   version    — chart semver; bumped manually when chart templates/values change
+#   appVersion — always matches the git release tag (e.g. v0.4.1)
+#   version    — chart semver without the 'v' prefix (e.g. 0.4.1)
 #
-# These are intentionally decoupled: a new app release updates appVersion (which
-# image the chart deploys), but does not blindly overwrite a chart version that
-# may already have been bumped for chart-only changes in the same cycle.
+# Both fields are always kept in sync with the release tag. Chart-only changes
+# (template fixes, values changes) are shipped by cutting a new tag — there is
+# no separate manual chart version bump.
 
 on:
   push:
@@ -20,8 +21,8 @@ permissions:
   contents: write  # required to push the version-bump commit
 
 jobs:
-  bump-app-version:
-    name: Bump appVersion in Chart.yaml
+  bump-chart-version:
+    name: Bump Chart.yaml
     runs-on: ubuntu-latest
 
     steps:
@@ -37,17 +38,22 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           persist-credentials: true
 
-      - name: Extract tag
+      - name: Extract version from tag
         id: version
         run: |
+          # TAG is e.g. "v0.4.1" — strip leading 'v' for chart version field
           TAG="${GITHUB_REF_NAME}"
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          CHART_VERSION="${TAG#v}"
+          echo "tag=${TAG}"                     >> "$GITHUB_OUTPUT"
+          echo "chart_version=${CHART_VERSION}" >> "$GITHUB_OUTPUT"
 
-      - name: Update appVersion only
+      - name: Update Chart.yaml
         run: |
           CHART="charts/mechanic/Chart.yaml"
           TAG="${{ steps.version.outputs.tag }}"
+          CV="${{ steps.version.outputs.chart_version }}"
 
+          sed -i "s/^version:.*/version: ${CV}/"        "$CHART"
           sed -i "s/^appVersion:.*/appVersion: ${TAG}/" "$CHART"
 
           echo "--- Updated Chart.yaml ---"
@@ -63,5 +69,5 @@ jobs:
           git add charts/mechanic/Chart.yaml
           git diff --cached --exit-code && echo "No changes to commit." && exit 0
 
-          git commit -m "chore(chart): bump appVersion to ${TAG} [skip ci]"
+          git commit -m "chore(chart): bump chart version to ${TAG} [skip ci]"
           git push origin main
