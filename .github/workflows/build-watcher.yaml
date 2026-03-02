@@ -78,7 +78,7 @@ jobs:
       #
       # renovate: ignore
       - name: Scan watcher image for CVEs
-        uses: aquasecurity/trivy-action@76071ef0d7ec797419534a183b498b4d6366cf37 # 0.31.0
+        uses: aquasecurity/trivy-action@e368e328979b113139d6f9068e03accaed98a518 # 0.34.1
         with:
           image-ref: ghcr.io/lenaxia/mechanic-watcher:sha-${{ steps.sha.outputs.short }}
           format: table
