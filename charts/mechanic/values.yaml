@@ -37,7 +37,8 @@ watcher:
   sinkType: github
 
   # -- LLM readiness gate. Set to "openai" to block RemediationJob creation until
-  # the llm-credentials-<agent.type> Secret exists. Leave empty to disable.
+  # the llm-credentials-<agent.type> Secret exists (e.g. llm-credentials-opencode).
+  # Leave empty to disable the readiness gate.
   llmProvider: "openai"
 
   # -- Action when a prompt injection heuristic fires.
@@ -200,5 +201,5 @@ metrics:
 # -- Pre-existing Secrets that must be created before helm install.
 # The chart never creates Secret content.
 # Required: github-app (keys: app-id, installation-id, private-key)
-#           llm-credentials-<agent.type> (key: provider-config)
+#           llm-credentials-opencode (key: provider-config) — or llm-credentials-<agent.type>
 secrets: {}
