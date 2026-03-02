@@ -1,6 +1,6 @@
 # mechanic
 
-![Version: 0.3.25](https://img.shields.io/badge/Version-0.3.25-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v0.3.25](https://img.shields.io/badge/AppVersion-v0.3.25-informational?style=flat-square)
+![Version: 0.3.36](https://img.shields.io/badge/Version-0.3.36-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v0.3.36](https://img.shields.io/badge/AppVersion-v0.3.36-informational?style=flat-square)
 
 Kubernetes-native SRE remediation bot — watches cluster failures, spawns an LLM agent, and opens GitOps pull requests with proposed fixes.
 
@@ -70,6 +70,11 @@ kubectl delete crd remediationjobs.remediation.mechanic.io
 |-----|------|---------|-------------|
 | agent.image.repository | string | `"ghcr.io/lenaxia/mechanic-agent"` | Agent image repository. Watcher and agent images are always released together — do not pin them to different versions. |
 | agent.image.tag | string | `""` | Agent image tag. Defaults to `Chart.appVersion` when empty. |
+| agent.resources | object | `{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"128Mi"}}` | Resource requests and limits applied to all three agent Job containers (git-token-clone, dry-run-gate, mendabot-agent). |
+| agent.resources.limits.cpu | string | `"500m"` | CPU limit for each agent Job container. |
+| agent.resources.limits.memory | string | `"512Mi"` | Memory limit for each agent Job container. |
+| agent.resources.requests.cpu | string | `"100m"` | CPU request for each agent Job container. |
+| agent.resources.requests.memory | string | `"128Mi"` | Memory request for each agent Job container. |
 | agentType | string | `"opencode"` | Agent runner type. Controls which AI agent binary runs inside the Job. Supported values: `"opencode"` (functional), `"claude"` (stub — not yet functional). Each type requires a corresponding Secret named `llm-credentials-<agentType>`. See `NOTES.txt` for the exact `kubectl create secret` commands. |
 | createNamespace | bool | `false` | Create `Release.Namespace` if it does not exist. Most operators pre-create namespaces; default is `false`. |
 | gitops.manifestRoot | string | `""` | Path within the repository containing Kubernetes manifests. **Required.** |
