@@ -154,8 +154,7 @@ additional read restrictions on top of the always-on defaults below.
 
 **Exfiltration testing**
 
-The security controls are validated in regular red-team runs (Phase 11 of the security
-process). Results and the full exfiltration leak registry are in
+The security controls are validated in regular red-team runs. Results and the full exfiltration leak registry are in
 [`docs/SECURITY/EXFIL_LEAK_REGISTRY.md`](docs/SECURITY/EXFIL_LEAK_REGISTRY.md).
 
 ## Quick Start
