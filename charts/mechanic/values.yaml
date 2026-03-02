@@ -1,10 +1,45 @@
 # mechanic Helm chart values
 # gitops.repo and gitops.manifestRoot are required; all other fields are optional.
 
-# ── GitOps repository ─────────────────────────────────────────────────────────
+# -- Override the chart name component used in resource names.
+nameOverride: ""
+# -- Override the fully-qualified app name used in resource names.
+fullnameOverride: ""
+
+# -- Image pull secrets for the watcher Deployment.
+# Required when pulling from a private registry.
+# Example: imagePullSecrets: [{ name: my-registry-secret }]
+imagePullSecrets: []
+
+# -- Annotations added to the watcher Pod.
+# Use for sidecar injection, APM agents, service mesh opt-outs, etc.
+podAnnotations: {}
+
+# -- Extra labels added to the watcher Pod.
+podLabels: {}
+
+# -- Watcher ServiceAccount configuration.
+serviceAccount:
+  # -- Annotations to add to the watcher ServiceAccount.
+  # Use for AWS IRSA, GCP Workload Identity, or Azure Workload Identity.
+  # Example: eks.amazonaws.com/role-arn: arn:aws:iam::123456789:role/mechanic
+  annotations: {}
+
+# -- Node selector for the watcher Deployment Pod.
+nodeSelector: {}
+
+# -- Tolerations for the watcher Deployment Pod.
+tolerations: []
+
+# -- Affinity rules for the watcher Deployment Pod.
+affinity: {}
+
+# ── GitOps repository - Required ──────────────────────────────────────────────
 
 gitops:
   # -- GitHub repository in org/repo format (e.g. "myorg/my-gitops-repo"). Required.
+  # This is the repo that agent checks out during investigations and will open PRs for. 
+  # Requires setup of a GitHub App and github-app secret with PEM key in order to open PRs
   repo: ""
   # -- Path within the repository containing Kubernetes manifests. Required.
   manifestRoot: ""
@@ -41,7 +76,7 @@ watcher:
   injectionDetectionAction: "log"
 
   # -- Maximum number of investigation retries per RemediationJob before permanently failing.
-  maxInvestigationRetries: "3"
+  maxInvestigationRetries: 3
 
   # -- Comma-separated list of namespaces the watcher monitors for failures.
   # Empty means all namespaces.
@@ -69,6 +104,15 @@ watcher:
     windowSeconds: 30
     # -- Minimum number of pods failing on the same node to trigger MultiPodSameNodeRule.
     multiPodThreshold: 3
+
+  # -- Resource requests and limits for the watcher Deployment container.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
 
 # ── Agent ─────────────────────────────────────────────────────────────────────
 
@@ -192,9 +236,3 @@ metrics:
     scrapeTimeout: 10s
     # -- Additional labels for the ServiceMonitor (e.g. for a Prometheus label selector).
     labels: {}
-
-# -- Pre-existing Secrets that must be created before helm install.
-# The chart never creates Secret content.
-# Required: github-app (keys: app-id, installation-id, private-key)
-#           llm-credentials-opencode (key: provider-config) — or llm-credentials-<agent.type>
-secrets: {}

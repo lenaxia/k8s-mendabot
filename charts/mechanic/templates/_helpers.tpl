@@ -1,20 +1,25 @@
 {{/*
-Expand the name of the chart.
+Expand the name of the chart. Respects nameOverride.
 */}}
 {{- define "mechanic.name" -}}
-{{- "mechanic" }}
+{{- default "mechanic" .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
-Create a default fully qualified app name.
-If the release name already contains "mechanic", use it as-is.
-Otherwise append "-mechanic". Truncate to 63 characters.
+Create a default fully qualified app name. Respects fullnameOverride.
+If the release name already contains the chart name, use it as-is.
+Otherwise append "-<name>". Truncate to 63 characters.
 */}}
 {{- define "mechanic.fullname" -}}
-{{- if contains "mechanic" .Release.Name }}
+{{- if .Values.fullnameOverride }}
+{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- $name := include "mechanic.name" . }}
+{{- if contains $name .Release.Name }}
 {{- .Release.Name | trunc 63 | trimSuffix "-" }}
 {{- else }}
-{{- printf "%s-mechanic" .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
+{{- end }}
 {{- end }}
 {{- end }}
 
