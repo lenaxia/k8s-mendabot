@@ -1,0 +1,64 @@
+name: Publish Chart Release
+
+# Triggered when a GitHub Release is published (not on every tag push).
+# Packages the Helm chart, pushes it to GHCR as an OCI artifact, and
+# attaches the packaged .tgz to the release as a downloadable asset.
+#
+# To release:
+#   1. Push a tag: git tag vX.Y.Z && git push origin vX.Y.Z
+#      (this triggers chart-version-bump.yaml to update Chart.yaml)
+#   2. Create a GitHub Release manually or via:
+#        gh release create vX.Y.Z --generate-notes
+#      This workflow then fires and publishes the chart.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write   # required to upload release assets
+  packages: write   # required to push OCI chart to GHCR
+
+jobs:
+  publish-chart:
+    name: Package and publish chart
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          CHART_VERSION="${TAG#v}"
+          echo "tag=${TAG}"                     >> "$GITHUB_OUTPUT"
+          echo "chart_version=${CHART_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Package chart
+        run: |
+          helm package charts/mechanic/ --destination /tmp/chart-pkg
+          echo "CHART_TGZ=/tmp/chart-pkg/mechanic-${{ steps.version.outputs.chart_version }}.tgz" >> "$GITHUB_ENV"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push chart to GHCR (OCI)
+        run: |
+          helm push "${CHART_TGZ}" oci://ghcr.io/lenaxia/charts
+
+      - name: Attach chart to GitHub Release
+        run: |
+          gh release upload "${{ steps.version.outputs.tag }}" "${CHART_TGZ}" --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

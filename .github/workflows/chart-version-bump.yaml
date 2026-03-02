@@ -1,10 +1,8 @@
 name: Bump Chart Version
 
 # Triggered when a release tag (v*) is pushed.
-# 1. Updates both version and appVersion in Chart.yaml to match the new tag
-#    and commits the change directly to main.
-# 2. Packages the Helm chart and pushes it to GHCR as an OCI artifact.
-# 3. Creates a GitHub Release with the packaged chart attached as an asset.
+# Updates both version and appVersion in Chart.yaml to match the new tag
+# and commits the change directly to main.
 #
 # Chart versioning policy:
 #   appVersion — always matches the git release tag (e.g. v0.4.1)
@@ -20,8 +18,7 @@ on:
       - 'v*'
 
 permissions:
-  contents: write   # required to push the version-bump commit and create releases
-  packages: write   # required to push OCI chart to GHCR
+  contents: write  # required to push the version-bump commit
 
 jobs:
   bump-chart-version:
@@ -68,49 +65,3 @@ jobs:
 
           git commit -m "chore(chart): bump chart version to ${TAG} [skip ci]"
           git push origin main
-
-  release:
-    name: Package, publish and release
-    runs-on: ubuntu-latest
-    needs: bump-chart-version
-
-    steps:
-      - name: Checkout main (post-bump)
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          ref: main
-
-      - name: Set up Helm
-        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
-
-      - name: Extract version from tag
-        id: version
-        run: |
-          TAG="${GITHUB_REF_NAME}"
-          CHART_VERSION="${TAG#v}"
-          echo "tag=${TAG}"                     >> "$GITHUB_OUTPUT"
-          echo "chart_version=${CHART_VERSION}" >> "$GITHUB_OUTPUT"
-
-      - name: Package chart
-        run: |
-          helm package charts/mechanic/ --destination /tmp/chart-pkg
-          echo "CHART_TGZ=/tmp/chart-pkg/mechanic-${{ steps.version.outputs.chart_version }}.tgz" >> "$GITHUB_ENV"
-
-      - name: Log in to GHCR
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Push chart to GHCR (OCI)
-        run: |
-          helm push "${CHART_TGZ}" oci://ghcr.io/lenaxia/charts
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: ${{ steps.version.outputs.tag }}
-          generate_release_notes: true
-          files: ${{ env.CHART_TGZ }}
