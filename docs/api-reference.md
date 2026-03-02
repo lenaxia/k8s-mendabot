@@ -143,6 +143,7 @@ _Appears in:_
 | `retryCount` _integer_ | RetryCount is the number of times the owned batch/v1 Job has entered the<br />Failed state. Incremented by RemediationJobReconciler each time the job<br />transitions to PhaseFailed. Read by SourceProviderReconciler to decide<br />whether to re-dispatch or tombstone. |  |  |
 | `correlationGroupID` _string_ | CorrelationGroupID is set when this job is part of a correlated group.<br />Empty when not correlated.<br />Design note: STORY_00 also specified RelatedFindings, CorrelationRole, and<br />CorrelationRule as spec/status fields. The implementation intentionally stores<br />these as labels (mechanic.io/correlation-group-id, mechanic.io/correlation-role)<br />and passes correlated findings as a runtime slice to dispatch() rather than<br />persisting them. The labels are searchable via kubectl and the recovery path<br />(controller.go) reconstructs AllFindings from suppressed peers on restart.<br />CorrelationGroupID here is the only status field needed for recovery. |  |  |
 | `sinkRef` _[SinkRef](#sinkref)_ | SinkRef identifies the GitHub PR or issue opened by the agent.<br />Empty until the agent writes it after opening the sink. |  | Optional: \{\} <br /> |
+| `prMerged` _boolean_ | PRMerged is true once the provider has confirmed that the GitHub PR<br />referenced by SinkRef was merged.  When true, the long TTL<br />(REMEDIATION_JOB_TTL_SECONDS) is used relative to PRMergedAt.<br />When false (or absent), the short TTL (REMEDIATION_JOB_SHORT_TTL_SECONDS)<br />is used relative to CompletedAt. |  | Optional: \{\} <br /> |
 
 
 #### ResultRef
@@ -178,7 +179,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `type` _string_ | Type is "pr" or "issue". |  |  |
-| `url` _string_ | URL is the full HTML URL (e.g. https://github.com/org/repo/pull/42).<br />Used in log messages and closure comments. |  |  |
+| `url` _string_ | URL is the full HTML URL (e.g. https://github.com/org/repo/pull/42).<br />Must be a valid GitHub URL. |  | Pattern: `^https://github\.com/` <br />Optional: \{\} <br /> |
 | `number` _integer_ | Number is the PR or issue number. Required for GitHub REST API calls. |  |  |
 | `repo` _string_ | Repo is "owner/repo" format (e.g. "lenaxia/talos-ops-prod").<br />Required for GitHub REST API calls. |  |  |
 

@@ -300,6 +300,20 @@ spec:
                 - PermanentlyFailed
                 - Suppressed
                 type: string
+              prMerged:
+                description: |-
+                  PRMerged is true once the provider has confirmed that the GitHub PR
+                  referenced by SinkRef was merged.  When true, the long TTL
+                  (REMEDIATION_JOB_TTL_SECONDS) is used relative to PRMergedAt.
+                  When false (or absent), the short TTL (REMEDIATION_JOB_SHORT_TTL_SECONDS)
+                  is used relative to CompletedAt.
+                type: boolean
+              prMergedAt:
+                description: |-
+                  PRMergedAt is the time the provider confirmed the PR was merged.
+                  Only set when PRMerged is true.
+                format: date-time
+                type: string
               prRef:
                 description: |-
                   PRRef is the GitHub PR URL opened or commented on by the agent.
