@@ -2,8 +2,8 @@ apiVersion: v2
 name: mechanic
 description: Kubernetes-native SRE remediation bot — watches cluster failures, spawns an LLM agent, and opens GitOps pull requests with proposed fixes.
 type: application
-version: 0.4.3
-appVersion: v0.4.3
+version: 0.4.4
+appVersion: v0.4.4
 kubeVersion: ">=1.28.0-0"
 keywords:
   - kubernetes
@@ -26,7 +26,7 @@ annotations:
     url: https://github.com/lenaxia.gpg
   artifacthub.io/changes: |
     - kind: fixed
-      description: "Allow kubectl patch remediationjob/status in agent so PR ref is written back to RJob after investigation"
+      description: "Fix RJOB_NAME construction in Step 9 — use full FINDING_FINGERPRINT instead of :0:12 slice that LLM was truncating"
   artifacthub.io/containsSecurityUpdates: "true"
   artifacthub.io/recommendations: |
     - url: https://artifacthub.io/packages/helm/cert-manager/cert-manager
